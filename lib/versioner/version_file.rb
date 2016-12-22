@@ -107,7 +107,7 @@ module Versioner
 
     def create_file(version: '0.1.0-RC1', path: Versioner.version_file)
       raise "Cannot initialize the project with a version file: The file #{path} already exists." if File.exist? path
-      raise 'The usage of this gem requires an existing git project with at least one commit.' if revision.empty?
+      raise 'The usage of this gem requires an existing git project with at least one revision.' if revision.empty?
       @version_file = File.new(path, 'w')
       write(version)
     end

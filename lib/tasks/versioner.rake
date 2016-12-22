@@ -20,7 +20,7 @@ namespace :version do
     system("git tag #{version} -a -m \"Release version #{version}\"")
   end
 
-  desc 'initializes the project with the version file (optional INITIAL_VERSION)'
+  desc 'initializes the project with the version file (optional VERSION)'
   task :init do
     options = { version: ENV['VERSION'] }.select { |_, value| !value.nil? }
     Versioner::VersionFile.create(options)
