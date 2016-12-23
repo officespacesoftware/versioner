@@ -203,59 +203,57 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'releasing a release candidate' do
-    context 'minor release candidate' do
-      before do
-        version_file.minor_release_candidate
-        version_file.release
-      end
-
-      it 'removes the release candidate' do
-        is_expected.not_to be_release_candidate
-      end
-
-      it 'does not change the patch version' do
-        expect(version_file.current_patch_version).to eq '0'
-      end
-
-      it 'does not change the minor version' do
-        expect(version_file.current_minor_version).to eq '10'
-      end
-
-      it 'does not change the major version' do
-        expect(version_file.current_major_version).to eq '0'
-      end
-
-      it 'goes back to looking like a normal release' do
-        expect(version_file.version).to eq '0.10.0'
-      end
+  context 'releasing a minor release candidate' do
+    before do
+      version_file.minor_release_candidate
+      version_file.release
     end
 
-    context 'major release candidate' do
-      before do
-        version_file.major_release_candidate
-        version_file.release
-      end
+    it 'removes the release candidate' do
+      is_expected.not_to be_release_candidate
+    end
 
-      it 'removes the release candidate' do
-        is_expected.not_to be_release_candidate
-      end
+    it 'does not change the patch version' do
+      expect(version_file.current_patch_version).to eq '0'
+    end
 
-      it 'does not change the patch version' do
-        expect(version_file.current_patch_version).to eq '0'
-      end
+    it 'does not change the minor version' do
+      expect(version_file.current_minor_version).to eq '10'
+    end
 
-      it 'does not change the minor version' do
-        expect(version_file.current_minor_version).to eq '0'
-      end
+    it 'does not change the major version' do
+      expect(version_file.current_major_version).to eq '0'
+    end
 
-      it 'does not change the major version' do
-        expect(version_file.current_major_version).to eq '1'
-      end
+    it 'goes back to looking like a normal release' do
+      expect(version_file.version).to eq '0.10.0'
+    end
+  end
 
-      it 'goes back to looking like a normal release' do
-        expect(version_file.version).to eq '1.0.0'
-      end
+  context 'major release candidate' do
+    before do
+      version_file.major_release_candidate
+      version_file.release
+    end
+
+    it 'removes the release candidate' do
+      is_expected.not_to be_release_candidate
+    end
+
+    it 'does not change the patch version' do
+      expect(version_file.current_patch_version).to eq '0'
+    end
+
+    it 'does not change the minor version' do
+      expect(version_file.current_minor_version).to eq '0'
+    end
+
+    it 'does not change the major version' do
+      expect(version_file.current_major_version).to eq '1'
+    end
+
+    it 'goes back to looking like a normal release' do
+      expect(version_file.version).to eq '1.0.0'
     end
   end
 
