@@ -12,7 +12,7 @@ module Versioner
       create_file(file_creation_options) unless file_creation_options.nil? || file_creation_options.empty?
       raise "Version file '#{file_name}' does not exist." unless File.file?(file_name)
 
-      @version_file ||= open(file_name, 'r+')
+      @version_file ||= File.open(file_name, 'r+')
     end
 
     def self.create(version: '0.1.0-RC1', path: Versioner.version_file)
