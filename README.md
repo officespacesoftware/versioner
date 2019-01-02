@@ -1,6 +1,6 @@
 # Versioner
 
-Version-numbering Rake tasks that creates the appropriate Git objects.
+Version-numbering Rake tasks that create the appropriate Git objects.
 
 
 ## Installation
