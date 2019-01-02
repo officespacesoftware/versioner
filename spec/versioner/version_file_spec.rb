@@ -80,7 +80,7 @@ describe Versioner::VersionFile do
     end
 
     it 'isn\'t a release candidate' do
-      is_expected.not_to be_release_candidate
+      expect(version_file).not_to be_release_candidate
     end
   end
 
@@ -90,7 +90,7 @@ describe Versioner::VersionFile do
     end
 
     it 'marks the version as a release candidate' do
-      is_expected.to be_release_candidate
+      expect(version_file).to be_release_candidate
     end
 
     it 'resets the patch version' do
@@ -120,7 +120,7 @@ describe Versioner::VersionFile do
     end
 
     it 'marks the version as a release candidate' do
-      is_expected.to be_release_candidate
+      expect(version_file).to be_release_candidate
     end
 
     it 'resets the patch version' do
@@ -151,7 +151,7 @@ describe Versioner::VersionFile do
     end
 
     it 'marks the version as a release candidate' do
-      is_expected.to be_release_candidate
+      expect(version_file).to be_release_candidate
     end
 
     it 'resets the patch version' do
@@ -182,7 +182,7 @@ describe Versioner::VersionFile do
     end
 
     it 'marks the version as a release candidate' do
-      is_expected.to be_release_candidate
+      expect(version_file).to be_release_candidate
     end
 
     it 'resets the patch version' do
@@ -213,7 +213,7 @@ describe Versioner::VersionFile do
     end
 
     it 'removes the release candidate' do
-      is_expected.not_to be_release_candidate
+      expect(version_file).not_to be_release_candidate
     end
 
     it 'does not change the patch version' do
@@ -240,7 +240,7 @@ describe Versioner::VersionFile do
     end
 
     it 'removes the release candidate' do
-      is_expected.not_to be_release_candidate
+      expect(version_file).not_to be_release_candidate
     end
 
     it 'does not change the patch version' do
