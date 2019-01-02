@@ -1,7 +1,9 @@
 # frozen_string_literal: true
+
 require 'rake'
 require 'versioner/options'
 require 'versioner/version_file'
+
 namespace :version do
   def version
     Versioner::VersionFile.new.version
@@ -22,7 +24,7 @@ namespace :version do
 
   desc 'initializes the project with the version file (optional VERSION)'
   task :init do
-    options = { version: ENV['VERSION'] }.select { |_, value| !value.nil? }
+    options = { version: ENV['VERSION'] }.reject { |_, value| value.nil? }
     Versioner::VersionFile.create(options)
     commit
     tag

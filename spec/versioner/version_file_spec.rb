@@ -1,4 +1,7 @@
+# frozen_string_literal: true
+
 require 'versioner'
+
 describe Versioner::VersionFile do
   subject(:version_file) do
     described_class.new(file_path)
