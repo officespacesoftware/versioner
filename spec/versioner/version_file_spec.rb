@@ -18,7 +18,7 @@ describe Versioner::VersionFile do
     expect(version_file.version).to match(/^\d+\.\d+.\d+/)
   end
 
-  context 'incrementing the patch version' do
+  context 'when incrementing the patch version' do
     before do
       version_file.patch
     end
@@ -36,11 +36,11 @@ describe Versioner::VersionFile do
     end
 
     it 'isn\'t a release candidate' do
-      is_expected.not_to be_release_candidate
+      expect(version_file).not_to be_release_candidate
     end
   end
 
-  context 'incrementing the minor version' do
+  context 'when incrementing the minor version' do
     before do
       version_file.minor
     end
@@ -62,7 +62,7 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'incrementing the major version' do
+  context 'when incrementing the major version' do
     before do
       version_file.major
     end
@@ -84,7 +84,7 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'creating a minor version release candidate' do
+  context 'when creating a minor version release candidate' do
     before do
       version_file.minor_release_candidate
     end
@@ -114,7 +114,7 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'creating a major version release candidate' do
+  context 'when creating a major version release candidate' do
     before do
       version_file.major_release_candidate
     end
@@ -144,7 +144,7 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'incrementing a minor version release candidate' do
+  context 'when incrementing a minor version release candidate' do
     before do
       version_file.minor_release_candidate
       version_file.increment_release_candidate
@@ -175,7 +175,7 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'incrementing a major version release candidate' do
+  context 'when incrementing a major version release candidate' do
     before do
       version_file.major_release_candidate
       version_file.increment_release_candidate
@@ -206,7 +206,7 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'releasing a minor release candidate' do
+  context 'when releasing a minor release candidate' do
     before do
       version_file.minor_release_candidate
       version_file.release
@@ -233,7 +233,7 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'major release candidate' do
+  context 'with a major release candidate' do
     before do
       version_file.major_release_candidate
       version_file.release
@@ -260,7 +260,7 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'error conditions' do
+  context 'with error conditions' do
     it 'isn\'t able to increment the release candidate unless the current version is some kind '\
        'of release candidate' do
       expect { version_file.increment_release_candidate }.to raise_error(RuntimeError)
@@ -301,7 +301,7 @@ describe Versioner::VersionFile do
     end
   end
 
-  context 'initializing with new VERSION file' do
+  context 'when initializing with new VERSION file' do
     it 'does not create a file if one exists' do
       expect { described_class.create }.to raise_error(RuntimeError)
     end
