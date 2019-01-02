@@ -1,5 +1,10 @@
 require: rubocop-rspec
 
+Metrics/BlockLength:
+  Exclude:
+    - 'lib/tasks/**/*.rake'
+    - 'spec/**/*'
+
 Metrics/LineLength:
   Max: 120
 
