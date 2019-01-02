@@ -272,7 +272,7 @@ describe Versioner::VersionFile do
       expect { version_file.minor_release_candidate }.to raise_error(RuntimeError)
     end
 
-    it 'isn\'t able to declare a minor release candidate unless the current version is not a release candidate' do
+    it 'isn\'t able to declare a major release candidate unless the current version is not a release candidate' do
       version_file.minor_release_candidate
 
       expect { version_file.major_release_candidate }.to raise_error(RuntimeError)
