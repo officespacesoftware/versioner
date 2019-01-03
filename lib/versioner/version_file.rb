@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'versioner/options'
 
 module Versioner
@@ -10,7 +11,8 @@ module Versioner
     def initialize(file_name = Versioner.version_file, file_creation_options: nil)
       create_file(file_creation_options) unless file_creation_options.nil? || file_creation_options.empty?
       raise "Version file '#{file_name}' does not exist." unless File.file?(file_name)
-      @version_file ||= open(file_name, 'r+')
+
+      @version_file ||= File.open(file_name, 'r+')
     end
 
     def self.create(version: '0.1.0-RC1', path: Versioner.version_file)
@@ -30,6 +32,7 @@ module Versioner
 
     def patch
       raise 'Cannot patch a release candidate, it needs to be released first.' if release_candidate?
+
       version = version_as_array
       version[2] = version[2].to_i + 1
 
@@ -38,6 +41,7 @@ module Versioner
 
     def minor
       raise 'Cannot minor increment a release candidate, it needs to be released first.' if release_candidate?
+
       version = version_as_array
       new_version = [version[0], version[1].to_i + 1, '0']
 
@@ -46,6 +50,7 @@ module Versioner
 
     def major
       raise 'Cannot major increment a release candidate, it needs to be released first.' if release_candidate?
+
       new_version = [version_as_array[0].to_i + 1, '0', '0']
 
       write(new_version.join('.'))
@@ -71,11 +76,13 @@ module Versioner
 
     def increment_release_candidate
       raise 'Cannot increment the release candidate version on a non release candidate.' unless release_candidate?
+
       write("#{short_version}-RC#{next_release_candidate}")
     end
 
     def release
       raise 'Cannot release a non release candidate.' unless release_candidate?
+
       write(short_version)
     end
 
@@ -108,6 +115,7 @@ module Versioner
     def create_file(version: '0.1.0-RC1', path: Versioner.version_file)
       raise "Cannot initialize the project with a version file: The file #{path} already exists." if File.exist? path
       raise 'The usage of this gem requires an existing git project with at least one revision.' if revision.empty?
+
       @version_file = File.new(path, 'w')
       write(version)
     end
