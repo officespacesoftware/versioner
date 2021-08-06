@@ -105,12 +105,12 @@ describe Versioner::VersionFile do
       expect(version_file.current_major_version).to eq '0'
     end
 
-    it 'is at RC iteration 1' do
-      expect(version_file.release_candidate_iteration).to eq '1'
+    it 'is at RC iteration 0' do
+      expect(version_file.release_candidate_iteration).to eq '0'
     end
 
     it 'has RC and the RC version number at the end of the name' do
-      expect(version_file.version).to eq '0.10.0-RC1'
+      expect(version_file.version).to eq '0.10.0-RC.0'
     end
   end
 
@@ -135,12 +135,12 @@ describe Versioner::VersionFile do
       expect(version_file.current_major_version).to eq '1'
     end
 
-    it 'is at RC iteration 1' do
-      expect(version_file.release_candidate_iteration).to eq '1'
+    it 'is at RC iteration 0' do
+      expect(version_file.release_candidate_iteration).to eq '0'
     end
 
     it 'has RC and the RC version number at the end of the name' do
-      expect(version_file.version).to eq '1.0.0-RC1'
+      expect(version_file.version).to eq '1.0.0-RC.0'
     end
   end
 
@@ -166,12 +166,12 @@ describe Versioner::VersionFile do
       expect(version_file.current_major_version).to eq '0'
     end
 
-    it 'is at RC iteration 2' do
-      expect(version_file.release_candidate_iteration).to eq '2'
+    it 'is at RC iteration 1' do
+      expect(version_file.release_candidate_iteration).to eq '1'
     end
 
     it 'has RC and the RC version number at the end of the name' do
-      expect(version_file.version).to eq '0.10.0-RC2'
+      expect(version_file.version).to eq '0.10.0-RC.1'
     end
   end
 
@@ -197,12 +197,12 @@ describe Versioner::VersionFile do
       expect(version_file.current_major_version).to eq '1'
     end
 
-    it 'is at RC iteration 2' do
-      expect(version_file.release_candidate_iteration).to eq '2'
+    it 'is at RC iteration 1' do
+      expect(version_file.release_candidate_iteration).to eq '1'
     end
 
     it 'has RC and the RC version number at the end of the name' do
-      expect(version_file.version).to eq '1.0.0-RC2'
+      expect(version_file.version).to eq '1.0.0-RC.1'
     end
   end
 
