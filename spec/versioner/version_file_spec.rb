@@ -84,6 +84,36 @@ describe Versioner::VersionFile do
     end
   end
 
+  context 'when creating a patch version release candidate' do
+    before do
+      version_file.patch_release_candidate
+    end
+
+    it 'marks the version as a release candidate' do
+      expect(version_file).to be_release_candidate
+    end
+
+    it 'increments the patch version' do
+      expect(version_file.current_patch_version).to eq '13'
+    end
+
+    it 'does not change the minor version' do
+      expect(version_file.current_minor_version).to eq '9'
+    end
+
+    it 'does not change the major version' do
+      expect(version_file.current_major_version).to eq '0'
+    end
+
+    it 'is at RC iteration 0' do
+      expect(version_file.release_candidate_iteration).to eq '0'
+    end
+
+    it 'has RC and the RC version number at the end of the name' do
+      expect(version_file.version).to eq '0.9.13-RC.0'
+    end
+  end
+
   context 'when creating a minor version release candidate' do
     before do
       version_file.minor_release_candidate
@@ -141,6 +171,37 @@ describe Versioner::VersionFile do
 
     it 'has RC and the RC version number at the end of the name' do
       expect(version_file.version).to eq '1.0.0-RC.0'
+    end
+  end
+
+  context 'when incrementing a patch version release candidate' do
+    before do
+      version_file.patch_release_candidate
+      version_file.increment_release_candidate
+    end
+
+    it 'marks the version as a release candidate' do
+      expect(version_file).to be_release_candidate
+    end
+
+    it 'increments the patch version' do
+      expect(version_file.current_patch_version).to eq '13'
+    end
+
+    it 'does not chantge the minor version' do
+      expect(version_file.current_minor_version).to eq '9'
+    end
+
+    it 'does not change the major version' do
+      expect(version_file.current_major_version).to eq '0'
+    end
+
+    it 'is at RC iteration 1' do
+      expect(version_file.release_candidate_iteration).to eq '1'
+    end
+
+    it 'has RC and the RC version number at the end of the name' do
+      expect(version_file.version).to eq '0.9.13-RC.1'
     end
   end
 

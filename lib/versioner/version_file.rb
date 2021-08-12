@@ -56,6 +56,15 @@ module Versioner
       write(new_version.join('.'))
     end
 
+    def patch_release_candidate
+      if release_candidate?
+        raise 'Cannot make a release candidate out of a release candidate. To increment to the '\
+              'next release candidate, invoke "increment_release_candidate".'
+      end
+      patch
+      write("#{short_version}-RC.0")
+    end
+
     def minor_release_candidate
       if release_candidate?
         raise 'Cannot make a release candidate out of a release candidate. To increment to the '\
