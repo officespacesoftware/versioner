@@ -267,6 +267,33 @@ describe Versioner::VersionFile do
     end
   end
 
+  context 'when releasing a patch release candidate' do
+    before do
+      version_file.patch_release_candidate
+      version_file.release
+    end
+
+    it 'removes the release candidate' do
+      expect(version_file).not_to be_release_candidate
+    end
+
+    it 'does not change the patch version' do
+      expect(version_file.current_patch_version).to eq '13'
+    end
+
+    it 'does not change the minor version' do
+      expect(version_file.current_minor_version).to eq '9'
+    end
+
+    it 'does not change the major version' do
+      expect(version_file.current_major_version).to eq '0'
+    end
+
+    it 'goes back to looking like a normal release' do
+      expect(version_file.version).to eq '0.9.13'
+    end
+  end
+
   context 'when releasing a minor release candidate' do
     before do
       version_file.minor_release_candidate
@@ -325,6 +352,12 @@ describe Versioner::VersionFile do
     it 'isn\'t able to increment the release candidate unless the current version is some kind '\
        'of release candidate' do
       expect { version_file.increment_release_candidate }.to raise_error(RuntimeError)
+    end
+
+    it 'isn\'t able to declare a patch release candidate unless the current version is not a release candidate' do
+      version_file.minor_release_candidate
+
+      expect { version_file.patch_release_candidate }.to raise_error(RuntimeError)
     end
 
     it 'isn\'t able to declare a minor release candidate unless the current version is not a release candidate' do
