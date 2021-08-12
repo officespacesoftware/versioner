@@ -16,6 +16,7 @@ describe Versioner do
        version:minor
        version:minor_release_candidate
        version:patch
+       version:patch_release_candidate
        version:release
        version:show]
   end
