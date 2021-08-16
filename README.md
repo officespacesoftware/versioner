@@ -36,10 +36,11 @@ Then you can run:
 rake version:init                         # initializes the project with the version file (optional VERSION=0.1.0-RC1)
 rake version:increment_release_candidate  # increments the current release candidate (n.n.n-RCX)
 rake version:major                        # create a new major-level (X.n.n) release
-rake version:major_release_candidate      # create a new major-level (X.n.n-RC1) release candidate
+rake version:major_release_candidate      # create a new major-level (X.n.n-RC.0) release candidate
 rake version:minor                        # create a new minor-level (n.X.n) release
-rake version:minor_release_candidate      # create a new minor-level (n.X.n-RC1) release candidate
+rake version:minor_release_candidate      # create a new minor-level (n.X.n-RC.0) release candidate
 rake version:patch                        # create a new patch-level (n.n.X) release
+rake version:patch_release_candidate      # create a new patch-level (n.n.X-RC.0) release candidate
 rake version:release                      # releases the current release candidate (n.n.n)
 rake version:show                         # print the current version level from the VERSION file
 ```

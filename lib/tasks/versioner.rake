@@ -51,14 +51,21 @@ namespace :version do
     tag
   end
 
-  desc 'create a new minor-level (n.X.n-RC1) release candidate'
+  desc 'create a new patch-level (n.n.X-RC.0) release candidate'
+  task :patch_release_candidate do
+    Versioner::VersionFile.new.patch_release_candidate
+    commit
+    tag
+  end
+
+  desc 'create a new minor-level (n.X.n-RC.0) release candidate'
   task :minor_release_candidate do
     Versioner::VersionFile.new.minor_release_candidate
     commit
     tag
   end
 
-  desc 'create a new major-level (X.n.n-RC1) release candidate'
+  desc 'create a new major-level (X.n.n-RC.0) release candidate'
   task :major_release_candidate do
     Versioner::VersionFile.new.major_release_candidate
     commit

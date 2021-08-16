@@ -15,7 +15,7 @@ module Versioner
       @version_file ||= File.open(file_name, 'r+')
     end
 
-    def self.create(version: '0.1.0-RC1', path: Versioner.version_file)
+    def self.create(version: '0.1.0-RC.0', path: Versioner.version_file)
       VersionFile.new(Versioner.version_file, file_creation_options: { version: version, path: path })
     end
 
@@ -56,13 +56,22 @@ module Versioner
       write(new_version.join('.'))
     end
 
+    def patch_release_candidate
+      if release_candidate?
+        raise 'Cannot make a release candidate out of a release candidate. To increment to the '\
+              'next release candidate, invoke "increment_release_candidate".'
+      end
+      patch
+      write("#{short_version}-RC.0")
+    end
+
     def minor_release_candidate
       if release_candidate?
         raise 'Cannot make a release candidate out of a release candidate. To increment to the '\
               'next release candidate, invoke "increment_release_candidate".'
       end
       minor
-      write("#{short_version}-RC1")
+      write("#{short_version}-RC.0")
     end
 
     def major_release_candidate
@@ -71,13 +80,13 @@ module Versioner
               'next release candidate, invoke "increment_release_candidate".'
       end
       major
-      write("#{version}-RC1")
+      write("#{version}-RC.0")
     end
 
     def increment_release_candidate
       raise 'Cannot increment the release candidate version on a non release candidate.' unless release_candidate?
 
-      write("#{short_version}-RC#{next_release_candidate}")
+      write("#{short_version}-RC.#{next_release_candidate}")
     end
 
     def release
@@ -87,7 +96,7 @@ module Versioner
     end
 
     def current_patch_version
-      if version.include?('RC')
+      if version.include?('RC.')
         version_as_array[2].split('-')[0]
       else
         version_as_array[2]
@@ -103,16 +112,16 @@ module Versioner
     end
 
     def release_candidate_iteration
-      version.split('RC')[1].to_s
+      version.split('RC.')[1].to_s
     end
 
     def release_candidate?
-      version.include?('RC')
+      version.include?('RC.')
     end
 
     private
 
-    def create_file(version: '0.1.0-RC1', path: Versioner.version_file)
+    def create_file(version: '0.1.0-RC.0', path: Versioner.version_file)
       raise "Cannot initialize the project with a version file: The file #{path} already exists." if File.exist? path
       raise 'The usage of this gem requires an existing git project with at least one revision.' if revision.empty?
 
@@ -133,7 +142,7 @@ module Versioner
     end
 
     def next_release_candidate
-      return 1 unless release_candidate?
+      return 0 unless release_candidate?
 
       release_candidate_iteration.to_i + 1
     end
