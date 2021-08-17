@@ -8,11 +8,11 @@ module Versioner
   end
 
   class VersionFile
-    def initialize(file_name = Versioner.version_file, file_creation_options: nil)
+    def initialize(file_name = Versioner.version_file, file_creation_options: nil, file_open_options: 'r+')
       create_file(file_creation_options) unless file_creation_options.nil? || file_creation_options.empty?
       raise "Version file '#{file_name}' does not exist." unless File.file?(file_name)
 
-      @version_file ||= File.open(file_name, 'r+')
+      @version_file ||= File.open(file_name, file_open_options) 
     end
 
     def self.create(version: '0.1.0-RC.0', path: Versioner.version_file)
