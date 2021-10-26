@@ -25,7 +25,7 @@ namespace :version do
   desc 'initializes the project with the version file (optional VERSION)'
   task :init do
     options = { version: ENV['VERSION'] }.reject { |_, value| value.nil? }
-    Versioner::VersionFile.create(options)
+    Versioner::VersionFile.create(**options)
     commit
     tag
   end
