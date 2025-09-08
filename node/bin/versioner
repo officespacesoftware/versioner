@@ -1,0 +1,155 @@
+#!/usr/bin/env node
+
+/**
+ * Versioner CLI - Command line interface for version management
+ * Compatible with both Node.js and Bun
+ */
+
+import {
+  init,
+  patch,
+  minor,
+  major,
+  patchReleaseCandidate,
+  minorReleaseCandidate,
+  majorReleaseCandidate,
+  incrementReleaseCandidate,
+  release,
+  showVersion
+} from '../lib/tasks.js';
+
+/**
+ * Display help information
+ */
+function showHelp() {
+  console.log(`
+Versioner - Version management tool
+
+Usage: versioner <command> [options]
+
+Commands:
+  init [VERSION]    Initialize project with VERSION file (default: 0.1.0-RC.0)
+  patch             Create a new patch-level (n.n.X) release
+  minor             Create a new minor-level (n.X.n) release  
+  major             Create a new major-level (X.n.n) release
+  patch-rc          Create a new patch-level (n.n.X-RC.0) release candidate
+  minor-rc          Create a new minor-level (n.X.n-RC.0) release candidate
+  major-rc          Create a new major-level (X.n.n-RC.0) release candidate
+  increment-rc      Increment the current release candidate (n.n.n-RCX)
+  release           Release the current release candidate (n.n.n)
+  show              Print the current version level from the VERSION file
+  help              Show this help message
+
+Environment Variables:
+  VERSION           Default version for init command
+
+Examples:
+  versioner init                    # Initialize with default version
+  versioner init 1.0.0            # Initialize with specific version
+  VERSION=2.0.0-RC.0 versioner init # Initialize with env variable
+  versioner patch                  # Create patch release
+  versioner show                   # Display current version
+`);
+}
+
+/**
+ * Display error message and exit
+ * @param {string} message - Error message
+ */
+function showError(message) {
+  console.error(`Error: ${message}`);
+  process.exit(1);
+}
+
+/**
+ * Execute a task with error handling
+ * @param {Function} taskFunction - Task function to execute
+ * @param {...any} args - Arguments to pass to task function
+ */
+async function executeTask(taskFunction, ...args) {
+  try {
+    const result = taskFunction(...args);
+    if (result && typeof result === 'string') {
+      console.log(result);
+    }
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+/**
+ * Parse command line arguments and execute appropriate command
+ */
+function main() {
+  const args = process.argv.slice(2);
+  
+  if (args.length === 0) {
+    showHelp();
+    return;
+  }
+
+  const command = args[0].toLowerCase();
+  
+  switch (command) {
+    case 'init':
+      // Use provided version, environment variable, or default
+      const initVersion = args[1] || process.env.VERSION || null;
+      executeTask(init, initVersion);
+      break;
+      
+    case 'patch':
+      executeTask(patch);
+      break;
+      
+    case 'minor':
+      executeTask(minor);
+      break;
+      
+    case 'major':
+      executeTask(major);
+      break;
+      
+    case 'patch-rc':
+    case 'patch_release_candidate':
+      executeTask(patchReleaseCandidate);
+      break;
+      
+    case 'minor-rc':
+    case 'minor_release_candidate':
+      executeTask(minorReleaseCandidate);
+      break;
+      
+    case 'major-rc':
+    case 'major_release_candidate':
+      executeTask(majorReleaseCandidate);
+      break;
+      
+    case 'increment-rc':
+    case 'increment_release_candidate':
+      executeTask(incrementReleaseCandidate);
+      break;
+      
+    case 'release':
+      executeTask(release);
+      break;
+      
+    case 'show':
+      executeTask(showVersion);
+      break;
+      
+    case 'help':
+    case '--help':
+    case '-h':
+      showHelp();
+      break;
+      
+    default:
+      showError(`Unknown command: ${command}. Run 'versioner help' for usage information.`);
+      break;
+  }
+}
+
+// Run the CLI if this file is executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
