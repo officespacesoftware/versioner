@@ -26,17 +26,34 @@ Or install it yourself as:
 
 ### Node.js Version
 
-For production use with Node.js:
+**🚀 Quick Start (One-time use):**
+
+    # Execute directly without installation
+    $ pnpm dlx @officespacesoftware/versioner init
+    $ npx @officespacesoftware/versioner init
+    $ bunx @officespacesoftware/versioner init
+
+**📦 Install globally:**
+
+    $ npm install -g @officespacesoftware/versioner
+    $ pnpm add -g @officespacesoftware/versioner
+    $ bun add -g @officespacesoftware/versioner
+
+**🏗️ Install globally from source:**
 
     $ git clone git@github.com:officespacesoftware/versioner.git
     $ cd versioner/node
     $ npm install -g .
+    # OR
+    $ pnpm add -g .
+    # OR
+    $ bun add -g .
 
-For development with Bun (recommended):
+**🛠️ Development setup:**
 
     $ git clone git@github.com:officespacesoftware/versioner.git
     $ cd versioner/node
-    $ bun install
+    $ bun install  # Recommended for development
 
 ## Usage
 
@@ -65,19 +82,45 @@ rake version:show                         # print the current version level from
 
 ### Node.js Version
 
-After installing the Node.js version, you can use the `versioner` command:
+**If installed globally (from npm or source):**
 
 ```sh
-versioner init [VERSION]                 # initializes the project with the version file
-versioner increment-rc                   # increments the current release candidate (n.n.n-RCX)
-versioner major                          # create a new major-level (X.n.n) release
-versioner major-rc                       # create a new major-level (X.n.n-RC.0) release candidate
-versioner minor                          # create a new minor-level (n.X.n) release
-versioner minor-rc                       # create a new minor-level (n.X.n-RC.0) release candidate
-versioner patch                          # create a new patch-level (n.n.X) release
-versioner patch-rc                       # create a new patch-level (n.n.X-RC.0) release candidate
-versioner release                        # releases the current release candidate (n.n.n)
-versioner show                           # print the current version level from the VERSION file
+versioner init [VERSION]  # initialize project
+versioner patch           # create patch release
+versioner show            # show current version
+
+# All available commands
+versioner init [VERSION]  # initializes the project with the version file
+versioner increment-rc    # increments the current release candidate (n.n.n-RCX)
+versioner major           # create a new major-level (X.n.n) release
+versioner major-rc        # create a new major-level (X.n.n-RC.0) release candidate
+versioner minor           # create a new minor-level (n.X.n) release
+versioner minor-rc        # create a new minor-level (n.X.n-RC.0) release candidate
+versioner patch           # create a new patch-level (n.n.X) release
+versioner patch-rc        # create a new patch-level (n.n.X-RC.0) release candidate
+versioner release         # releases the current release candidate (n.n.n)
+versioner show            # print the current version level from the VERSION file
+```
+
+**Without installation (one-time execution):**
+
+```sh
+# Quick usage with any package manager
+pnpm dlx @officespacesoftware/versioner init [VERSION]  # initialize project
+pnpm dlx @officespacesoftware/versioner patch           # create patch release
+pnpm dlx @officespacesoftware/versioner show            # show current version
+
+# All available commands (replace 'pnpm dlx' with 'npx' or 'bunx')
+pnpm dlx @officespacesoftware/versioner init [VERSION]  # initializes the project with the version file
+pnpm dlx @officespacesoftware/versioner increment-rc    # increments the current release candidate (n.n.n-RCX)
+pnpm dlx @officespacesoftware/versioner major           # create a new major-level (X.n.n) release
+pnpm dlx @officespacesoftware/versioner major-rc        # create a new major-level (X.n.n-RC.0) release candidate
+pnpm dlx @officespacesoftware/versioner minor           # create a new minor-level (n.X.n) release
+pnpm dlx @officespacesoftware/versioner minor-rc        # create a new minor-level (n.X.n-RC.0) release candidate
+pnpm dlx @officespacesoftware/versioner patch           # create a new patch-level (n.n.X) release
+pnpm dlx @officespacesoftware/versioner patch-rc        # create a new patch-level (n.n.X-RC.0) release candidate
+pnpm dlx @officespacesoftware/versioner release         # releases the current release candidate (n.n.n)
+pnpm dlx @officespacesoftware/versioner show            # print the current version level from the VERSION file
 ```
 
 
@@ -102,6 +145,11 @@ The Node.js version uses the same VERSION file format and location as the Ruby v
 - Library code uses only Node.js built-ins (no Bun-specific APIs)
 - Can be used in production with Node.js or Bun
 - Tests run with `bun test` in development
+
+**Distribution:**
+- Published as `@officespacesoftware/versioner` (scoped package)
+- Supports all major package managers (npm, pnpm, bun, yarn)
+- Can be executed directly without installation using `pnpm dlx`, `npx`, `bunx`, etc.
 
 ## VERSION File Format
 
