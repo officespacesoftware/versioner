@@ -6,46 +6,91 @@ A Node.js/JavaScript implementation of the versioner tool for Git-integrated sem
 
 This is a pure JavaScript implementation that provides the same functionality as the Ruby version, with the added benefit of using Bun for development and testing while maintaining full Node.js compatibility.
 
-## Installation
+## Installation & Quick Start
 
-### For Development (with Bun)
+### 🚀 One-Time Use (Recommended)
+
+Execute directly without installing using any package manager:
 
 ```bash
+# npm (Node.js 14+)
+npx @officespacesoftware/versioner init
+
+# pnpm (fastest)
+pnpm dlx @officespacesoftware/versioner init
+
+# Bun (fastest alternative)
+bunx @officespacesoftware/versioner init
+
+# Yarn
+yarn dlx @officespacesoftware/versioner init
+```
+
+### 📦 Global Installation
+
+Install globally for repeated use:
+
+```bash
+# npm
+npm install -g @officespacesoftware/versioner
+
+# pnpm
+pnpm add -g @officespacesoftware/versioner
+
+# Bun
+bun add -g @officespacesoftware/versioner
+
+# Yarn
+yarn global add @officespacesoftware/versioner
+```
+
+### 🏗️ Development Setup
+
+For contributing or local development:
+
+```bash
+# Clone repository
 git clone git@github.com:officespacesoftware/versioner.git
 cd versioner/node
+
+# Development with Bun (recommended)
 bun install
+
+# Or with Node.js
+npm install
 ```
 
-### For Production (with Node.js)
+### 🔐 Private Registry Setup
+
+If your organization uses a private registry (GCP Artifact Registry):
 
 ```bash
-git clone git@github.com:officespacesoftware/versioner.git
-cd versioner/node
-npm install -g .
-```
+# Configure npm for private registry
+npm config set @officespacesoftware:registry https://npm.pkg.dev/YOUR_PROJECT_ID/npm-packages
 
-Or install directly from the repository:
+# Authenticate with GCP
+gcloud auth print-access-token | npm login --registry=https://npm.pkg.dev/YOUR_PROJECT_ID/npm-packages
 
-```bash
-npm install -g git+https://github.com/officespacesoftware/versioner.git#node
+# Then use any of the above installation methods
+pnpm dlx @officespacesoftware/versioner init
 ```
 
 ## Usage
 
 ### Command Line Interface
 
-After installation, use the `versioner` command:
+Use the `versioner` command (after installation or directly with `npx`/`pnpm dlx`/etc):
 
 ```bash
-# Initialize project with VERSION file
-versioner init [VERSION]
+# Quick start - initialize project
+pnpm dlx @officespacesoftware/versioner init
 
 # Version increment commands
 versioner patch                  # Create patch-level release (n.n.X)
 versioner minor                  # Create minor-level release (n.X.n)
 versioner major                  # Create major-level release (X.n.n)
 
-# Release candidate commands  
+# Release candidate commands
 versioner patch-rc               # Create patch-level RC (n.n.X-RC.0)
 versioner minor-rc               # Create minor-level RC (n.X.n-RC.0)
 versioner major-rc               # Create major-level RC (X.n.n-RC.0)
@@ -55,6 +100,19 @@ versioner release                # Release current RC (remove RC suffix)
 # Utility commands
 versioner show                   # Display current version
 versioner help                  # Show help information
+```
+
+### ⚡ Quick Examples
+
+```bash
+# Initialize a new project with versioning
+pnpm dlx @officespacesoftware/versioner init
+
+# Create your first patch release
+pnpm dlx @officespacesoftware/versioner patch
+
+# Check current version
+pnpm dlx @officespacesoftware/versioner show
 ```
 
 ### Programmatic API
@@ -206,7 +264,7 @@ vf.release()                              // Release RC
 ### Task Functions
 
 ```javascript
-import { 
+import {
   init, patch, minor, major,
   patchReleaseCandidate, minorReleaseCandidate, majorReleaseCandidate,
   incrementReleaseCandidate, release, show
@@ -229,7 +287,7 @@ options.getVersionFilePath();
 fileUtils.readVersionFile(path);
 fileUtils.writeVersionFile(path, version, hash);
 
-// Git operations  
+// Git operations
 gitUtils.getShortCommitHash();
 gitUtils.gitAdd(file);
 gitUtils.gitCommit(message);

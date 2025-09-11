@@ -1,5 +1,5 @@
 {
-  "name": "versioner",
+  "name": "@officespacesoftware/versioner",
   "version": "1.0.0",
   "description": "Version-numbering tasks that create the appropriate Git objects",
   "main": "lib/index.js",
@@ -9,18 +9,44 @@
   },
   "scripts": {
     "test": "bun test",
-    "dev:test": "bun test --watch"
+    "dev:test": "bun test --watch",
+    "prepublishOnly": "bun test",
+    "build": "echo 'No build step required - pure JS'",
+    "prepack": "echo 'Preparing package for publishing...'"
   },
   "engines": {
     "node": ">=14.0.0"
   },
+  "files": [
+    "lib/**/*.js",
+    "bin/versioner",
+    "README.md",
+    "LICENSE"
+  ],
   "keywords": [
     "version",
     "versioning",
     "git",
     "semantic-version",
-    "release"
+    "release",
+    "semver",
+    "cli",
+    "release-candidate",
+    "git-tags"
   ],
   "author": "Esteban Trejos",
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/officespacesoftware/versioner#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/officespacesoftware/versioner.git",
+    "directory": "node"
+  },
+  "bugs": {
+    "url": "https://github.com/officespacesoftware/versioner/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.dev/@officespacesoftware/versioner",
+    "access": "restricted"
+  }
 }
