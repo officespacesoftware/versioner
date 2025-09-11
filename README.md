@@ -39,6 +39,12 @@ Or install it yourself as:
     $ pnpm add -g @officespacesoftware/versioner
     $ bun add -g @officespacesoftware/versioner
 
+**🗑️ Uninstall:**
+
+    $ npm uninstall -g @officespacesoftware/versioner
+    $ pnpm remove -g @officespacesoftware/versioner
+    $ bun remove -g @officespacesoftware/versioner
+
 **🏗️ Install globally from source:**
 
     $ git clone git@github.com:officespacesoftware/versioner.git
