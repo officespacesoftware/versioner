@@ -151,6 +151,75 @@ The Node.js version uses the same VERSION file format and location as the Ruby v
 - Supports all major package managers (npm, pnpm, bun, yarn)
 - Can be executed directly without installation using `pnpm dlx`, `npx`, `bunx`, etc.
 
+### Model Context Protocol (MCP) Server
+
+The Node.js version also includes an MCP server that exposes versioner commands as tools for AI assistants.
+
+**Setup for Claude Desktop:**
+
+Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "versioner": {
+      "command": "npx",
+      "args": [
+        "--yes",
+        "-p",
+        "@officespacesoftware/versioner",
+        "versioner-mcp"
+      ]
+    }
+  }
+}
+```
+
+**Setup with global installation:**
+
+```json
+{
+  "mcpServers": {
+    "versioner": {
+      "command": "versioner-mcp"
+    }
+  }
+}
+```
+
+**Setup for Claude Code:**
+
+```sh
+claude mcp add-json versioner '{"type":"stdio","command":"versioner-mcp"}'
+```
+
+**Setup from source:**
+
+```json
+{
+  "mcpServers": {
+    "versioner": {
+      "command": "node",
+      "args": [
+        "/path/to/versioner/node/bin/versioner-mcp"
+      ]
+    }
+  }
+}
+```
+
+**Available MCP Tools:**
+- `versioner_init` - Initialize project with VERSION file
+- `versioner_show` - Show current version
+- `versioner_patch` - Create patch release
+- `versioner_minor` - Create minor release
+- `versioner_major` - Create major release
+- `versioner_patch_rc` - Create patch release candidate
+- `versioner_minor_rc` - Create minor release candidate
+- `versioner_major_rc` - Create major release candidate
+- `versioner_increment_rc` - Increment current release candidate
+- `versioner_release` - Release current release candidate
+
 ## VERSION File Format
 
 Both implementations use the same file format:

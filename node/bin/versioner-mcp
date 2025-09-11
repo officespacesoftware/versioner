@@ -1,0 +1,238 @@
+#!/usr/bin/env node
+
+/**
+ * Versioner MCP Server - Model Context Protocol server for version management
+ * Exposes versioner commands as tools for AI assistants
+ */
+
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+
+// Import versioner tasks
+import {
+  init,
+  patch,
+  minor,
+  major,
+  patchReleaseCandidate,
+  minorReleaseCandidate,
+  majorReleaseCandidate,
+  incrementReleaseCandidate,
+  release,
+  showVersion
+} from '../lib/tasks.js';
+
+class VersionerMCPServer {
+  constructor() {
+    this.server = new Server(
+      {
+        name: 'versioner-mcp',
+        version: '1.0.0',
+      },
+      {
+        capabilities: {
+          tools: {},
+        },
+      }
+    );
+
+    this.setupToolHandlers();
+    this.setupErrorHandling();
+  }
+
+  setupErrorHandling() {
+    this.server.onerror = (error) => console.error('[MCP Error]', error);
+    process.on('SIGINT', async () => {
+      await this.server.close();
+      process.exit(0);
+    });
+  }
+
+  setupToolHandlers() {
+    // List available tools
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      return {
+        tools: [
+          {
+            name: 'versioner_init',
+            description: 'Initialize project with VERSION file',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                version: {
+                  type: 'string',
+                  description: 'Initial version (default: 0.1.0-RC.0)',
+                },
+              },
+            },
+          },
+          {
+            name: 'versioner_show',
+            description: 'Show current version from VERSION file',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'versioner_patch',
+            description: 'Create a new patch-level (n.n.X) release',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'versioner_minor',
+            description: 'Create a new minor-level (n.X.n) release',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'versioner_major',
+            description: 'Create a new major-level (X.n.n) release',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'versioner_patch_rc',
+            description: 'Create a new patch-level (n.n.X-RC.0) release candidate',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'versioner_minor_rc',
+            description: 'Create a new minor-level (n.X.n-RC.0) release candidate',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'versioner_major_rc',
+            description: 'Create a new major-level (X.n.n-RC.0) release candidate',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'versioner_increment_rc',
+            description: 'Increment the current release candidate (n.n.n-RCX)',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'versioner_release',
+            description: 'Release the current release candidate (n.n.n)',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+        ],
+      };
+    });
+
+    // Handle tool execution
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name, arguments: args } = request.params;
+
+      try {
+        let result;
+        
+        switch (name) {
+          case 'versioner_init':
+            const initArgs = args;
+            result = init(initArgs.version || null);
+            break;
+
+          case 'versioner_show':
+            result = showVersion();
+            break;
+
+          case 'versioner_patch':
+            result = patch();
+            break;
+
+          case 'versioner_minor':
+            result = minor();
+            break;
+
+          case 'versioner_major':
+            result = major();
+            break;
+
+          case 'versioner_patch_rc':
+            result = patchReleaseCandidate();
+            break;
+
+          case 'versioner_minor_rc':
+            result = minorReleaseCandidate();
+            break;
+
+          case 'versioner_major_rc':
+            result = majorReleaseCandidate();
+            break;
+
+          case 'versioner_increment_rc':
+            result = incrementReleaseCandidate();
+            break;
+
+          case 'versioner_release':
+            result = release();
+            break;
+
+          default:
+            throw new Error(`Unknown tool: ${name}`);
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result || 'Command executed successfully',
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    });
+  }
+
+  async run() {
+    const transport = new StdioServerTransport();
+    await this.server.connect(transport);
+    console.error('Versioner MCP server running on stdio');
+  }
+}
+
+// Start the server
+async function main() {
+  const server = new VersionerMCPServer();
+  await server.run();
+}
+
+main().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});

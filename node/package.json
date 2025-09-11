@@ -5,7 +5,8 @@
   "main": "lib/index.js",
   "type": "module",
   "bin": {
-    "versioner": "bin/versioner"
+    "versioner": "bin/versioner",
+    "versioner-mcp": "bin/versioner-mcp"
   },
   "scripts": {
     "test": "bun test",
@@ -20,6 +21,7 @@
   "files": [
     "lib/**/*.js",
     "bin/versioner",
+    "bin/versioner-mcp",
     "README.md",
     "LICENSE"
   ],
@@ -32,7 +34,9 @@
     "semver",
     "cli",
     "release-candidate",
-    "git-tags"
+    "git-tags",
+    "mcp",
+    "model-context-protocol"
   ],
   "author": "Esteban Trejos",
   "license": "MIT",
@@ -48,5 +52,9 @@
   "publishConfig": {
     "registry": "https://npm.pkg.dev/@officespacesoftware/versioner",
     "access": "restricted"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "zod": "^3.25.76"
   }
 }
