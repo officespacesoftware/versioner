@@ -149,7 +149,5 @@ function main() {
   }
 }
 
-// Run the CLI if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
-}
+// Always run the CLI - this file is meant to be executed as a binary
+main();
