@@ -26,12 +26,12 @@ export class VersionFile {
    */
   constructor(filePath = null, options = {}) {
     this.filePath = filePath || getVersionFilePath();
-    
+
     // Handle file creation if options provided
     if (options.version && options.path) {
       this._createFile(options.version, options.path);
     }
-    
+
     // Validate that file exists
     if (!fileExists(this.filePath)) {
       throw new Error(`Version file '${this.filePath}' does not exist.`);
@@ -49,10 +49,10 @@ export class VersionFile {
   static create(options = {}) {
     const version = options.version || '0.1.0-RC.0';
     const path = options.path || getVersionFilePath();
-    
+
     const gitHash = getShortCommitHash();
     createVersionFile(path, version, gitHash);
-    
+
     return new VersionFile(path);
   }
 
@@ -158,7 +158,12 @@ export class VersionFile {
    */
   patch() {
     if (this.isReleaseCandidate()) {
-      throw new Error('Cannot patch a release candidate, it needs to be released first.');
+      const currentVersion = this.version();
+      const releaseVersion = this.shortVersion();
+      const patchVersion = formatVersion(incrementPatch(removeReleaseCandidate(this._parsedVersion)));
+      throw new Error(`There's an active release candidate (${currentVersion}). Do you want to:\n` +
+        `a) Release the RC (${currentVersion} → ${releaseVersion})\n` +
+        `b) Release the RC first, then create patch version (${releaseVersion} → ${patchVersion})`);
     }
 
     const newVersion = incrementPatch(this._parsedVersion);
@@ -172,7 +177,12 @@ export class VersionFile {
    */
   minor() {
     if (this.isReleaseCandidate()) {
-      throw new Error('Cannot minor increment a release candidate, it needs to be released first.');
+      const currentVersion = this.version();
+      const releaseVersion = this.shortVersion();
+      const minorVersion = formatVersion(incrementMinor(removeReleaseCandidate(this._parsedVersion)));
+      throw new Error(`There's an active release candidate (${currentVersion}). Do you want to:\n` +
+        `a) Just release the RC as-is (${currentVersion} → ${releaseVersion})\n` +
+        `b) Release the RC first, then create minor version (${releaseVersion} → ${minorVersion})`);
     }
 
     const newVersion = incrementMinor(this._parsedVersion);
@@ -186,7 +196,12 @@ export class VersionFile {
    */
   major() {
     if (this.isReleaseCandidate()) {
-      throw new Error('Cannot major increment a release candidate, it needs to be released first.');
+      const currentVersion = this.version();
+      const releaseVersion = this.shortVersion();
+      const majorVersion = formatVersion(incrementMajor(removeReleaseCandidate(this._parsedVersion)));
+      throw new Error(`There's an active release candidate (${currentVersion}). Do you want to:\n` +
+        `a) Just release the RC as-is (${currentVersion} → ${releaseVersion})\n` +
+        `b) Release the RC first, then create major version (${releaseVersion} → ${majorVersion})`);
     }
 
     const newVersion = incrementMajor(this._parsedVersion);
@@ -200,7 +215,12 @@ export class VersionFile {
    */
   patchReleaseCandidate() {
     if (this.isReleaseCandidate()) {
-      throw new Error('Cannot make a release candidate out of a release candidate. To increment to the next release candidate, invoke "incrementReleaseCandidate".');
+      const currentVersion = this.version();
+      const releaseVersion = this.shortVersion();
+      const nextRcVersion = formatVersion(incrementReleaseCandidate(this._parsedVersion));
+      throw new Error(`There's an active release candidate (${currentVersion}). Do you want to:\n` +
+        `a) Just release the RC as-is (${currentVersion} → ${releaseVersion})\n` +
+        `b) Increment the RC (${currentVersion} → ${nextRcVersion})`);
     }
 
     const patchedVersion = incrementPatch(this._parsedVersion);
@@ -215,7 +235,12 @@ export class VersionFile {
    */
   minorReleaseCandidate() {
     if (this.isReleaseCandidate()) {
-      throw new Error('Cannot make a release candidate out of a release candidate. To increment to the next release candidate, invoke "incrementReleaseCandidate".');
+      const currentVersion = this.version();
+      const releaseVersion = this.shortVersion();
+      const nextRcVersion = formatVersion(incrementReleaseCandidate(this._parsedVersion));
+      throw new Error(`There's an active release candidate (${currentVersion}). Do you want to:\n` +
+        `a) Just release the RC as-is (${currentVersion} → ${releaseVersion})\n` +
+        `b) Increment the RC (${currentVersion} → ${nextRcVersion})`);
     }
 
     const minorVersion = incrementMinor(this._parsedVersion);
@@ -230,7 +255,12 @@ export class VersionFile {
    */
   majorReleaseCandidate() {
     if (this.isReleaseCandidate()) {
-      throw new Error('Cannot make a release candidate out of a release candidate. To increment to the next release candidate, invoke "incrementReleaseCandidate".');
+      const currentVersion = this.version();
+      const releaseVersion = this.shortVersion();
+      const nextRcVersion = formatVersion(incrementReleaseCandidate(this._parsedVersion));
+      throw new Error(`There's an active release candidate (${currentVersion}). Do you want to:\n` +
+        `a) Just release the RC as-is (${currentVersion} → ${releaseVersion})\n` +
+        `b) Increment the RC (${currentVersion} → ${nextRcVersion})`);
     }
 
     const majorVersion = incrementMajor(this._parsedVersion);
