@@ -13,6 +13,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { ReleaseAgent } from "./release-agent.js";
 import { GitFlowManager } from "./git-flow.js";
+import { VersionerAdapter } from "./versioner-adapter.js";
 
 /**
  * Release Management MCP Server
@@ -27,6 +28,7 @@ class ReleaseManagementMCPServer {
   private server: Server;
   private releaseAgent?: ReleaseAgent;
   private gitFlowManager?: GitFlowManager;
+  private versionerAdapter?: VersionerAdapter;
 
   constructor() {
     this.server = new Server(
@@ -166,6 +168,61 @@ class ReleaseManagementMCPServer {
               },
             },
           },
+          {
+            name: "show_version",
+            description:
+              "Show the current version number from the VERSION file using versioner-mcp",
+            inputSchema: {
+              type: "object",
+              properties: {
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+              },
+            },
+          },
+          {
+            name: "initialize_versioner",
+            description:
+              "Initialize versioner (VERSION file) on the current repository",
+            inputSchema: {
+              type: "object",
+              properties: {
+                version: {
+                  type: "string",
+                  description:
+                    "Initial version (optional, defaults to 0.1.0-RC.0)",
+                },
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+              },
+            },
+          },
+          {
+            name: "downmerge_main_to_develop",
+            description:
+              "Downmerge main branch into develop via pull request following Git Flow best practices",
+            inputSchema: {
+              type: "object",
+              properties: {
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+                dryRun: {
+                  type: "boolean",
+                  description:
+                    "If true, shows what would happen without making changes (default: false)",
+                },
+              },
+            },
+          },
         ],
       };
     });
@@ -198,6 +255,18 @@ class ReleaseManagementMCPServer {
             result = await this.handleReleaseVersion(args);
             break;
 
+          case "show_version":
+            result = await this.handleShowVersion(args);
+            break;
+
+          case "initialize_versioner":
+            result = await this.handleInitializeVersioner(args);
+            break;
+
+          case "downmerge_main_to_develop":
+            result = await this.handleDownmergeMaintoDevelop(args);
+            break;
+
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -226,6 +295,155 @@ class ReleaseManagementMCPServer {
         };
       }
     });
+  }
+
+  private async handleShowVersion(args: any): Promise<string> {
+    const workingDirectory = args?.workingDirectory || process.cwd();
+
+    try {
+      // Initialize versioner adapter if needed
+      if (!this.versionerAdapter) {
+        this.versionerAdapter = new VersionerAdapter();
+        await this.versionerAdapter.initialize(undefined, workingDirectory);
+      }
+
+      const versionInfo = await this.versionerAdapter.getCurrentVersion();
+
+      return `📋 Current Version Information
+
+📁 Working Directory: ${workingDirectory}
+🏷️  Version: ${versionInfo.version}
+🔢 Major: ${versionInfo.major}
+🔢 Minor: ${versionInfo.minor}
+🔢 Patch: ${versionInfo.patch}
+${versionInfo.isReleaseCandidate ? `🚧 RC Number: ${versionInfo.rcNumber}` : ""}
+📊 Release Type: ${
+        versionInfo.isReleaseCandidate ? "Release Candidate" : "Final Release"
+      }`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return `❌ Failed to get version information
+
+📁 Working Directory: ${workingDirectory}
+💥 Error: ${errorMessage}
+
+Common issues:
+- VERSION file may not exist (run initialize_versioner first)
+- Versioner MCP may not be running
+- Invalid VERSION file format`;
+    }
+  }
+
+  private async handleInitializeVersioner(args: any): Promise<string> {
+    const version = args?.version;
+    const workingDirectory = args?.workingDirectory || process.cwd();
+
+    try {
+      // Initialize versioner adapter if needed
+      if (!this.versionerAdapter) {
+        this.versionerAdapter = new VersionerAdapter();
+        await this.versionerAdapter.initialize(undefined, workingDirectory);
+      }
+
+      const versionInfo = await this.versionerAdapter.initializeProject(
+        version
+      );
+
+      return `✅ Versioner Initialized Successfully!
+
+📁 Working Directory: ${workingDirectory}
+🏷️  Created Version: ${versionInfo.version}
+📊 Release Type: ${
+        versionInfo.isReleaseCandidate ? "Release Candidate" : "Final Release"
+      }
+
+📋 Next Steps:
+1. VERSION file has been created in your project
+2. Initial git commit and tag have been created
+3. You can now use other versioning tools to manage releases`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return `❌ Failed to initialize versioner
+
+📁 Working Directory: ${workingDirectory}
+${
+  version
+    ? `🔍 Requested Version: ${version}`
+    : "🔍 Default Version: 0.1.0-RC.0"
+}
+💥 Error: ${errorMessage}
+
+Common issues:
+- Directory may not be a git repository
+- Versioner MCP may not be running
+- Permission issues with file creation`;
+    }
+  }
+
+  private async handleDownmergeMaintoDevelop(args: any): Promise<string> {
+    const workingDirectory = args?.workingDirectory || process.cwd();
+    const dryRun = args?.dryRun || false;
+
+    try {
+      // Initialize git flow manager if needed
+      if (!this.gitFlowManager) {
+        this.gitFlowManager = new GitFlowManager(workingDirectory);
+      }
+
+      // Check if we're in a git repository
+      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      const prUrl = await this.gitFlowManager.downmergeMainToDevelop(dryRun);
+
+      return `🚀 Downmerge Main to Develop ${
+        dryRun ? "(Dry Run) " : ""
+      }Completed Successfully!
+
+📁 Working Directory: ${workingDirectory}
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+
+${
+  dryRun
+    ? "🔧 Would have performed the following actions:"
+    : "✅ Completed the following actions:"
+}
+1. Fetched latest changes from origin
+2. Checked out and pulled main branch
+3. Checked out and pulled develop branch
+4. Created new branch from develop
+5. Merged main into the new branch
+6. Pushed the new branch to origin
+7. Created pull request targeting develop
+
+${!dryRun && prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
+
+📋 Next Steps:
+1. Review the pull request for merge conflicts
+2. Test the merged changes in a development environment
+3. Merge the PR when ready to integrate main changes into develop`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return `❌ Downmerge Main to Develop Failed
+
+📁 Working Directory: ${workingDirectory}
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+💥 Error: ${errorMessage}
+
+Common issues:
+- Not in a git repository
+- Missing main or develop branches
+- Network issues with git operations
+- Permission issues with git push or PR creation
+- GitHub CLI (gh) not available or not authenticated`;
+    }
   }
 
   private async handleHealthCheck(): Promise<string> {
