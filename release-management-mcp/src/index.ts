@@ -116,6 +116,31 @@ class ReleaseManagementMCPServer {
               },
             },
           },
+          {
+            name: "increment_release_candidate",
+            description:
+              "Increment an existing release candidate (RC) for both release and hotfix branches. Intelligently selects target branch using: 1) specified releaseBranch parameter, 2) current branch if it matches release/hotfix pattern, or 3) latest release/hotfix branch by version",
+            inputSchema: {
+              type: "object",
+              properties: {
+                releaseBranch: {
+                  type: "string",
+                  description:
+                    "Optional specific release or hotfix branch to increment (e.g., 'release/1.2.0-RC.0' or 'hotfix/1.1.1-RC.0'). If not provided, uses intelligent branch selection",
+                },
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+                dryRun: {
+                  type: "boolean",
+                  description:
+                    "If true, performs validation checks without making any changes (default: false)",
+                },
+              },
+            },
+          },
         ],
       };
     });
@@ -138,6 +163,10 @@ class ReleaseManagementMCPServer {
 
           case "create_hotfix":
             result = await this.handleCreateHotfix(args);
+            break;
+
+          case "increment_release_candidate":
+            result = await this.handleIncrementRC(args);
             break;
 
           default:
@@ -399,6 +428,115 @@ ${
 
 📁 Working Directory: ${workingDirectory}
 🔧 Workflow Type: HOTFIX (Patch Release)
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+
+📋 Workflow Progress:
+${progressSummary}
+
+💥 Error: ${errorMessage}
+
+Please review the error and fix any issues before retrying the workflow.`;
+    }
+  }
+
+  private async handleIncrementRC(args: any): Promise<string> {
+    const releaseBranch = args?.releaseBranch;
+    const workingDirectory = args?.workingDirectory || process.cwd();
+    const dryRun = args?.dryRun || false;
+
+    try {
+      // Initialize components if not already done
+      if (!this.gitFlowManager) {
+        this.gitFlowManager = new GitFlowManager(workingDirectory);
+      }
+
+      if (!this.releaseAgent) {
+        this.releaseAgent = new ReleaseAgent(
+          this.gitFlowManager,
+          workingDirectory
+        );
+        await this.releaseAgent.initialize();
+      }
+
+      // Check if we're in a git repository
+      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      // Check if versioner is available
+      if (!this.releaseAgent.isVersionerAvailable()) {
+        throw new Error(
+          "Versioner MCP is not available. Please ensure versioner-mcp is running."
+        );
+      }
+
+      // Execute the increment RC workflow
+      const workflowResult = await this.releaseAgent.executeIncrementRCWorkflow(
+        workingDirectory,
+        releaseBranch,
+        dryRun
+      );
+
+      // Generate workflow summary
+      const progressSummary = this.releaseAgent.getProgressSummary();
+
+      return `🚀 Increment Release Candidate Workflow ${
+        dryRun ? "(Dry Run) " : ""
+      }Completed Successfully!
+
+📁 Working Directory: ${workingDirectory}
+📋 Branch Type: ${workflowResult.branchType.toUpperCase()}
+🎯 Selected Branch: ${workflowResult.branchInfo.name}
+
+📋 Workflow Progress:
+${progressSummary}
+
+${
+  workflowResult.targetVersion
+    ? `🎯 New Version: ${workflowResult.targetVersion.version}`
+    : ""
+}
+${
+  workflowResult.pullRequestUrl
+    ? `🔗 Pull Request: ${workflowResult.pullRequestUrl}`
+    : ""
+}
+
+✅ All steps completed successfully. The release candidate has been incremented and is ready for ${
+        workflowResult.branchType === 'release' ? 'integration testing' : 'production deployment'
+      }.
+
+${
+  workflowResult.pullRequestUrl
+    ? `
+📋 Next steps:
+1. Review the pull request: ${workflowResult.pullRequestUrl}
+2. ${workflowResult.branchType === 'release' ? 'Run integration tests on the release branch' : 'Deploy the hotfix to production environment'}
+3. Merge the PR when ready${workflowResult.branchType === 'hotfix' ? ' (AFTER production deployment)' : ''}
+4. ${workflowResult.branchType === 'release' ? 'Deploy to staging environment for testing' : 'Create follow-up PR to merge hotfix changes back to develop'}`
+    : `
+📋 Next steps:
+1. Review the ${workflowResult.branchType} branch
+2. ${workflowResult.branchType === 'release' ? 'Run integration tests' : 'Deploy to production environment'}
+3. Create PR to ${workflowResult.branchInfo.targetBranch} branch (Step 7 completed)
+4. ${workflowResult.branchType === 'release' ? 'Deploy to staging environment for testing' : 'Merge AFTER successful production deployment'}`
+}`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error("Increment RC workflow failed:", error);
+
+      // Include progress summary even on failure
+      const progressSummary =
+        this.releaseAgent?.getProgressSummary() || "Workflow not started";
+
+      return `❌ Increment Release Candidate Workflow Failed
+
+📁 Working Directory: ${workingDirectory}
+${releaseBranch ? `📋 Specified Branch: ${releaseBranch}` : '📋 Branch Selection: Auto-detect'}
 🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 
 📋 Workflow Progress:

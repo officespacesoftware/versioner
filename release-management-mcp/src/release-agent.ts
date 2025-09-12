@@ -3,7 +3,7 @@
  */
 
 import { VersionerAdapter, VersionInfo } from "./versioner-adapter.js";
-import { GitFlowManager } from "./git-flow.js";
+import { GitFlowManager, BranchType, BranchTypeInfo } from "./git-flow.js";
 
 export interface ReleaseWorkflowContext {
   workingDirectory: string;
@@ -24,6 +24,17 @@ export interface HotfixWorkflowContext {
   pullRequestUrl?: string;
 }
 
+export interface IncrementRCWorkflowContext {
+  workingDirectory: string;
+  currentBranch: string;
+  branchType: BranchType;
+  branchInfo: BranchTypeInfo;
+  targetVersion?: VersionInfo;
+  dryRun: boolean;
+  stepProgress: WorkflowStep[];
+  pullRequestUrl?: string;
+}
+
 export interface WorkflowStep {
   step: number;
   name: string;
@@ -38,7 +49,10 @@ export interface WorkflowStep {
 export class ReleaseAgent {
   private versionerAdapter: VersionerAdapter;
   private gitFlowManager: GitFlowManager;
-  private context?: ReleaseWorkflowContext | HotfixWorkflowContext;
+  private context?:
+    | ReleaseWorkflowContext
+    | HotfixWorkflowContext
+    | IncrementRCWorkflowContext;
   private workingDirectory: string;
 
   constructor(gitFlowManager: GitFlowManager, workingDirectory: string) {
@@ -779,6 +793,446 @@ This pull request was automatically created by the Release Management MCP follow
       .join("\n");
 
     return summary;
+  }
+
+  /**
+   * Execute the increment release candidate workflow (7-step process)
+   */
+  async executeIncrementRCWorkflow(
+    workingDirectory: string,
+    releaseBranch?: string,
+    dryRun: boolean = false
+  ): Promise<IncrementRCWorkflowContext> {
+    console.log(`\n🚀 Starting Increment Release Candidate Workflow`);
+    console.log(`📁 Working Directory: ${workingDirectory}`);
+    if (releaseBranch) {
+      console.log(`📋 Specified Branch: ${releaseBranch}`);
+    }
+    console.log(`🔧 Dry Run: ${dryRun ? "Yes" : "No"}\n`);
+
+    // Step 1: Determine target branch using the intelligent selection algorithm
+    const branchInfo = await this.selectTargetBranch(releaseBranch);
+
+    console.log(`🎯 Selected Branch: ${branchInfo.name} (${branchInfo.type})`);
+    console.log(`📊 Branch Version: ${branchInfo.version.full}`);
+    console.log(`🎯 Target PR Branch: ${branchInfo.targetBranch}\n`);
+
+    // Initialize increment RC workflow context
+    this.context = {
+      workingDirectory,
+      currentBranch: "unknown",
+      branchType: branchInfo.type,
+      branchInfo,
+      dryRun,
+      stepProgress: [
+        { step: 1, name: "Select Target Branch", status: "completed" },
+        { step: 2, name: "Checkout Release/Hotfix Branch", status: "pending" },
+        { step: 3, name: "Pull Latest Changes", status: "pending" },
+        { step: 4, name: "Validate Branch Version", status: "pending" },
+        { step: 5, name: "Increment Release Candidate", status: "pending" },
+        { step: 6, name: "Push Changes and Tag", status: "pending" },
+        { step: 7, name: "Create Pull Request", status: "pending" },
+      ],
+    } as IncrementRCWorkflowContext;
+
+    try {
+      // Step 2: Checkout the target branch
+      await this.executeIncrementStep2_CheckoutBranch(branchInfo);
+
+      // Step 3: Pull latest changes
+      await this.executeIncrementStep3_PullChanges();
+
+      // Step 4: Validate branch version
+      await this.executeIncrementStep4_ValidateVersion(branchInfo);
+
+      // Step 5: Increment release candidate
+      await this.executeIncrementStep5_IncrementRC();
+
+      // Step 6: Push changes and tag
+      await this.executeIncrementStep6_PushChangesAndTag(branchInfo);
+
+      // Step 7: Create pull request
+      await this.executeIncrementStep7_CreatePullRequest(branchInfo);
+
+      console.log(`\n✅ Increment RC Workflow completed successfully!`);
+      return this.context as IncrementRCWorkflowContext;
+    } catch (error) {
+      console.error(`\n❌ Increment RC Workflow failed: ${error}`);
+
+      // Mark current step as failed
+      if (this.context) {
+        const currentStep = (
+          this.context as IncrementRCWorkflowContext
+        ).stepProgress.find((step) => step.status === "in_progress");
+        if (currentStep) {
+          currentStep.status = "failed";
+          currentStep.error =
+            error instanceof Error ? error.message : String(error);
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Step 1: Intelligent branch selection algorithm
+   */
+  private async selectTargetBranch(
+    releaseBranch?: string
+  ): Promise<BranchTypeInfo> {
+    try {
+      // First, fetch latest remote branches
+      await this.gitFlowManager["execGit"]("fetch origin");
+
+      // Option 1: Use provided releaseBranch parameter
+      if (releaseBranch) {
+        const branchType = this.gitFlowManager.detectBranchType(releaseBranch);
+        if (!branchType) {
+          throw new Error(
+            `Branch '${releaseBranch}' does not match release or hotfix pattern`
+          );
+        }
+
+        // Find the specific branch and get its info
+        const branches = await this.gitFlowManager.findBranchesOfType(
+          branchType
+        );
+        const cleanBranchName = releaseBranch.replace(/^remotes\/origin\//, "");
+        const branch = branches.find(
+          (b) =>
+            b.name === releaseBranch ||
+            b.name === `remotes/origin/${cleanBranchName}` ||
+            b.name.endsWith(`/${cleanBranchName}`)
+        );
+
+        if (!branch) {
+          throw new Error(
+            `Branch '${releaseBranch}' not found in remote ${branchType} branches`
+          );
+        }
+
+        return branch;
+      }
+
+      // Option 2: Check if current branch matches release/hotfix pattern
+      const currentStatus = await this.gitFlowManager.getStatus();
+      const currentBranchType = this.gitFlowManager.detectBranchType(
+        currentStatus.currentBranch
+      );
+
+      if (currentBranchType) {
+        const branches = await this.gitFlowManager.findBranchesOfType(
+          currentBranchType
+        );
+        const currentBranch = branches.find(
+          (b) =>
+            b.name === currentStatus.currentBranch ||
+            b.name.endsWith(`/${currentStatus.currentBranch}`)
+        );
+
+        if (currentBranch) {
+          console.log(
+            `📋 Using current branch: ${currentBranch.name} (${currentBranchType})`
+          );
+          return currentBranch;
+        }
+      }
+
+      // Option 3: Find latest release and hotfix branches, select the most recent
+      const latestRelease = await this.gitFlowManager.findLatestBranch(
+        "release"
+      );
+      const latestHotfix = await this.gitFlowManager.findLatestBranch("hotfix");
+
+      if (!latestRelease && !latestHotfix) {
+        throw new Error(
+          "No release or hotfix branches found. Cannot determine target branch for RC increment."
+        );
+      }
+
+      // If only one type exists, use it
+      if (latestRelease && !latestHotfix) {
+        console.log(`📋 Using latest release branch: ${latestRelease.name}`);
+        return latestRelease;
+      }
+
+      if (latestHotfix && !latestRelease) {
+        console.log(`📋 Using latest hotfix branch: ${latestHotfix.name}`);
+        return latestHotfix;
+      }
+
+      // If both exist, compare versions and use the latest
+      if (latestRelease && latestHotfix) {
+        const releaseVersion = latestRelease.version;
+        const hotfixVersion = latestHotfix.version;
+
+        // Compare semantic versions
+        let useRelease = false;
+        if (releaseVersion.major > hotfixVersion.major) {
+          useRelease = true;
+        } else if (releaseVersion.major === hotfixVersion.major) {
+          if (releaseVersion.minor > hotfixVersion.minor) {
+            useRelease = true;
+          } else if (releaseVersion.minor === hotfixVersion.minor) {
+            useRelease = releaseVersion.patch >= hotfixVersion.patch;
+          }
+        }
+
+        const selectedBranch = useRelease ? latestRelease : latestHotfix;
+        console.log(
+          `📋 Using most recent branch: ${selectedBranch.name} (${selectedBranch.version.full})`
+        );
+        return selectedBranch;
+      }
+
+      throw new Error("Unexpected error in branch selection logic");
+    } catch (error) {
+      throw new Error(`Failed to select target branch: ${error}`);
+    }
+  }
+
+  /**
+   * Step 2: Checkout the target branch
+   */
+  private async executeIncrementStep2_CheckoutBranch(
+    branchInfo: BranchTypeInfo
+  ): Promise<void> {
+    this.updateStepStatus(2, "in_progress");
+
+    try {
+      if (!this.context || !("branchInfo" in this.context)) {
+        throw new Error("Invalid context for increment RC workflow");
+      }
+
+      // Clean branch name (remove remotes/origin/ prefix if present)
+      const cleanBranchName = branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      console.log(`🔄 Step 2: Checking out branch '${cleanBranchName}'`);
+      await this.gitFlowManager.checkoutAndPull(cleanBranchName);
+
+      const currentStatus = await this.gitFlowManager.getStatus();
+      (this.context as IncrementRCWorkflowContext).currentBranch =
+        currentStatus.currentBranch;
+
+      this.updateStepStatus(2, "completed");
+    } catch (error) {
+      this.updateStepStatus(2, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 3: Pull latest changes
+   */
+  private async executeIncrementStep3_PullChanges(): Promise<void> {
+    this.updateStepStatus(3, "in_progress");
+
+    try {
+      if (!this.context || !("branchInfo" in this.context)) {
+        throw new Error("Invalid context for increment RC workflow");
+      }
+
+      const branchName = (
+        this.context as IncrementRCWorkflowContext
+      ).branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      console.log(`🔄 Step 3: Pulling latest changes from ${branchName}`);
+      await this.gitFlowManager["execGit"](`pull origin ${branchName}`);
+
+      this.updateStepStatus(3, "completed");
+    } catch (error) {
+      this.updateStepStatus(3, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 4: Validate branch version
+   */
+  private async executeIncrementStep4_ValidateVersion(
+    branchInfo: BranchTypeInfo
+  ): Promise<void> {
+    this.updateStepStatus(4, "in_progress");
+
+    try {
+      console.log(
+        `🔄 Step 4: Validating ${branchInfo.name} version against ${branchInfo.baseBranch}`
+      );
+
+      if (!this.context || !("dryRun" in this.context)) {
+        throw new Error("Invalid context for increment RC workflow");
+      }
+
+      if (!(this.context as IncrementRCWorkflowContext).dryRun) {
+        const validation = await this.gitFlowManager.validateBranchVersion(
+          branchInfo
+        );
+
+        if (!validation.valid) {
+          throw new Error(validation.message);
+        }
+
+        console.log(`✅ Version validation passed: ${validation.message}`);
+      } else {
+        console.log(`🔧 Dry run: Skipping version validation`);
+      }
+
+      this.updateStepStatus(4, "completed");
+    } catch (error) {
+      this.updateStepStatus(4, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 5: Increment release candidate
+   */
+  private async executeIncrementStep5_IncrementRC(): Promise<void> {
+    this.updateStepStatus(5, "in_progress");
+
+    try {
+      if (!this.context || !("dryRun" in this.context)) {
+        throw new Error("Invalid context for increment RC workflow");
+      }
+
+      console.log(`🔄 Step 5: Incrementing release candidate version`);
+
+      if (!(this.context as IncrementRCWorkflowContext).dryRun) {
+        const newVersion =
+          await this.versionerAdapter.incrementReleaseCandidate();
+        (this.context as IncrementRCWorkflowContext).targetVersion = newVersion;
+
+        console.log(`🎯 New version: ${newVersion.version}`);
+      } else {
+        console.log(`🔧 Dry run: Would increment RC version`);
+      }
+
+      this.updateStepStatus(5, "completed");
+    } catch (error) {
+      this.updateStepStatus(5, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 6: Push changes and tag
+   */
+  private async executeIncrementStep6_PushChangesAndTag(
+    branchInfo: BranchTypeInfo
+  ): Promise<void> {
+    this.updateStepStatus(6, "in_progress");
+
+    try {
+      if (!this.context || !("dryRun" in this.context)) {
+        throw new Error("Invalid context for increment RC workflow");
+      }
+
+      const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      console.log(`🔄 Step 6: Pushing changes and tag for ${branchName}`);
+
+      if (!(this.context as IncrementRCWorkflowContext).dryRun) {
+        const targetVersion = (this.context as IncrementRCWorkflowContext)
+          .targetVersion;
+        if (!targetVersion) {
+          throw new Error("Target version not available for push operation");
+        }
+
+        const tagName = targetVersion.version;
+
+        // Push the branch and tag
+        await this.gitFlowManager.pushBranchAndTag(branchName, tagName);
+
+        console.log(`🚀 Pushed ${branchName} and tag ${tagName}`);
+      } else {
+        console.log(`🔧 Dry run: Would push branch and create tag`);
+      }
+
+      this.updateStepStatus(6, "completed");
+    } catch (error) {
+      this.updateStepStatus(6, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 7: Create pull request
+   */
+  private async executeIncrementStep7_CreatePullRequest(
+    branchInfo: BranchTypeInfo
+  ): Promise<void> {
+    this.updateStepStatus(7, "in_progress");
+
+    try {
+      if (!this.context || !("dryRun" in this.context)) {
+        throw new Error("Invalid context for increment RC workflow");
+      }
+
+      const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
+      const targetBranch = branchInfo.targetBranch;
+      const targetVersion = (this.context as IncrementRCWorkflowContext)
+        .targetVersion;
+
+      console.log(
+        `🔄 Step 7: Creating PR from ${branchName} to ${targetBranch}`
+      );
+
+      if (!(this.context as IncrementRCWorkflowContext).dryRun) {
+        const prTitle = `${
+          branchInfo.type === "release" ? "Release" : "Hotfix"
+        }: Increment RC to ${targetVersion?.version || "new version"}`;
+
+        const prBody = `## ${
+          branchInfo.type === "release" ? "Release" : "Hotfix"
+        } Candidate Increment
+
+This PR increments the release candidate version for ${branchName}.
+
+### Changes
+- Incremented RC version to ${targetVersion?.version || "new version"}
+- Updated VERSION file and git tag
+
+### Type
+${
+  branchInfo.type === "release"
+    ? "- [ ] Ready for integration testing"
+    : "- [ ] Ready for production deployment"
+}
+
+${
+  branchInfo.type === "hotfix"
+    ? `> [!WARNING]\n> This PR must be merged **after** the hotfix has been deployed to production.\n`
+    : ""
+}
+
+🤖 Auto-generated by Release Management MCP`;
+
+        try {
+          const prUrl = await this.gitFlowManager.createPullRequest(
+            branchName,
+            targetBranch,
+            prTitle,
+            prBody
+          );
+
+          (this.context as IncrementRCWorkflowContext).pullRequestUrl = prUrl;
+          console.log(`🔗 Created PR: ${prUrl}`);
+        } catch (prError) {
+          console.warn(`⚠️  Failed to create PR (continuing): ${prError}`);
+          // Don't fail the entire workflow if PR creation fails
+        }
+      } else {
+        console.log(
+          `🔧 Dry run: Would create PR from ${branchName} to ${targetBranch}`
+        );
+      }
+
+      this.updateStepStatus(7, "completed");
+    } catch (error) {
+      this.updateStepStatus(7, "failed");
+      throw error;
+    }
   }
 
   /**
