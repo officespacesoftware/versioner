@@ -73,7 +73,7 @@ class ReleaseManagementMCPServer {
           {
             name: "create_release_candidate",
             description:
-              "Create a release candidate (major or minor) following Git Flow workflow (6-step process)",
+              "Create a release candidate (major or minor) following Git Flow workflow (6-step process). Defaults to minor release if not specified.",
             inputSchema: {
               type: "object",
               properties: {
@@ -81,7 +81,7 @@ class ReleaseManagementMCPServer {
                   type: "string",
                   enum: ["major", "minor"],
                   description:
-                    "The type of release candidate to create: major (X.0.0-RC.0) or minor (x.X.0-RC.0)",
+                    "The type of release candidate to create: major (X.0.0-RC.0) or minor (x.X.0-RC.0). Defaults to minor if not specified.",
                 },
                 workingDirectory: {
                   type: "string",
@@ -94,7 +94,6 @@ class ReleaseManagementMCPServer {
                     "If true, performs validation checks without making any changes (default: false)",
                 },
               },
-              required: ["releaseType"],
             },
           },
           {
@@ -191,14 +190,14 @@ class ReleaseManagementMCPServer {
   }
 
   private async handleCreateRC(args: any): Promise<string> {
-    const releaseType = args?.releaseType;
+    const releaseType = args?.releaseType || "minor"; // Default to minor
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
 
     // Validate release type
-    if (!releaseType || !["major", "minor"].includes(releaseType)) {
+    if (!["major", "minor"].includes(releaseType)) {
       throw new Error(
-        "releaseType is required and must be one of: major, minor"
+        "releaseType must be one of: major, minor (defaults to minor if not specified)"
       );
     }
 
