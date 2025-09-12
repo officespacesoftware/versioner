@@ -295,6 +295,13 @@ export class VersionerMCPClient {
   }
 
   /**
+   * Release the current release candidate
+   */
+  async releaseVersion(): Promise<string> {
+    return this.callVersionerTool('versioner_release');
+  }
+
+  /**
    * Initialize versioner (if needed)
    */
   async initialize(version?: string): Promise<string> {
