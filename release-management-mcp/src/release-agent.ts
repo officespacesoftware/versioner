@@ -812,22 +812,29 @@ This pull request was automatically created by the Release Management MCP follow
    */
   async executeIncrementRCWorkflow(
     workingDirectory: string,
-    releaseBranch?: string,
+    version?: string,
     dryRun: boolean = false
   ): Promise<IncrementRCWorkflowContext> {
     console.log(`\n🚀 Starting Increment Release Candidate Workflow`);
     console.log(`📁 Working Directory: ${workingDirectory}`);
-    if (releaseBranch) {
-      console.log(`📋 Specified Branch: ${releaseBranch}`);
+    if (version) {
+      console.log(`📋 Target Version: ${version}`);
     }
     console.log(`🔧 Dry Run: ${dryRun ? "Yes" : "No"}\n`);
 
-    // Step 1: Determine target branch using the intelligent selection algorithm
-    const branchInfo = await this.selectTargetBranch(releaseBranch);
+    // Step 1: Determine target branch using version-based branch finding
+    const branchInfo = await this.selectTargetReleaseBranch(version);
 
     console.log(`🎯 Selected Branch: ${branchInfo.name} (${branchInfo.type})`);
     console.log(`📊 Branch Version: ${branchInfo.version.full}`);
     console.log(`🎯 Target PR Branch: ${branchInfo.targetBranch}\n`);
+
+    // Validate that this is actually a release candidate
+    if (!branchInfo.version.full.includes("-RC.")) {
+      throw new Error(
+        `Branch ${branchInfo.name} version ${branchInfo.version.full} is not a release candidate. Only RC versions can be incremented.`
+      );
+    }
 
     // Initialize increment RC workflow context
     this.context = {
@@ -884,123 +891,6 @@ This pull request was automatically created by the Release Management MCP follow
       }
 
       throw error;
-    }
-  }
-
-  /**
-   * Step 1: Intelligent branch selection algorithm
-   */
-  private async selectTargetBranch(
-    releaseBranch?: string
-  ): Promise<BranchTypeInfo> {
-    try {
-      // First, fetch latest remote branches
-      await this.gitFlowManager["execGit"]("fetch origin");
-
-      // Option 1: Use provided releaseBranch parameter
-      if (releaseBranch) {
-        const branchType = this.gitFlowManager.detectBranchType(releaseBranch);
-        if (!branchType) {
-          throw new Error(
-            `Branch '${releaseBranch}' does not match release or hotfix pattern`
-          );
-        }
-
-        // Find the specific branch and get its info
-        const branches = await this.gitFlowManager.findBranchesOfType(
-          branchType
-        );
-        const cleanBranchName = releaseBranch.replace(/^remotes\/origin\//, "");
-        const branch = branches.find(
-          (b) =>
-            b.name === releaseBranch ||
-            b.name === `remotes/origin/${cleanBranchName}` ||
-            b.name.endsWith(`/${cleanBranchName}`)
-        );
-
-        if (!branch) {
-          throw new Error(
-            `Branch '${releaseBranch}' not found in remote ${branchType} branches`
-          );
-        }
-
-        return branch;
-      }
-
-      // Option 2: Check if current branch matches release/hotfix pattern
-      const currentStatus = await this.gitFlowManager.getStatus();
-      const currentBranchType = this.gitFlowManager.detectBranchType(
-        currentStatus.currentBranch
-      );
-
-      if (currentBranchType) {
-        const branches = await this.gitFlowManager.findBranchesOfType(
-          currentBranchType
-        );
-        const currentBranch = branches.find(
-          (b) =>
-            b.name === currentStatus.currentBranch ||
-            b.name.endsWith(`/${currentStatus.currentBranch}`)
-        );
-
-        if (currentBranch) {
-          console.log(
-            `📋 Using current branch: ${currentBranch.name} (${currentBranchType})`
-          );
-          return currentBranch;
-        }
-      }
-
-      // Option 3: Find latest release and hotfix branches, select the most recent
-      const latestRelease = await this.gitFlowManager.findLatestBranch(
-        "release"
-      );
-      const latestHotfix = await this.gitFlowManager.findLatestBranch("hotfix");
-
-      if (!latestRelease && !latestHotfix) {
-        throw new Error(
-          "No release or hotfix branches found. Cannot determine target branch for RC increment."
-        );
-      }
-
-      // If only one type exists, use it
-      if (latestRelease && !latestHotfix) {
-        console.log(`📋 Using latest release branch: ${latestRelease.name}`);
-        return latestRelease;
-      }
-
-      if (latestHotfix && !latestRelease) {
-        console.log(`📋 Using latest hotfix branch: ${latestHotfix.name}`);
-        return latestHotfix;
-      }
-
-      // If both exist, compare versions and use the latest
-      if (latestRelease && latestHotfix) {
-        const releaseVersion = latestRelease.version;
-        const hotfixVersion = latestHotfix.version;
-
-        // Compare semantic versions
-        let useRelease = false;
-        if (releaseVersion.major > hotfixVersion.major) {
-          useRelease = true;
-        } else if (releaseVersion.major === hotfixVersion.major) {
-          if (releaseVersion.minor > hotfixVersion.minor) {
-            useRelease = true;
-          } else if (releaseVersion.minor === hotfixVersion.minor) {
-            useRelease = releaseVersion.patch >= hotfixVersion.patch;
-          }
-        }
-
-        const selectedBranch = useRelease ? latestRelease : latestHotfix;
-        console.log(
-          `📋 Using most recent branch: ${selectedBranch.name} (${selectedBranch.version.full})`
-        );
-        return selectedBranch;
-      }
-
-      throw new Error("Unexpected error in branch selection logic");
-    } catch (error) {
-      throw new Error(`Failed to select target branch: ${error}`);
     }
   }
 
