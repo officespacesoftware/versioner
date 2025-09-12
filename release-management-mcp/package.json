@@ -33,7 +33,6 @@
     "mcp",
     "model-context-protocol",
     "ai-agent",
-    "openai",
     "typescript",
     "workflow-automation"
   ],
@@ -50,7 +49,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",
-    "openai": "^4.67.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {
