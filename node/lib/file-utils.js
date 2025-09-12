@@ -27,13 +27,13 @@ export function fileExists(filePath) {
  */
 export function readVersionFile(filePath) {
   if (!fileExists(filePath)) {
-    throw new Error(`Version file '${filePath}' does not exist.`);
+    throw new Error(`Version file '${filePath}' does not exist. Do you want to:\na) Initialize with default version (0.1.0-RC.0)\nb) Initialize with a custom version`);
   }
 
   try {
     const content = fs.readFileSync(filePath, 'utf8');
     const lines = content.trim().split('\n');
-    
+
     if (lines.length < 1) {
       throw new Error(`Version file '${filePath}' is empty or invalid.`);
     }
@@ -51,7 +51,7 @@ export function readVersionFile(filePath) {
     };
   } catch (error) {
     if (error.code === 'ENOENT') {
-      throw new Error(`Version file '${filePath}' does not exist.`);
+      throw new Error(`Version file '${filePath}' does not exist. Do you want to:\na) Initialize with default version (0.1.0-RC.0)\nb) Initialize with a custom version`);
     }
     if (error.code === 'EACCES') {
       throw new Error(`Permission denied reading version file '${filePath}'.`);

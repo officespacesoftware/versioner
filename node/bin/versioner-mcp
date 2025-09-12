@@ -56,7 +56,7 @@ class VersionerMCPServer {
         tools: [
           {
             name: 'versioner_init',
-            description: 'Initialize project with VERSION file',
+            description: 'Initialize project with VERSION file. Use this when VERSION file doesn\'t exist or project needs version management setup.',
             inputSchema: {
               type: 'object',
               properties: {
