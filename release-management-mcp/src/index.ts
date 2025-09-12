@@ -126,7 +126,7 @@ class ReleaseManagementMCPServer {
                 releaseBranch: {
                   type: "string",
                   description:
-                    "Optional specific release or hotfix branch to increment (e.g., 'release/1.2.0-RC.0' or 'hotfix/1.1.1-RC.0'). If not provided, uses intelligent branch selection",
+                    "Optional specific release or hotfix branch to increment (e.g., 'release/1.2.0' or 'hotfix/1.1.1'). If not provided, uses intelligent branch selection",
                 },
                 workingDirectory: {
                   type: "string",
@@ -535,7 +535,9 @@ ${
 }
 
 ✅ All steps completed successfully. The release candidate has been incremented and is ready for ${
-        workflowResult.branchType === 'release' ? 'integration testing' : 'production deployment'
+        workflowResult.branchType === "release"
+          ? "integration testing"
+          : "production deployment"
       }.
 
 ${
@@ -543,15 +545,37 @@ ${
     ? `
 📋 Next steps:
 1. Review the pull request: ${workflowResult.pullRequestUrl}
-2. ${workflowResult.branchType === 'release' ? 'Run integration tests on the release branch' : 'Deploy the hotfix to production environment'}
-3. Merge the PR when ready${workflowResult.branchType === 'hotfix' ? ' (AFTER production deployment)' : ''}
-4. ${workflowResult.branchType === 'release' ? 'Deploy to staging environment for testing' : 'Create follow-up PR to merge hotfix changes back to develop'}`
+2. ${
+        workflowResult.branchType === "release"
+          ? "Run integration tests on the release branch"
+          : "Deploy the hotfix to production environment"
+      }
+3. Merge the PR when ready${
+        workflowResult.branchType === "hotfix"
+          ? " (AFTER production deployment)"
+          : ""
+      }
+4. ${
+        workflowResult.branchType === "release"
+          ? "Deploy to staging environment for testing"
+          : "Create follow-up PR to merge hotfix changes back to develop"
+      }`
     : `
 📋 Next steps:
 1. Review the ${workflowResult.branchType} branch
-2. ${workflowResult.branchType === 'release' ? 'Run integration tests' : 'Deploy to production environment'}
-3. Create PR to ${workflowResult.branchInfo.targetBranch} branch (Step 7 completed)
-4. ${workflowResult.branchType === 'release' ? 'Deploy to staging environment for testing' : 'Merge AFTER successful production deployment'}`
+2. ${
+        workflowResult.branchType === "release"
+          ? "Run integration tests"
+          : "Deploy to production environment"
+      }
+3. Create PR to ${
+        workflowResult.branchInfo.targetBranch
+      } branch (Step 7 completed)
+4. ${
+        workflowResult.branchType === "release"
+          ? "Deploy to staging environment for testing"
+          : "Merge AFTER successful production deployment"
+      }`
 }`;
     } catch (error) {
       const errorMessage =
@@ -565,7 +589,11 @@ ${
       return `❌ Increment Release Candidate Workflow Failed
 
 📁 Working Directory: ${workingDirectory}
-${releaseBranch ? `📋 Specified Branch: ${releaseBranch}` : '📋 Branch Selection: Auto-detect'}
+${
+  releaseBranch
+    ? `📋 Specified Branch: ${releaseBranch}`
+    : "📋 Branch Selection: Auto-detect"
+}
 🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 
 📋 Workflow Progress:
@@ -628,7 +656,7 @@ Please review the error and fix any issues before retrying the workflow.`;
 📁 Working Directory: ${workingDirectory}
 📋 Branch Type: ${workflowResult.branchType.toUpperCase()}
 🎯 Selected Branch: ${workflowResult.branchInfo.name}
-${version ? `🔍 Requested Version: ${version}` : '🔍 Auto-detected RC Branch'}
+${version ? `🔍 Requested Version: ${version}` : "🔍 Auto-detected RC Branch"}
 
 📋 Workflow Progress:
 ${progressSummary}
@@ -645,24 +673,30 @@ ${
 }
 
 ✅ All steps completed successfully. The release candidate has been converted to final version and is ready for ${
-        workflowResult.branchType === 'release' ? 'production deployment' : 'production hotfix deployment'
+        workflowResult.branchType === "release"
+          ? "production deployment"
+          : "production hotfix deployment"
       }.
 
 ${
-  workflowResult.branchType === 'hotfix'
+  workflowResult.branchType === "hotfix"
     ? `⚠️  IMPORTANT: This is a HOTFIX release. The PR must be merged ONLY AFTER the hotfix has been deployed to production.
-    
+
 📋 Hotfix Deployment Steps:
 1. Deploy the hotfix to production environment
 2. Verify the hotfix is working correctly in production
-3. THEN merge the PR: ${workflowResult.pullRequestUrl || '[PR URL]'}
+3. THEN merge the PR: ${workflowResult.pullRequestUrl || "[PR URL]"}
 4. Create follow-up PR to merge hotfix changes back to develop`
     : `
 📋 Next Steps:
-1. Review the pull request: ${workflowResult.pullRequestUrl || '[PR URL]'}
+1. Review the pull request: ${workflowResult.pullRequestUrl || "[PR URL]"}
 2. Deploy to production environment
 3. Merge the PR when deployment is successful
-4. ${workflowResult.branchType === 'release' ? 'Celebrate the successful release! 🎉' : 'Monitor the deployed changes'}`
+4. ${
+        workflowResult.branchType === "release"
+          ? "Celebrate the successful release! 🎉"
+          : "Monitor the deployed changes"
+      }`
 }`;
     } catch (error) {
       const errorMessage =
@@ -676,7 +710,7 @@ ${
       return `❌ Release Version Workflow Failed
 
 📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Requested Version: ${version}` : '🔍 Auto-detect RC Branch'}
+${version ? `🔍 Requested Version: ${version}` : "🔍 Auto-detect RC Branch"}
 🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 
 📋 Workflow Progress:
