@@ -119,14 +119,14 @@ class ReleaseManagementMCPServer {
           {
             name: "increment_release_candidate",
             description:
-              "Increment an existing release candidate (RC) for both release and hotfix branches. Intelligently selects target branch using: 1) specified releaseBranch parameter, 2) current branch if it matches release/hotfix pattern, or 3) latest release/hotfix branch by version",
+              "Increment an existing release candidate (RC) for both release and hotfix branches. Intelligently finds the matching RC branch based on the provided version",
             inputSchema: {
               type: "object",
               properties: {
-                releaseBranch: {
+                version: {
                   type: "string",
                   description:
-                    "Optional specific release or hotfix branch to increment (e.g., 'release/1.2.0' or 'hotfix/1.1.1'). If not provided, uses intelligent branch selection",
+                    "Target version to increment (e.g., '1.2.0'). The tool will find the matching RC branch (release/1.2.0-RC.X or hotfix/1.2.0-RC.X)",
                 },
                 workingDirectory: {
                   type: "string",
@@ -469,7 +469,7 @@ Please review the error and fix any issues before retrying the workflow.`;
   }
 
   private async handleIncrementRC(args: any): Promise<string> {
-    const releaseBranch = args?.releaseBranch;
+    const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
 
@@ -505,7 +505,7 @@ Please review the error and fix any issues before retrying the workflow.`;
       // Execute the increment RC workflow
       const workflowResult = await this.releaseAgent.executeIncrementRCWorkflow(
         workingDirectory,
-        releaseBranch,
+        version,
         dryRun
       );
 
@@ -590,9 +590,9 @@ ${
 
 📁 Working Directory: ${workingDirectory}
 ${
-  releaseBranch
-    ? `📋 Specified Branch: ${releaseBranch}`
-    : "📋 Branch Selection: Auto-detect"
+  version
+    ? `📋 Target Version: ${version}`
+    : "📋 Version Selection: Auto-detect"
 }
 🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 
