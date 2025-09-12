@@ -1186,6 +1186,7 @@ ${
           name: "Add Hotfix Warning (if applicable)",
           status: "pending",
         },
+        { step: 9, name: "Create GitHub Release", status: "pending" },
       ],
     } as ReleaseVersionWorkflowContext;
 
@@ -1210,6 +1211,9 @@ ${
 
       // Step 8: Add hotfix warning (if applicable)
       await this.executeReleaseStep8_HotfixWarning(branchInfo);
+
+      // Step 9: Create GitHub Release
+      await this.executeReleaseStep9_CreateGitHubRelease(branchInfo);
 
       console.log(`\n✅ Release Version Workflow completed successfully!`);
       return this.context as ReleaseVersionWorkflowContext;
@@ -1613,6 +1617,48 @@ ${
       this.updateStepStatus(8, "completed");
     } catch (error) {
       this.updateStepStatus(8, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 9: Create GitHub Release
+   */
+  private async executeReleaseStep9_CreateGitHubRelease(
+    branchInfo: BranchTypeInfo
+  ): Promise<void> {
+    this.updateStepStatus(9, "in_progress");
+
+    try {
+      console.log(`🔄 Step 9: Creating GitHub Release`);
+
+      const context = this.context as ReleaseVersionWorkflowContext;
+
+      if (!context.targetVersion) {
+        throw new Error("Target version not available in context");
+      }
+
+      const version = context.targetVersion.version;
+      const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      if (!context.dryRun) {
+        const releaseUrl = await this.gitFlowManager.createGitHubRelease(
+          version,
+          branchName
+        );
+
+        console.log(`🎯 GitHub Release created: ${releaseUrl}`);
+        console.log(`📋 Version: ${version}`);
+        console.log(`🌿 Target branch: ${branchName}`);
+      } else {
+        console.log(
+          `🔧 Dry run: Would create GitHub release for version ${version} targeting branch ${branchName}`
+        );
+      }
+
+      this.updateStepStatus(9, "completed");
+    } catch (error) {
+      this.updateStepStatus(9, "failed");
       throw error;
     }
   }
