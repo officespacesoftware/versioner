@@ -34,7 +34,7 @@ export class VersionFile {
 
     // Validate that file exists
     if (!fileExists(this.filePath)) {
-      throw new Error(`Version file '${this.filePath}' does not exist.`);
+      throw new Error(`Version file '${this.filePath}' does not exist. Do you want to:\na) Initialize with default version (0.1.0-RC.0)\nb) Initialize with a custom version`);
     }
 
     // Read initial version data
