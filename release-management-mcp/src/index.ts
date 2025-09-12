@@ -346,6 +346,22 @@ Common issues:
         await this.versionerAdapter.initialize(undefined, workingDirectory);
       }
 
+      // Initialize git flow manager to check for staged changes
+      if (!this.gitFlowManager) {
+        this.gitFlowManager = new GitFlowManager(workingDirectory);
+      }
+
+      // Check if we're in a git repository
+      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      // Check for staged changes (prevents committing unrelated changes)
+      await this.gitFlowManager.validateNoStagedChanges();
+
       const versionInfo = await this.versionerAdapter.initializeProject(
         version
       );
@@ -399,6 +415,9 @@ Common issues:
           `Directory '${workingDirectory}' is not a Git repository`
         );
       }
+
+      // Check for staged changes (prevents committing unrelated changes)
+      await this.gitFlowManager.validateNoStagedChanges();
 
       const prUrl = await this.gitFlowManager.downmergeMainToDevelop(dryRun);
 
@@ -498,6 +517,9 @@ Common issues:
           `Directory '${workingDirectory}' is not a Git repository`
         );
       }
+
+      // Check for staged changes (prevents committing unrelated changes)
+      await this.gitFlowManager.validateNoStagedChanges();
 
       // Check if versioner is available
       if (!this.releaseAgent.isVersionerAvailable()) {
@@ -608,6 +630,9 @@ Please review the error and fix any issues before retrying the workflow.`;
         );
       }
 
+      // Check for staged changes (prevents committing unrelated changes)
+      await this.gitFlowManager.validateNoStagedChanges();
+
       // Check if versioner is available
       if (!this.releaseAgent.isVersionerAvailable()) {
         throw new Error(
@@ -712,6 +737,9 @@ Please review the error and fix any issues before retrying the workflow.`;
           `Directory '${workingDirectory}' is not a Git repository`
         );
       }
+
+      // Check for staged changes (prevents committing unrelated changes)
+      await this.gitFlowManager.validateNoStagedChanges();
 
       // Check if versioner is available
       if (!this.releaseAgent.isVersionerAvailable()) {
@@ -849,6 +877,9 @@ Please review the error and fix any issues before retrying the workflow.`;
           `Directory '${workingDirectory}' is not a Git repository`
         );
       }
+
+      // Check for staged changes (prevents committing unrelated changes)
+      await this.gitFlowManager.validateNoStagedChanges();
 
       // Check if versioner is available
       if (!this.releaseAgent.isVersionerAvailable()) {
