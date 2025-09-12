@@ -3,7 +3,7 @@
  * Provides a clean interface between Release Management workflows and versioner-mcp
  */
 
-import { VersionerMCPClient } from './mcp-client.js';
+import { VersionerMCPClient } from "./mcp-client.js";
 
 export interface VersionInfo {
   version: string;
@@ -28,16 +28,24 @@ export class VersionerAdapter {
   /**
    * Initialize connection to versioner-mcp
    */
-  async initialize(versionerMCPCommand?: string, workingDirectory?: string): Promise<void> {
+  async initialize(
+    versionerMCPCommand?: string,
+    workingDirectory?: string
+  ): Promise<void> {
     try {
       await this.versionerClient.connect(versionerMCPCommand, workingDirectory);
       this.isConnected = true;
-      console.log('VersionerAdapter: Successfully connected to versioner-mcp');
+      console.log("VersionerAdapter: Successfully connected to versioner-mcp");
       if (workingDirectory) {
-        console.log(`VersionerAdapter: Using working directory: ${workingDirectory}`);
+        console.log(
+          `VersionerAdapter: Using working directory: ${workingDirectory}`
+        );
       }
     } catch (error) {
-      console.error('VersionerAdapter: Failed to connect to versioner-mcp:', error);
+      console.error(
+        "VersionerAdapter: Failed to connect to versioner-mcp:",
+        error
+      );
       throw new Error(`Failed to initialize versioner connection: ${error}`);
     }
   }
@@ -47,7 +55,9 @@ export class VersionerAdapter {
    */
   private ensureConnected(): void {
     if (!this.isConnected) {
-      throw new Error('VersionerAdapter not connected. Call initialize() first.');
+      throw new Error(
+        "VersionerAdapter not connected. Call initialize() first."
+      );
     }
   }
 
@@ -73,8 +83,8 @@ export class VersionerAdapter {
 
     try {
       const result = await this.versionerClient.createMajorRC();
-      console.log('Versioner result:', result);
-      
+      console.log("Versioner result:", result);
+
       // Get the new version info
       const newVersion = await this.getCurrentVersion();
       return newVersion;
@@ -91,8 +101,8 @@ export class VersionerAdapter {
 
     try {
       const result = await this.versionerClient.createMinorRC();
-      console.log('Versioner result:', result);
-      
+      console.log("Versioner result:", result);
+
       // Get the new version info
       const newVersion = await this.getCurrentVersion();
       return newVersion;
@@ -109,8 +119,8 @@ export class VersionerAdapter {
 
     try {
       const result = await this.versionerClient.createPatchRC();
-      console.log('Versioner result:', result);
-      
+      console.log("Versioner result:", result);
+
       // Get the new version info
       const newVersion = await this.getCurrentVersion();
       return newVersion;
@@ -122,16 +132,38 @@ export class VersionerAdapter {
   /**
    * Create a release candidate of the specified type
    */
-  async createReleaseCandidate(releaseType: 'major' | 'minor' | 'patch'): Promise<VersionInfo> {
+  async createReleaseCandidate(
+    releaseType: "major" | "minor" | "patch"
+  ): Promise<VersionInfo> {
     switch (releaseType) {
-      case 'major':
+      case "major":
         return this.createMajorReleaseCandidate();
-      case 'minor':
+      case "minor":
         return this.createMinorReleaseCandidate();
-      case 'patch':
+      case "patch":
         return this.createPatchReleaseCandidate();
       default:
-        throw new Error(`Invalid release type: ${releaseType}. Must be major, minor, or patch.`);
+        throw new Error(
+          `Invalid release type: ${releaseType}. Must be major, minor, or patch.`
+        );
+    }
+  }
+
+  /**
+   * Increment the current release candidate
+   */
+  async incrementReleaseCandidate(): Promise<VersionInfo> {
+    this.ensureConnected();
+
+    try {
+      const result = await this.versionerClient.incrementReleaseCandidate();
+      console.log("Versioner increment RC result:", result);
+
+      // Get the new version info
+      const newVersion = await this.getCurrentVersion();
+      return newVersion;
+    } catch (error) {
+      throw new Error(`Failed to increment release candidate: ${error}`);
     }
   }
 
@@ -141,8 +173,8 @@ export class VersionerAdapter {
   async initializeProject(initialVersion?: string): Promise<VersionInfo> {
     try {
       const result = await this.versionerClient.initialize(initialVersion);
-      console.log('Versioner init result:', result);
-      
+      console.log("Versioner init result:", result);
+
       // Get the initialized version info
       const versionInfo = await this.getCurrentVersion();
       return versionInfo;
@@ -165,7 +197,7 @@ export class VersionerAdapter {
     if (!this.isConnected) {
       return [];
     }
-    return this.versionerClient.getAvailableTools().map(tool => tool.name);
+    return this.versionerClient.getAvailableTools().map((tool) => tool.name);
   }
 
   /**
@@ -174,32 +206,34 @@ export class VersionerAdapter {
   private parseVersionString(versionString: string): VersionInfo {
     // Extract version from the versioner output
     // The output might contain additional info, so we need to extract just the version
-    const lines = versionString.trim().split('\n');
-    const versionLine = lines.find(line => /^\d+\.\d+\.\d+/.test(line.trim()));
-    
+    const lines = versionString.trim().split("\n");
+    const versionLine = lines.find((line) =>
+      /^\d+\.\d+\.\d+/.test(line.trim())
+    );
+
     if (!versionLine) {
       throw new Error(`Could not parse version from: ${versionString}`);
     }
 
     const version = versionLine.trim();
-    const isReleaseCandidate = version.includes('-RC');
-    
+    const isReleaseCandidate = version.includes("-RC");
+
     // Parse semantic version components
     const versionRegex = /^(\d+)\.(\d+)\.(\d+)(?:-RC\.(\d+))?$/;
     const match = version.match(versionRegex);
-    
+
     if (!match) {
       throw new Error(`Invalid version format: ${version}`);
     }
 
     const [, majorStr, minorStr, patchStr, rcStr] = match;
-    
+
     return {
       version,
       isReleaseCandidate,
-      major: parseInt(majorStr || '0', 10),
-      minor: parseInt(minorStr || '0', 10),
-      patch: parseInt(patchStr || '0', 10),
+      major: parseInt(majorStr || "0", 10),
+      minor: parseInt(minorStr || "0", 10),
+      patch: parseInt(patchStr || "0", 10),
       rcNumber: rcStr ? parseInt(rcStr, 10) : undefined,
     };
   }
@@ -211,7 +245,7 @@ export class VersionerAdapter {
     if (this.isConnected) {
       await this.versionerClient.disconnect();
       this.isConnected = false;
-      console.log('VersionerAdapter: Disconnected from versioner-mcp');
+      console.log("VersionerAdapter: Disconnected from versioner-mcp");
     }
   }
 }

@@ -288,6 +288,13 @@ export class VersionerMCPClient {
   }
 
   /**
+   * Increment the current release candidate
+   */
+  async incrementReleaseCandidate(): Promise<string> {
+    return this.callVersionerTool('versioner_increment_rc');
+  }
+
+  /**
    * Initialize versioner (if needed)
    */
   async initialize(version?: string): Promise<string> {
