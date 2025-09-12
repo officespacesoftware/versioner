@@ -168,6 +168,24 @@ export class VersionerAdapter {
   }
 
   /**
+   * Release the current release candidate to final version
+   */
+  async releaseVersion(): Promise<VersionInfo> {
+    this.ensureConnected();
+
+    try {
+      const result = await this.versionerClient.releaseVersion();
+      console.log("Versioner release result:", result);
+
+      // Get the new version info
+      const newVersion = await this.getCurrentVersion();
+      return newVersion;
+    } catch (error) {
+      throw new Error(`Failed to release version: ${error}`);
+    }
+  }
+
+  /**
    * Initialize versioner in a project (creates VERSION file)
    */
   async initializeProject(initialVersion?: string): Promise<VersionInfo> {

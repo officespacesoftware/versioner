@@ -35,6 +35,17 @@ export interface IncrementRCWorkflowContext {
   pullRequestUrl?: string;
 }
 
+export interface ReleaseVersionWorkflowContext {
+  workingDirectory: string;
+  currentBranch: string;
+  branchType: BranchType;
+  branchInfo: BranchTypeInfo;
+  targetVersion?: VersionInfo;
+  dryRun: boolean;
+  stepProgress: WorkflowStep[];
+  pullRequestUrl?: string;
+}
+
 export interface WorkflowStep {
   step: number;
   name: string;
@@ -52,7 +63,8 @@ export class ReleaseAgent {
   private context?:
     | ReleaseWorkflowContext
     | HotfixWorkflowContext
-    | IncrementRCWorkflowContext;
+    | IncrementRCWorkflowContext
+    | ReleaseVersionWorkflowContext;
   private workingDirectory: string;
 
   constructor(gitFlowManager: GitFlowManager, workingDirectory: string) {
@@ -1231,6 +1243,486 @@ ${
       this.updateStepStatus(7, "completed");
     } catch (error) {
       this.updateStepStatus(7, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Execute the release version workflow (8-step process)
+   */
+  async executeReleaseWorkflow(
+    workingDirectory: string,
+    version?: string,
+    dryRun: boolean = false
+  ): Promise<ReleaseVersionWorkflowContext> {
+    console.log(`\n🚀 Starting Release Version Workflow`);
+    console.log(`📁 Working Directory: ${workingDirectory}`);
+    if (version) {
+      console.log(`📋 Specified Version: ${version}`);
+    }
+    console.log(`🔧 Dry Run: ${dryRun ? "Yes" : "No"}\n`);
+
+    // Step 1: Determine target branch using the intelligent selection algorithm
+    const branchInfo = await this.selectTargetReleaseBranch(version);
+
+    console.log(`🎯 Selected Branch: ${branchInfo.name} (${branchInfo.type})`);
+    console.log(`📊 Branch Version: ${branchInfo.version.full}`);
+    console.log(`🎯 Target PR Branch: ${branchInfo.targetBranch}\n`);
+
+    // Validate that this is actually a release candidate
+    if (!branchInfo.version.full.includes("-RC.")) {
+      throw new Error(
+        `Branch ${branchInfo.name} version ${branchInfo.version.full} is not a release candidate. Only RC versions can be released.`
+      );
+    }
+
+    // Initialize release workflow context
+    this.context = {
+      workingDirectory,
+      currentBranch: "unknown",
+      branchType: branchInfo.type,
+      branchInfo,
+      dryRun,
+      stepProgress: [
+        { step: 1, name: "Select Target Branch", status: "completed" },
+        { step: 2, name: "Checkout Release/Hotfix Branch", status: "pending" },
+        { step: 3, name: "Pull Latest Changes", status: "pending" },
+        { step: 4, name: "Release Version (RC → Final)", status: "pending" },
+        { step: 5, name: "Push Changes", status: "pending" },
+        { step: 6, name: "Push Version Tag", status: "pending" },
+        { step: 7, name: "Create Pull Request", status: "pending" },
+        {
+          step: 8,
+          name: "Add Hotfix Warning (if applicable)",
+          status: "pending",
+        },
+      ],
+    } as ReleaseVersionWorkflowContext;
+
+    try {
+      // Step 2: Checkout the target branch
+      await this.executeReleaseStep2_CheckoutBranch(branchInfo);
+
+      // Step 3: Pull latest changes
+      await this.executeReleaseStep3_PullChanges();
+
+      // Step 4: Release version (RC → Final)
+      await this.executeReleaseStep4_ReleaseVersion();
+
+      // Step 5: Push changes
+      await this.executeReleaseStep5_PushChanges(branchInfo);
+
+      // Step 6: Push version tag
+      await this.executeReleaseStep6_PushTag();
+
+      // Step 7: Create pull request
+      await this.executeReleaseStep7_CreatePullRequest(branchInfo);
+
+      // Step 8: Add hotfix warning (if applicable)
+      await this.executeReleaseStep8_HotfixWarning(branchInfo);
+
+      console.log(`\n✅ Release Version Workflow completed successfully!`);
+      return this.context as ReleaseVersionWorkflowContext;
+    } catch (error) {
+      console.error(`\n❌ Release Version Workflow failed: ${error}`);
+
+      // Mark current step as failed
+      if (this.context) {
+        const currentStep = (
+          this.context as ReleaseVersionWorkflowContext
+        ).stepProgress.find((step) => step.status === "in_progress");
+        if (currentStep) {
+          currentStep.status = "failed";
+          currentStep.error =
+            error instanceof Error ? error.message : String(error);
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Step 1: Enhanced branch selection algorithm for release workflow
+   */
+  private async selectTargetReleaseBranch(
+    version?: string
+  ): Promise<BranchTypeInfo> {
+    try {
+      // First, fetch latest remote branches
+      await this.gitFlowManager["execGit"]("fetch origin");
+
+      // Option 1: Use provided version parameter to find matching branches
+      if (version) {
+        console.log(
+          `🔍 Looking for release/{version} or hotfix/{version} branches...`
+        );
+
+        // Try to find release/{version} branch
+        const releaseBranches = await this.gitFlowManager.findBranchesOfType(
+          "release"
+        );
+        const releaseMatch = releaseBranches.find(
+          (b) =>
+            b.version.major + "." + b.version.minor + "." + b.version.patch ===
+            version
+        );
+
+        // Try to find hotfix/{version} branch
+        const hotfixBranches = await this.gitFlowManager.findBranchesOfType(
+          "hotfix"
+        );
+        const hotfixMatch = hotfixBranches.find(
+          (b) =>
+            b.version.major + "." + b.version.minor + "." + b.version.patch ===
+            version
+        );
+
+        if (releaseMatch && hotfixMatch) {
+          throw new Error(
+            `Ambiguous: Both release/${version} and hotfix/${version} branches exist. Please specify the full branch name.`
+          );
+        }
+
+        if (releaseMatch) {
+          console.log(`📋 Found release branch: ${releaseMatch.name}`);
+          return releaseMatch;
+        }
+
+        if (hotfixMatch) {
+          console.log(`📋 Found hotfix branch: ${hotfixMatch.name}`);
+          return hotfixMatch;
+        }
+
+        throw new Error(
+          `No release/${version} or hotfix/${version} branch found for version ${version}`
+        );
+      }
+
+      // Option 2: Check if current branch matches release/hotfix pattern and is RC
+      const currentStatus = await this.gitFlowManager.getStatus();
+      const currentBranchType = this.gitFlowManager.detectBranchType(
+        currentStatus.currentBranch
+      );
+
+      if (currentBranchType) {
+        const branches = await this.gitFlowManager.findBranchesOfType(
+          currentBranchType
+        );
+        const currentBranch = branches.find(
+          (b) =>
+            b.name === currentStatus.currentBranch ||
+            b.name.endsWith(`/${currentStatus.currentBranch}`)
+        );
+
+        if (currentBranch && currentBranch.version.full.includes("-RC.")) {
+          console.log(
+            `📋 Using current RC branch: ${currentBranch.name} (${currentBranchType})`
+          );
+          return currentBranch;
+        }
+      }
+
+      // Option 3: Find latest RC branches by type and select the most recent
+      const latestRelease = await this.findLatestRCBranch("release");
+      const latestHotfix = await this.findLatestRCBranch("hotfix");
+
+      if (!latestRelease && !latestHotfix) {
+        throw new Error(
+          "No release candidate branches found. Cannot determine target branch for release."
+        );
+      }
+
+      // If only one type exists, use it
+      if (latestRelease && !latestHotfix) {
+        console.log(`📋 Using latest release RC branch: ${latestRelease.name}`);
+        return latestRelease;
+      }
+
+      if (latestHotfix && !latestRelease) {
+        console.log(`📋 Using latest hotfix RC branch: ${latestHotfix.name}`);
+        return latestHotfix;
+      }
+
+      // If both exist, compare versions and use the latest
+      if (latestRelease && latestHotfix) {
+        const releaseVersion = latestRelease.version;
+        const hotfixVersion = latestHotfix.version;
+
+        // Compare semantic versions
+        let useRelease = false;
+        if (releaseVersion.major > hotfixVersion.major) {
+          useRelease = true;
+        } else if (releaseVersion.major === hotfixVersion.major) {
+          if (releaseVersion.minor > hotfixVersion.minor) {
+            useRelease = true;
+          } else if (releaseVersion.minor === hotfixVersion.minor) {
+            useRelease = releaseVersion.patch >= hotfixVersion.patch;
+          }
+        }
+
+        const selectedBranch = useRelease ? latestRelease : latestHotfix;
+        console.log(
+          `📋 Using most recent RC branch: ${selectedBranch.name} (${selectedBranch.version.full})`
+        );
+        return selectedBranch;
+      }
+
+      throw new Error("Unexpected error in release branch selection logic");
+    } catch (error) {
+      throw new Error(`Failed to select target release branch: ${error}`);
+    }
+  }
+
+  /**
+   * Helper: Find latest RC branch of a specific type
+   */
+  private async findLatestRCBranch(
+    branchType: BranchType
+  ): Promise<BranchTypeInfo | null> {
+    const branches = await this.gitFlowManager.findBranchesOfType(branchType);
+    const rcBranches = branches.filter((b) => b.version.full.includes("-RC."));
+
+    if (rcBranches.length === 0) {
+      return null;
+    }
+
+    // Sort by semantic version descending
+    rcBranches.sort((a, b) => {
+      if (a.version.major !== b.version.major) {
+        return b.version.major - a.version.major;
+      }
+      if (a.version.minor !== b.version.minor) {
+        return b.version.minor - a.version.minor;
+      }
+      return b.version.patch - a.version.patch;
+    });
+
+    return rcBranches[0] || null;
+  }
+
+  /**
+   * Step 2: Checkout the target branch
+   */
+  private async executeReleaseStep2_CheckoutBranch(
+    branchInfo: BranchTypeInfo
+  ): Promise<void> {
+    this.updateStepStatus(2, "in_progress");
+
+    try {
+      const cleanBranchName = branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      console.log(`🔄 Step 2: Checking out branch '${cleanBranchName}'`);
+      await this.gitFlowManager.checkoutAndPull(cleanBranchName);
+
+      const currentStatus = await this.gitFlowManager.getStatus();
+      (this.context as ReleaseVersionWorkflowContext).currentBranch =
+        currentStatus.currentBranch;
+
+      this.updateStepStatus(2, "completed");
+    } catch (error) {
+      this.updateStepStatus(2, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 3: Pull latest changes
+   */
+  private async executeReleaseStep3_PullChanges(): Promise<void> {
+    this.updateStepStatus(3, "in_progress");
+
+    try {
+      const branchName = (
+        this.context as ReleaseVersionWorkflowContext
+      ).branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      console.log(`🔄 Step 3: Pulling latest changes from ${branchName}`);
+      await this.gitFlowManager["execGit"](`pull origin ${branchName}`);
+
+      this.updateStepStatus(3, "completed");
+    } catch (error) {
+      this.updateStepStatus(3, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 4: Release version (RC → Final)
+   */
+  private async executeReleaseStep4_ReleaseVersion(): Promise<void> {
+    this.updateStepStatus(4, "in_progress");
+
+    try {
+      console.log(`🔄 Step 4: Releasing version (RC → Final)`);
+
+      if (!(this.context as ReleaseVersionWorkflowContext).dryRun) {
+        const newVersion = await this.versionerAdapter.releaseVersion();
+        (this.context as ReleaseVersionWorkflowContext).targetVersion =
+          newVersion;
+
+        console.log(`🎯 New final version: ${newVersion.version}`);
+      } else {
+        console.log(`🔧 Dry run: Would release RC to final version`);
+      }
+
+      this.updateStepStatus(4, "completed");
+    } catch (error) {
+      this.updateStepStatus(4, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 5: Push changes
+   */
+  private async executeReleaseStep5_PushChanges(
+    branchInfo: BranchTypeInfo
+  ): Promise<void> {
+    this.updateStepStatus(5, "in_progress");
+
+    try {
+      const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      console.log(`🔄 Step 5: Pushing changes for ${branchName}`);
+
+      if (!(this.context as ReleaseVersionWorkflowContext).dryRun) {
+        await this.gitFlowManager["execGit"](`push origin ${branchName}`);
+        console.log(`🚀 Pushed changes to ${branchName}`);
+      } else {
+        console.log(`🔧 Dry run: Would push changes to ${branchName}`);
+      }
+
+      this.updateStepStatus(5, "completed");
+    } catch (error) {
+      this.updateStepStatus(5, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 6: Push version tag
+   */
+  private async executeReleaseStep6_PushTag(): Promise<void> {
+    this.updateStepStatus(6, "in_progress");
+
+    try {
+      console.log(`🔄 Step 6: Pushing version tag`);
+
+      if (!(this.context as ReleaseVersionWorkflowContext).dryRun) {
+        const targetVersion = (this.context as ReleaseVersionWorkflowContext)
+          .targetVersion;
+        if (!targetVersion) {
+          throw new Error("Target version not available for tag operation");
+        }
+
+        const tagName = targetVersion.version;
+        await this.gitFlowManager["execGit"](`push origin ${tagName}`);
+        console.log(`🚀 Pushed tag ${tagName}`);
+      } else {
+        console.log(`🔧 Dry run: Would push version tag`);
+      }
+
+      this.updateStepStatus(6, "completed");
+    } catch (error) {
+      this.updateStepStatus(6, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 7: Create pull request
+   */
+  private async executeReleaseStep7_CreatePullRequest(
+    branchInfo: BranchTypeInfo
+  ): Promise<void> {
+    this.updateStepStatus(7, "in_progress");
+
+    try {
+      const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
+      const targetBranch = branchInfo.targetBranch;
+      const targetVersion = (this.context as ReleaseVersionWorkflowContext)
+        .targetVersion;
+
+      console.log(
+        `🔄 Step 7: Creating PR from ${branchName} to ${targetBranch}`
+      );
+
+      if (!(this.context as ReleaseVersionWorkflowContext).dryRun) {
+        const prTitle = `${
+          branchInfo.type === "release" ? "Release" : "Hotfix"
+        }: ${targetVersion?.version || "new version"}`;
+
+        const prBody = `## ${
+          branchInfo.type === "release" ? "Release" : "Hotfix"
+        } Version ${targetVersion?.version || "new version"}
+
+This PR contains the final release version for ${branchName}.
+
+### Changes
+- Released version ${
+          targetVersion?.version || "new version"
+        } (converted from RC)
+- Updated VERSION file and git tag
+
+### Type
+${
+  branchInfo.type === "release"
+    ? "- [ ] Ready for production deployment"
+    : "- [ ] Ready for production deployment (CRITICAL HOTFIX)"
+}
+
+🤖 Auto-generated by Release Management MCP`;
+
+        try {
+          const prUrl = await this.gitFlowManager.createPullRequest(
+            branchName,
+            targetBranch,
+            prTitle,
+            prBody
+          );
+
+          (this.context as ReleaseVersionWorkflowContext).pullRequestUrl =
+            prUrl;
+          console.log(`🔗 Created PR: ${prUrl}`);
+        } catch (prError) {
+          console.warn(`⚠️  Failed to create PR (continuing): ${prError}`);
+          // Don't fail the entire workflow if PR creation fails
+        }
+      } else {
+        console.log(
+          `🔧 Dry run: Would create PR from ${branchName} to ${targetBranch}`
+        );
+      }
+
+      this.updateStepStatus(7, "completed");
+    } catch (error) {
+      this.updateStepStatus(7, "failed");
+      throw error;
+    }
+  }
+
+  /**
+   * Step 8: Add hotfix warning (if applicable)
+   */
+  private async executeReleaseStep8_HotfixWarning(
+    branchInfo: BranchTypeInfo
+  ): Promise<void> {
+    this.updateStepStatus(8, "in_progress");
+
+    try {
+      if (branchInfo.type === "hotfix") {
+        console.log(`🔄 Step 8: Adding hotfix warning`);
+        console.log(
+          `⚠️  HOTFIX WARNING: This PR must be merged ONLY AFTER the hotfix has been deployed to production!`
+        );
+      } else {
+        console.log(`🔄 Step 8: No hotfix warning needed (release branch)`);
+      }
+
+      this.updateStepStatus(8, "completed");
+    } catch (error) {
+      this.updateStepStatus(8, "failed");
       throw error;
     }
   }

@@ -141,6 +141,31 @@ class ReleaseManagementMCPServer {
               },
             },
           },
+          {
+            name: "release_version",
+            description:
+              "Release the final version from a release candidate (RC → Final) for both release and hotfix branches following Git Flow workflow (8-step process). Converts RC versions like '1.2.0-RC.1' to final versions like '1.2.0'. Intelligently selects target RC branch using: 1) specified version parameter, 2) current RC branch, or 3) latest RC branch by version",
+            inputSchema: {
+              type: "object",
+              properties: {
+                version: {
+                  type: "string",
+                  description:
+                    "Optional specific version to release (e.g., '1.2.0'). Searches for matching release/1.2.0-RC.X or hotfix/1.2.0-RC.X branches. If not provided, uses intelligent RC branch selection",
+                },
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+                dryRun: {
+                  type: "boolean",
+                  description:
+                    "If true, performs validation checks without making any changes (default: false)",
+                },
+              },
+            },
+          },
         ],
       };
     });
@@ -167,6 +192,10 @@ class ReleaseManagementMCPServer {
 
           case "increment_release_candidate":
             result = await this.handleIncrementRC(args);
+            break;
+
+          case "release_version":
+            result = await this.handleReleaseVersion(args);
             break;
 
           default:
@@ -545,6 +574,123 @@ ${progressSummary}
 💥 Error: ${errorMessage}
 
 Please review the error and fix any issues before retrying the workflow.`;
+    }
+  }
+
+  private async handleReleaseVersion(args: any): Promise<string> {
+    const version = args?.version;
+    const workingDirectory = args?.workingDirectory || process.cwd();
+    const dryRun = args?.dryRun || false;
+
+    try {
+      // Initialize components if not already done
+      if (!this.gitFlowManager) {
+        this.gitFlowManager = new GitFlowManager(workingDirectory);
+      }
+
+      if (!this.releaseAgent) {
+        this.releaseAgent = new ReleaseAgent(
+          this.gitFlowManager,
+          workingDirectory
+        );
+        await this.releaseAgent.initialize();
+      }
+
+      // Check if we're in a git repository
+      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      // Check if versioner is available
+      if (!this.releaseAgent.isVersionerAvailable()) {
+        throw new Error(
+          "Versioner MCP is not available. Please ensure versioner-mcp is running."
+        );
+      }
+
+      // Execute the release workflow
+      const workflowResult = await this.releaseAgent.executeReleaseWorkflow(
+        workingDirectory,
+        version,
+        dryRun
+      );
+
+      // Generate workflow summary
+      const progressSummary = this.releaseAgent.getProgressSummary();
+
+      return `🚀 Release Version Workflow ${
+        dryRun ? "(Dry Run) " : ""
+      }Completed Successfully!
+
+📁 Working Directory: ${workingDirectory}
+📋 Branch Type: ${workflowResult.branchType.toUpperCase()}
+🎯 Selected Branch: ${workflowResult.branchInfo.name}
+${version ? `🔍 Requested Version: ${version}` : '🔍 Auto-detected RC Branch'}
+
+📋 Workflow Progress:
+${progressSummary}
+
+${
+  workflowResult.targetVersion
+    ? `🎯 Final Version: ${workflowResult.targetVersion.version} (Released from RC)`
+    : ""
+}
+${
+  workflowResult.pullRequestUrl
+    ? `🔗 Pull Request: ${workflowResult.pullRequestUrl}`
+    : ""
+}
+
+✅ All steps completed successfully. The release candidate has been converted to final version and is ready for ${
+        workflowResult.branchType === 'release' ? 'production deployment' : 'production hotfix deployment'
+      }.
+
+${
+  workflowResult.branchType === 'hotfix'
+    ? `⚠️  IMPORTANT: This is a HOTFIX release. The PR must be merged ONLY AFTER the hotfix has been deployed to production.
+    
+📋 Hotfix Deployment Steps:
+1. Deploy the hotfix to production environment
+2. Verify the hotfix is working correctly in production
+3. THEN merge the PR: ${workflowResult.pullRequestUrl || '[PR URL]'}
+4. Create follow-up PR to merge hotfix changes back to develop`
+    : `
+📋 Next Steps:
+1. Review the pull request: ${workflowResult.pullRequestUrl || '[PR URL]'}
+2. Deploy to production environment
+3. Merge the PR when deployment is successful
+4. ${workflowResult.branchType === 'release' ? 'Celebrate the successful release! 🎉' : 'Monitor the deployed changes'}`
+}`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error("Release version workflow failed:", error);
+
+      // Include progress summary even on failure
+      const progressSummary =
+        this.releaseAgent?.getProgressSummary() || "Workflow not started";
+
+      return `❌ Release Version Workflow Failed
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Requested Version: ${version}` : '🔍 Auto-detect RC Branch'}
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+
+📋 Workflow Progress:
+${progressSummary}
+
+💥 Error: ${errorMessage}
+
+Please review the error and fix any issues before retrying the workflow.
+
+Common issues:
+- Ensure you're on a release candidate branch (contains '-RC.')
+- Verify the VERSION file exists and is properly formatted
+- Check that versioner-mcp is running and accessible
+- Ensure you have proper git permissions for pushing and PR creation`;
     }
   }
 
