@@ -186,7 +186,7 @@ export class ReleaseAgent {
         { step: 3, name: "Create hotfix branch", status: "pending" },
         { step: 4, name: "Update version to patch RC", status: "pending" },
         { step: 5, name: "Push hotfix branch and tag", status: "pending" },
-        { step: 6, name: "Create pull request to main", status: "pending" },
+        { step: 6, name: "Create pull request to develop", status: "pending" },
       ],
     };
 
@@ -409,8 +409,19 @@ export class ReleaseAgent {
 
     try {
       if (!this.context!.dryRun) {
-        const version = this.context!.targetVersion?.version || "unknown";
-        const releaseBranch = `release/${version.split("-")[0]}`;
+        // Get version from context, fallback to getting current version from versioner
+        let version = this.context!.targetVersion?.version;
+        if (!version || version === "unknown") {
+          const currentVersion =
+            await this.versionerAdapter.getCurrentVersion();
+          version = currentVersion.version;
+        }
+
+        // Get the actual branch name from context instead of reconstructing it
+        const currentBranch = (this.context! as ReleaseWorkflowContext)
+          .currentBranch;
+        const releaseBranch =
+          currentBranch || `release/${version.split("-")[0]}`;
 
         // Generate PR title and body with version information
         const releaseType = (this.context! as ReleaseWorkflowContext)
@@ -608,21 +619,31 @@ export class ReleaseAgent {
    */
   private async executeHotfixStep6_CreatePullRequest(): Promise<void> {
     const step = this.updateStepStatus(6, "in_progress");
-    console.log("📋 Step 6: Creating pull request to main...");
+    console.log("📋 Step 6: Creating pull request to develop...");
 
     try {
       if (!this.context!.dryRun) {
-        const version = this.context!.targetVersion?.version || "unknown";
-        const hotfixBranch = `hotfix/${version.split("-")[0]}`;
+        // Get version from context, fallback to getting current version from versioner
+        let version = this.context!.targetVersion?.version;
+        if (!version || version === "unknown") {
+          const currentVersion =
+            await this.versionerAdapter.getCurrentVersion();
+          version = currentVersion.version;
+        }
+
+        // Get the actual branch name from context instead of reconstructing it
+        const currentBranch = (this.context! as HotfixWorkflowContext)
+          .currentBranch;
+        const hotfixBranch = currentBranch || `hotfix/${version.split("-")[0]}`;
 
         // Generate PR title and body with hotfix information
         const prTitle = `Hotfix: v${version} - ${hotfixBranch}`;
         const prBody = this.generateHotfixPRBody(version, hotfixBranch);
 
-        // Create PR using GitFlowManager - targeting main instead of develop
+        // Create PR using GitFlowManager - targeting develop for RC
         const prUrl = await this.gitFlowManager.createPullRequest(
           hotfixBranch,
-          "main",
+          "develop",
           prTitle,
           prBody
         );
@@ -638,9 +659,9 @@ export class ReleaseAgent {
         const mockPrUrl = `https://github.com/example/repo/pull/456`;
 
         this.context!.pullRequestUrl = mockPrUrl;
-        step.message = `[DRY RUN] Would create PR: ${hotfixBranch} → main`;
+        step.message = `[DRY RUN] Would create PR: ${hotfixBranch} → develop`;
         console.log(
-          `   🔄 [DRY RUN] Would create pull request from ${hotfixBranch} to main`
+          `   🔄 [DRY RUN] Would create pull request from ${hotfixBranch} to develop`
         );
       }
 
@@ -657,39 +678,35 @@ export class ReleaseAgent {
    */
   private generateHotfixPRBody(version: string, hotfixBranch: string): string {
     return `
-## Hotfix Branch: ${hotfixBranch}
+## Hotfix RC Branch: ${hotfixBranch}
 
-> [!WARNING]
-> This PR must be merged **after** the hotfix has been deployed to production.
+This pull request contains the hotfix release candidate for **${version}** targeting develop for integration.
 
-This pull request contains the hotfix branch for **v${version}**.
-
-### 📋 Hotfix Information
+### 📋 Hotfix RC Information
 - **Version**: \`${version}\`
 - **Branch**: \`${hotfixBranch}\`
-- **Target**: \`main\`
-- **Type**: Hotfix (Patch Release)
+- **Target**: \`develop\`
+- **Type**: Hotfix Release Candidate
 
 ### 🔄 Changes
 - Version bump to patch release candidate: \`${version}\`
-- Hotfix branch preparation
-- Production-ready bug fixes
+- Hotfix branch preparation for integration testing
+- Critical bug fixes ready for testing
 
 ### ✅ Pre-merge Checklist
-- [ ] Hotfix has been deployed to production
-- [ ] Production deployment successful
 - [ ] All tests pass on hotfix branch
 - [ ] Version number is correct in VERSION file
-- [ ] Hotfix resolves the production issue
+- [ ] Hotfix resolves the identified issue
+- [ ] Code review completed
+- [ ] Integration testing planned
 
-### 🚨 Deployment Process
-1. **Deploy this hotfix to production first**
-2. **Verify production deployment works correctly**
-3. **Only then merge this PR**
-4. **Create follow-up PR to merge changes back to develop**
+### 🔄 Next Steps
+1. **Merge to develop**: Integrate RC for testing
+2. **Test thoroughly**: Verify fix works in development
+3. **Final release**: Use \`release_version\` tool to create production PR to main
 
 ### 🤖 Automation
-This pull request was automatically created by the Release Management MCP following Git Flow hotfix practices.
+This pull request was automatically created by the Release Management MCP following Git Flow practices.
 
 **Workflow Steps Completed:**
 1. ✅ Latest main branch fetched
@@ -697,7 +714,7 @@ This pull request was automatically created by the Release Management MCP follow
 3. ✅ Hotfix branch created from main
 4. ✅ Version bumped to patch release candidate
 5. ✅ Hotfix branch and tag pushed to origin
-6. ✅ Pull request created for production merge
+6. ✅ Pull request created for develop integration
 
 ---
 *Generated by [Release Management MCP](https://github.com/officespacesoftware/versioner/tree/main/release-management-mcp)*
@@ -715,7 +732,7 @@ This pull request was automatically created by the Release Management MCP follow
     return `
 ## Release Branch: ${releaseBranch}
 
-This pull request contains the release branch for **v${version}**.
+This pull request contains the release branch for **${version}**.
 
 ### 📋 Release Information
 - **Version**: \`${version}\`
@@ -1080,7 +1097,7 @@ This pull request was automatically created by the Release Management MCP follow
       }
 
       const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
-      const targetBranch = branchInfo.targetBranch;
+      const targetBranch = "develop"; // All RC PRs target develop
       const targetVersion = (this.context as IncrementRCWorkflowContext)
         .targetVersion;
 
@@ -1588,7 +1605,7 @@ ${
 
     try {
       const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
-      const targetBranch = branchInfo.targetBranch;
+      const targetBranch = "main"; // All final version PRs target main
       const targetVersion = (this.context as ReleaseVersionWorkflowContext)
         .targetVersion;
 
@@ -1605,6 +1622,11 @@ ${
           branchInfo.type === "release" ? "Release" : "Hotfix"
         } Version ${targetVersion?.version || "new version"}
 
+> [!WARNING]
+> This PR must be merged **after** the ${
+          branchInfo.type
+        } has been deployed to production.
+
 This PR contains the final release version for ${branchName}.
 
 ### Changes
@@ -1613,12 +1635,16 @@ This PR contains the final release version for ${branchName}.
         } (converted from RC)
 - Updated VERSION file and git tag
 
-### Type
-${
-  branchInfo.type === "release"
-    ? "- [ ] Ready for production deployment"
-    : "- [ ] Ready for production deployment (CRITICAL HOTFIX)"
-}
+### 🚨 Production Deployment Process
+1. **Deploy FIRST**: Deploy this ${branchInfo.type} to production environment
+2. **Verify**: Ensure the deployment is working correctly in production
+3. **Then Merge**: Only merge this PR AFTER successful production deployment
+
+### Deployment Checklist
+- [ ] Deploy ${branchInfo.type} to production environment
+- [ ] Verify functionality in production
+- [ ] Monitor production metrics for issues
+- [ ] Merge this PR (after successful deployment only)
 
 🤖 Auto-generated by Release Management MCP`;
 
