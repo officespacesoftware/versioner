@@ -426,7 +426,7 @@ export class ReleaseAgent {
         // Generate PR title and body with version information
         const releaseType = (this.context! as ReleaseWorkflowContext)
           .releaseType;
-        const prTitle = `Release: v${version} - ${releaseBranch} (${releaseType.toUpperCase()})`;
+        const prTitle = `RC ${version} to develop`;
         const prBody = this.generatePRBody(version, releaseBranch, releaseType);
 
         // Create PR using GitFlowManager
@@ -637,7 +637,7 @@ export class ReleaseAgent {
         const hotfixBranch = currentBranch || `hotfix/${version.split("-")[0]}`;
 
         // Generate PR title and body with hotfix information
-        const prTitle = `Hotfix: v${version} - ${hotfixBranch}`;
+        const prTitle = `RC ${version} to develop`;
         const prBody = this.generateHotfixPRBody(version, hotfixBranch);
 
         // Create PR using GitFlowManager - targeting develop for RC
@@ -1106,9 +1106,7 @@ This pull request was automatically created by the Release Management MCP follow
       );
 
       if (!(this.context as IncrementRCWorkflowContext).dryRun) {
-        const prTitle = `${
-          branchInfo.type === "release" ? "Release" : "Hotfix"
-        }: Increment RC to ${targetVersion?.version || "new version"}`;
+        const prTitle = `RC ${targetVersion?.version || "new version"} to develop`;
 
         const prBody = `## ${
           branchInfo.type === "release" ? "Release" : "Hotfix"
@@ -1614,9 +1612,7 @@ ${
       );
 
       if (!(this.context as ReleaseVersionWorkflowContext).dryRun) {
-        const prTitle = `${
-          branchInfo.type === "release" ? "Release" : "Hotfix"
-        }: ${targetVersion?.version || "new version"}`;
+        const prTitle = `Release ${targetVersion?.version || "new version"} to main`;
 
         const prBody = `## ${
           branchInfo.type === "release" ? "Release" : "Hotfix"
