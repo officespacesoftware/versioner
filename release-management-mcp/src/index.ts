@@ -145,8 +145,7 @@ Bumps the RC number for an existing release or hotfix branch.
 - Input: optional base version (e.g., 1.2.0)
 - Auto-selects target branch (latest RC) unless a version is provided
 - Works with both release/X.Y.0 and hotfix/X.Y.Z
-- Creates commit and optional PR
-- Safe to run with dryRun for validation`,
+- Creates commit and optional PR`,
             inputSchema: {
               type: "object",
               properties: {
