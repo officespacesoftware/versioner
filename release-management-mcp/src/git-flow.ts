@@ -819,7 +819,7 @@ This PR merges the latest changes from main branch into develop branch to keep d
         ""
       );
       console.log(
-        `📋 Using release branch: ${cleanBranchName} (v${targetBranch.version.full})`
+        `📋 Using release branch: ${cleanBranchName} (${targetBranch.version.full})`
       );
 
       // Step 2: Fetch latest changes from origin
@@ -827,8 +827,8 @@ This PR merges the latest changes from main branch into develop branch to keep d
       console.log("✅ Fetched latest changes from origin");
 
       // Step 3: Create pull request from release branch to main
-      const prTitle = `Release v${targetBranch.version.full} to main`;
-      const prBody = `## Release v${targetBranch.version.full} to Production
+      const prTitle = `Release ${targetBranch.version.full} to main`;
+      const prBody = `## Release ${targetBranch.version.full} to Production
 
 This PR merges the release branch into main for production deployment.
 
@@ -900,7 +900,7 @@ This PR merges the release branch into main for production deployment.
         ""
       );
       console.log(
-        `📋 Using hotfix branch: ${cleanBranchName} (v${targetBranch.version.full})`
+        `📋 Using hotfix branch: ${cleanBranchName} (${targetBranch.version.full})`
       );
 
       // Step 2: Fetch latest changes from origin
@@ -908,8 +908,8 @@ This PR merges the release branch into main for production deployment.
       console.log("✅ Fetched latest changes from origin");
 
       // Step 3: Create pull request from hotfix branch to main
-      const prTitle = `Hotfix v${targetBranch.version.full} to main`;
-      const prBody = `## Hotfix v${targetBranch.version.full} to Production
+      const prTitle = `Hotfix ${targetBranch.version.full} to main`;
+      const prBody = `## Hotfix ${targetBranch.version.full} to Production
 
 This PR merges the hotfix branch into main for urgent production deployment.
 
