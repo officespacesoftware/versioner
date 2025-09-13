@@ -105,7 +105,7 @@ Creates a Git Flow release branch and initializes an RC version.
                 dryRun: {
                   type: "boolean",
                   description:
-                    "If true, performs validation checks without making any changes (default: false)",
+                    "Optional: if true, performs validation checks without making any changes (default: false)",
                 },
               },
             },
@@ -131,7 +131,7 @@ Creates a Git Flow hotfix branch and initializes an RC version.
                 dryRun: {
                   type: "boolean",
                   description:
-                    "If true, performs validation checks without making any changes (default: false)",
+                    "Optional: if true, performs validation checks without making any changes (default: false)",
                 },
               },
             },
@@ -142,6 +142,7 @@ Creates a Git Flow hotfix branch and initializes an RC version.
 
 Bumps the RC number for an existing release or hotfix branch.
 
+- Input: optional base version (e.g., 1.2.0)
 - Auto-selects target branch (latest RC) unless a version is provided
 - Works with both release/X.Y.0 and hotfix/X.Y.Z
 - Creates commit and optional PR
@@ -164,7 +165,7 @@ Bumps the RC number for an existing release or hotfix branch.
                 dryRun: {
                   type: "boolean",
                   description:
-                    "If true, performs validation checks without making any changes (default: false)",
+                    "Optional: if true, performs validation checks without making any changes (default: false)",
                 },
               },
             },
@@ -197,7 +198,7 @@ Converts a release candidate into a final version.
                 dryRun: {
                   type: "boolean",
                   description:
-                    "If true, performs validation checks without making any changes (default: false)",
+                    "Optional: if true, performs validation checks without making any changes (default: false)",
                 },
               },
             },
@@ -208,6 +209,7 @@ Converts a release candidate into a final version.
 
 Bootstraps version management by creating a VERSION file and initial tag.
 
+- Input: optional initial version (e.g., 0.1.0-RC.0)
 - Default version: 0.1.0-RC.0
 - Makes initial commit and tag
 - Works in any Git repo (no staged changes allowed)`,
@@ -248,7 +250,7 @@ Creates a PR to bring production changes back into develop.
                 dryRun: {
                   type: "boolean",
                   description:
-                    "If true, shows what would happen without making changes (default: false)",
+                    "Optional: if true, shows what would happen without making changes (default: false)",
                 },
               },
             },
@@ -259,6 +261,7 @@ Creates a PR to bring production changes back into develop.
 
 Creates a PR to merge a release branch into main.
 
+- Input: optional version to merge (e.g., 1.2.0)
 - Auto-detects latest release when version is not provided
 - Validates branch existence and syncs with origin
 - Ideal for promoting a tested release`,
@@ -280,7 +283,7 @@ Creates a PR to merge a release branch into main.
                 dryRun: {
                   type: "boolean",
                   description:
-                    "If true, shows what would happen without making changes (default: false)",
+                    "Optional: if true, shows what would happen without making changes (default: false)",
                 },
               },
             },
@@ -291,6 +294,7 @@ Creates a PR to merge a release branch into main.
 
 Creates a PR to merge a hotfix branch into main.
 
+- Input: optional version to merge (e.g., 1.2.1)
 - Auto-detects latest hotfix when version is not provided
 - Production-critical: merge only after deployment
 - Validates branch and opens PR`,
@@ -312,7 +316,7 @@ Creates a PR to merge a hotfix branch into main.
                 dryRun: {
                   type: "boolean",
                   description:
-                    "If true, shows what would happen without making changes (default: false)",
+                    "Optional: if true, shows what would happen without making changes (default: false)",
                 },
               },
             },
