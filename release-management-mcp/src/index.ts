@@ -65,8 +65,14 @@ class ReleaseManagementMCPServer {
         tools: [
           {
             name: "health_check",
-            description:
-              "Check the health and status of the Release Management MCP server",
+            description: `🩺 Health Check
+
+Runs a quick self-test to ensure the Release Management MCP server is responsive.
+
+What you get:
+- Server name, version, and status
+- ISO timestamp
+- Supported capabilities`,
             inputSchema: {
               type: "object",
               properties: {},
@@ -74,8 +80,14 @@ class ReleaseManagementMCPServer {
           },
           {
             name: "create_release_candidate",
-            description:
-              "Create a release candidate (major or minor) following Git Flow workflow (6-step process). Defaults to minor release if not specified. Creates branches like release/X.X.X with RC version content in VERSION file",
+            description: `🎯 Create Release Candidate (RC)
+
+Creates a Git Flow release branch and initializes an RC version.
+
+- Types: major (X.0.0-RC.0) or minor (x.X.0-RC.0)
+- Branch: release/X.Y.0
+- Process: 6-step Git Flow with PR to develop
+- Defaults: releaseType=minor, dryRun=false`,
             inputSchema: {
               type: "object",
               properties: {
@@ -100,8 +112,14 @@ class ReleaseManagementMCPServer {
           },
           {
             name: "create_hotfix",
-            description:
-              "Create a hotfix branch for patch releases following Git Flow hotfix workflow (6-step process). Creates branches like hotfix/X.X.X with RC version content in VERSION file",
+            description: `🚑 Create Hotfix (Patch RC)
+
+Creates a Git Flow hotfix branch and initializes an RC version.
+
+- Branch: hotfix/X.Y.Z
+- Process: 6-step Git Flow with PR to main
+- For urgent production fixes
+- Defaults: dryRun=false`,
             inputSchema: {
               type: "object",
               properties: {
@@ -120,9 +138,14 @@ class ReleaseManagementMCPServer {
           },
           {
             name: "increment_release_candidate",
-            description:
-              "Increment an existing release candidate (RC) for both release and hotfix branches." +
-              "\nIntelligently finds the matching RC branch based on the provided version",
+            description: `🔼 Increment Release Candidate
+
+Bumps the RC number for an existing release or hotfix branch.
+
+- Auto-selects target branch (latest RC) unless a version is provided
+- Works with both release/X.Y.0 and hotfix/X.Y.Z
+- Creates commit and optional PR
+- Safe to run with dryRun for validation`,
             inputSchema: {
               type: "object",
               properties: {
@@ -148,13 +171,14 @@ class ReleaseManagementMCPServer {
           },
           {
             name: "release_version",
-            description:
-              "Release the final version from a release candidate (RC → Final) for both release and hotfix branches following Git Flow workflow (8-step process)." +
-              "\n\nConverts RC versions like '1.2.0-RC.1' to final versions like '1.2.0'." +
-              "\n\nIntelligently selects target RC branch using:" +
-              "\n 1) specified version parameter" +
-              "\n 2) current RC branch" +
-              "\n 3) latest RC branch by version",
+            description: `🏁 Release Version (RC → Final)
+
+Converts a release candidate into a final version.
+
+- Input: optional base version (e.g., 1.2.0)
+- Auto-select order: provided version → current RC branch → latest RC
+- Updates VERSION, tags, and creates PR
+- 8-step Git Flow release`,
             inputSchema: {
               type: "object",
               properties: {
@@ -180,8 +204,13 @@ class ReleaseManagementMCPServer {
           },
           {
             name: "initialize_versioner",
-            description:
-              "Initialize versioner (VERSION file) on the current repository",
+            description: `📦 Initialize Versioner
+
+Bootstraps version management by creating a VERSION file and initial tag.
+
+- Default version: 0.1.0-RC.0
+- Makes initial commit and tag
+- Works in any Git repo (no staged changes allowed)`,
             inputSchema: {
               type: "object",
               properties: {
@@ -200,8 +229,14 @@ class ReleaseManagementMCPServer {
           },
           {
             name: "downmerge_main_to_develop",
-            description:
-              "Downmerge main branch into develop via pull request following Git Flow best practices",
+            description: `⬇️ Downmerge main → develop
+
+Creates a PR to bring production changes back into develop.
+
+- Fetch, branch, and merge main into a new branch from develop
+- Push and open PR targeting develop
+- Use after hotfixes or direct main updates
+- Supports dry runs`,
             inputSchema: {
               type: "object",
               properties: {
@@ -220,8 +255,13 @@ class ReleaseManagementMCPServer {
           },
           {
             name: "downmerge_release_to_main",
-            description:
-              "Create pull request to merge a release branch directly to main following Git Flow best practices",
+            description: `📤 PR: release → main
+
+Creates a PR to merge a release branch into main.
+
+- Auto-detects latest release when version is not provided
+- Validates branch existence and syncs with origin
+- Ideal for promoting a tested release`,
             inputSchema: {
               type: "object",
               properties: {
@@ -247,8 +287,13 @@ class ReleaseManagementMCPServer {
           },
           {
             name: "downmerge_hotfix_to_main",
-            description:
-              "Create pull request to merge a hotfix branch directly to main following Git Flow best practices",
+            description: `🔥 PR: hotfix → main
+
+Creates a PR to merge a hotfix branch into main.
+
+- Auto-detects latest hotfix when version is not provided
+- Production-critical: merge only after deployment
+- Validates branch and opens PR`,
             inputSchema: {
               type: "object",
               properties: {
@@ -309,7 +354,7 @@ class ReleaseManagementMCPServer {
             break;
 
           case "downmerge_main_to_develop":
-            result = await this.handleDownmergeMaintoDevelop(args);
+            result = await this.handleDownmergeMainToDevelop(args);
             break;
 
           case "downmerge_release_to_main":
@@ -451,7 +496,7 @@ Common issues:
     }
   }
 
-  private async handleDownmergeMaintoDevelop(args: any): Promise<string> {
+  private async handleDownmergeMainToDevelop(args: any): Promise<string> {
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
 
