@@ -65,7 +65,7 @@ class ReleaseManagementMCPServer {
         tools: [
           {
             name: "health_check",
-            description: `🩺 Health Check
+            description: `🩺  Health Check
 
 Runs a quick self-test to ensure the Release Management MCP server is responsive.
 
@@ -80,7 +80,7 @@ What you get:
           },
           {
             name: "create_release_candidate",
-            description: `🎯 Create Release Candidate (RC)
+            description: `🎯  Create Release Candidate (RC)
 
 Creates a Git Flow release branch and initializes an RC version.
 
@@ -112,7 +112,7 @@ Creates a Git Flow release branch and initializes an RC version.
           },
           {
             name: "create_hotfix",
-            description: `🚑 Create Hotfix (Patch RC)
+            description: `🚑  Create Hotfix (Patch RC)
 
 Creates a Git Flow hotfix branch and initializes an RC version.
 
@@ -138,7 +138,7 @@ Creates a Git Flow hotfix branch and initializes an RC version.
           },
           {
             name: "increment_release_candidate",
-            description: `🔼 Increment Release Candidate
+            description: `🔼  Increment Release Candidate
 
 Bumps the RC number for an existing release or hotfix branch.
 
@@ -171,7 +171,7 @@ Bumps the RC number for an existing release or hotfix branch.
           },
           {
             name: "release_version",
-            description: `🏁 Release Version (RC → Final)
+            description: `🏁  Release Version (RC → Final)
 
 Converts a release candidate into a final version.
 
@@ -204,7 +204,7 @@ Converts a release candidate into a final version.
           },
           {
             name: "initialize_versioner",
-            description: `📦 Initialize Versioner
+            description: `📦  Initialize Versioner
 
 Bootstraps version management by creating a VERSION file and initial tag.
 
@@ -230,7 +230,7 @@ Bootstraps version management by creating a VERSION file and initial tag.
           },
           {
             name: "downmerge_main_to_develop",
-            description: `⬇️ Downmerge main → develop
+            description: `⬇️  Downmerge main → develop
 
 Creates a PR to bring production changes back into develop.
 
@@ -256,7 +256,7 @@ Creates a PR to bring production changes back into develop.
           },
           {
             name: "downmerge_release_to_main",
-            description: `📤 PR: release → main
+            description: `📤  PR: release → main
 
 Creates a PR to merge a release branch into main.
 
@@ -289,7 +289,7 @@ Creates a PR to merge a release branch into main.
           },
           {
             name: "downmerge_hotfix_to_main",
-            description: `🔥 PR: hotfix → main
+            description: `🔥  PR: hotfix → main
 
 Creates a PR to merge a hotfix branch into main.
 
