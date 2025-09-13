@@ -829,13 +829,6 @@ This pull request was automatically created by the Release Management MCP follow
     console.log(`📊 Branch Version: ${branchInfo.version.full}`);
     console.log(`🎯 Target PR Branch: ${branchInfo.targetBranch}\n`);
 
-    // Validate that this is actually a release candidate
-    if (!branchInfo.version.full.includes("-RC.")) {
-      throw new Error(
-        `Branch ${branchInfo.name} version ${branchInfo.version.full} is not a release candidate. Only RC versions can be incremented.`
-      );
-    }
-
     // Initialize increment RC workflow context
     this.context = {
       workingDirectory,
@@ -967,6 +960,21 @@ This pull request was automatically created by the Release Management MCP follow
       }
 
       if (!(this.context as IncrementRCWorkflowContext).dryRun) {
+        // First, get the current version from the checked-out branch
+        const currentVersion = await this.versionerAdapter.getCurrentVersion();
+
+        // Validate that this is actually a release candidate
+        if (!currentVersion.version.includes("-RC.")) {
+          throw new Error(
+            `Branch ${branchInfo.name} version ${currentVersion.version} is not a release candidate. Only RC versions can be incremented.`
+          );
+        }
+
+        console.log(
+          `✅ RC validation passed: ${currentVersion.version} is a release candidate`
+        );
+
+        // Then do the branch version validation
         const validation = await this.gitFlowManager.validateBranchVersion(
           branchInfo
         );
@@ -1158,13 +1166,6 @@ ${
     console.log(`🎯 Selected Branch: ${branchInfo.name} (${branchInfo.type})`);
     console.log(`📊 Branch Version: ${branchInfo.version.full}`);
     console.log(`🎯 Target PR Branch: ${branchInfo.targetBranch}\n`);
-
-    // Validate that this is actually a release candidate
-    if (!branchInfo.version.full.includes("-RC.")) {
-      throw new Error(
-        `Branch ${branchInfo.name} version ${branchInfo.version.full} is not a release candidate. Only RC versions can be released.`
-      );
-    }
 
     // Initialize release workflow context
     this.context = {
@@ -1451,6 +1452,21 @@ ${
       console.log(`🔄 Step 4: Releasing version (RC → Final)`);
 
       if (!(this.context as ReleaseVersionWorkflowContext).dryRun) {
+        // First, get the current version from the checked-out branch
+        const currentVersion = await this.versionerAdapter.getCurrentVersion();
+
+        // Validate that this is actually a release candidate
+        if (!currentVersion.version.includes("-RC.")) {
+          throw new Error(
+            `Branch version ${currentVersion.version} is not a release candidate. Only RC versions can be released.`
+          );
+        }
+
+        console.log(
+          `✅ RC validation passed: ${currentVersion.version} is a release candidate`
+        );
+
+        // Now proceed with the release
         const newVersion = await this.versionerAdapter.releaseVersion();
         (this.context as ReleaseVersionWorkflowContext).targetVersion =
           newVersion;
