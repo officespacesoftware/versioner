@@ -399,44 +399,6 @@ Creates a PR to merge a hotfix branch into main.
     });
   }
 
-  private async handleShowVersion(args: any): Promise<string> {
-    const workingDirectory = args?.workingDirectory || process.cwd();
-
-    try {
-      // Initialize versioner adapter if needed
-      if (!this.versionerAdapter) {
-        this.versionerAdapter = new VersionerAdapter();
-        await this.versionerAdapter.initialize(undefined, workingDirectory);
-      }
-
-      const versionInfo = await this.versionerAdapter.getCurrentVersion();
-
-      return `📋 Current Version Information
-
-📁 Working Directory: ${workingDirectory}
-🏷️  Version: ${versionInfo.version}
-🔢 Major: ${versionInfo.major}
-🔢 Minor: ${versionInfo.minor}
-🔢 Patch: ${versionInfo.patch}
-${versionInfo.isReleaseCandidate ? `🚧 RC Number: ${versionInfo.rcNumber}` : ""}
-📊 Release Type: ${
-        versionInfo.isReleaseCandidate ? "Release Candidate" : "Final Release"
-      }`;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return `❌ Failed to get version information
-
-📁 Working Directory: ${workingDirectory}
-💥 Error: ${errorMessage}
-
-Common issues:
-- VERSION file may not exist (run initialize_versioner first)
-- Versioner MCP may not be running
-- Invalid VERSION file format`;
-    }
-  }
-
   private async handleInitializeVersioner(args: any): Promise<string> {
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
