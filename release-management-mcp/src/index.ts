@@ -75,7 +75,7 @@ class ReleaseManagementMCPServer {
           {
             name: "create_release_candidate",
             description:
-              "Create a release candidate (major or minor) following Git Flow workflow (6-step process). Defaults to minor release if not specified.",
+              "Create a release candidate (major or minor) following Git Flow workflow (6-step process). Defaults to minor release if not specified. Creates branches like release/X.X.X with RC version content in VERSION file",
             inputSchema: {
               type: "object",
               properties: {
@@ -101,7 +101,7 @@ class ReleaseManagementMCPServer {
           {
             name: "create_hotfix",
             description:
-              "Create a hotfix branch for patch releases following Git Flow hotfix workflow (6-step process)",
+              "Create a hotfix branch for patch releases following Git Flow hotfix workflow (6-step process). Creates branches like hotfix/X.X.X with RC version content in VERSION file",
             inputSchema: {
               type: "object",
               properties: {
@@ -128,7 +128,7 @@ class ReleaseManagementMCPServer {
                 version: {
                   type: "string",
                   description:
-                    "Target version to increment (e.g., '1.2.0'). The tool will find the matching RC branch (release/1.2.0-RC.X or hotfix/1.2.0-RC.X)",
+                    "Target version to increment (e.g., '1.2.0'). The tool will find the matching RC branch (release/1.2.0 or hotfix/1.2.0) containing an RC version in the VERSION file. This parameter MUST be provided by the user - do not use show_version to determine this value.",
                 },
                 workingDirectory: {
                   type: "string",
@@ -153,7 +153,7 @@ class ReleaseManagementMCPServer {
                 version: {
                   type: "string",
                   description:
-                    "Optional specific version to release (e.g., '1.2.0'). Searches for matching release/1.2.0-RC.X or hotfix/1.2.0-RC.X branches. If not provided, uses intelligent RC branch selection",
+                    "Optional specific version to release (e.g., '1.2.0'). Searches for matching release/1.2.0 or hotfix/1.2.0 branches containing RC versions in the VERSION file. If not provided, uses intelligent RC branch selection. This parameter MUST be provided by the user - do not use show_version to determine this value.",
                 },
                 workingDirectory: {
                   type: "string",
@@ -171,7 +171,7 @@ class ReleaseManagementMCPServer {
           {
             name: "show_version",
             description:
-              "Show the current version number from the VERSION file using versioner-mcp",
+              "Show the current version number from the VERSION file using versioner-mcp. Note: When providing version parameters to other tools, use human-provided values rather than this tool",
             inputSchema: {
               type: "object",
               properties: {
