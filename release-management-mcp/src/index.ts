@@ -121,14 +121,17 @@ class ReleaseManagementMCPServer {
           {
             name: "increment_release_candidate",
             description:
-              "Increment an existing release candidate (RC) for both release and hotfix branches. Intelligently finds the matching RC branch based on the provided version",
+              "Increment an existing release candidate (RC) for both release and hotfix branches." +
+              "\nIntelligently finds the matching RC branch based on the provided version",
             inputSchema: {
               type: "object",
               properties: {
                 version: {
                   type: "string",
                   description:
-                    "Target version to increment (e.g., '1.2.0'). The tool will find the matching RC branch (release/1.2.0 or hotfix/1.2.0) containing an RC version in the VERSION file. This parameter MUST be provided by the user - do not use show_version to determine this value.",
+                    "Optional target version to increment (e.g., '1.2.0'). " +
+                    "When not provided, automatically finds the most recent version available on the upstream Git repository. " +
+                    "If provided, this parameter must be entered by a human user.",
                 },
                 workingDirectory: {
                   type: "string",
@@ -146,14 +149,21 @@ class ReleaseManagementMCPServer {
           {
             name: "release_version",
             description:
-              "Release the final version from a release candidate (RC → Final) for both release and hotfix branches following Git Flow workflow (8-step process). Converts RC versions like '1.2.0-RC.1' to final versions like '1.2.0'. Intelligently selects target RC branch using: 1) specified version parameter, 2) current RC branch, or 3) latest RC branch by version",
+              "Release the final version from a release candidate (RC → Final) for both release and hotfix branches following Git Flow workflow (8-step process)." +
+              "\n\nConverts RC versions like '1.2.0-RC.1' to final versions like '1.2.0'." +
+              "\n\nIntelligently selects target RC branch using:" +
+              "\n 1) specified version parameter" +
+              "\n 2) current RC branch" +
+              "\n 3) latest RC branch by version",
             inputSchema: {
               type: "object",
               properties: {
                 version: {
                   type: "string",
                   description:
-                    "Optional specific version to release (e.g., '1.2.0'). Searches for matching release/1.2.0 or hotfix/1.2.0 branches containing RC versions in the VERSION file. If not provided, uses intelligent RC branch selection. This parameter MUST be provided by the user - do not use show_version to determine this value.",
+                    "Optional specific version to release (e.g., '1.2.0'). " +
+                    "When not provided, automatically finds the most recent version available on the upstream Git repository. " +
+                    "If provided, this parameter must be entered by a human user.",
                 },
                 workingDirectory: {
                   type: "string",
@@ -164,21 +174,6 @@ class ReleaseManagementMCPServer {
                   type: "boolean",
                   description:
                     "If true, performs validation checks without making any changes (default: false)",
-                },
-              },
-            },
-          },
-          {
-            name: "show_version",
-            description:
-              "Show the current version number from the VERSION file using versioner-mcp. Note: When providing version parameters to other tools, use human-provided values rather than this tool",
-            inputSchema: {
-              type: "object",
-              properties: {
-                workingDirectory: {
-                  type: "string",
-                  description:
-                    "The working directory path for the project (optional, defaults to current directory)",
                 },
               },
             },
@@ -210,6 +205,60 @@ class ReleaseManagementMCPServer {
             inputSchema: {
               type: "object",
               properties: {
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+                dryRun: {
+                  type: "boolean",
+                  description:
+                    "If true, shows what would happen without making changes (default: false)",
+                },
+              },
+            },
+          },
+          {
+            name: "downmerge_release_to_main",
+            description:
+              "Create pull request to merge a release branch directly to main following Git Flow best practices",
+            inputSchema: {
+              type: "object",
+              properties: {
+                version: {
+                  type: "string",
+                  description:
+                    "Optional specific version to merge (e.g., '1.2.0'). " +
+                    "When not provided, automatically finds the most recent release version available on the upstream Git repository. " +
+                    "If provided, this parameter must be entered by a human user.",
+                },
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+                dryRun: {
+                  type: "boolean",
+                  description:
+                    "If true, shows what would happen without making changes (default: false)",
+                },
+              },
+            },
+          },
+          {
+            name: "downmerge_hotfix_to_main",
+            description:
+              "Create pull request to merge a hotfix branch directly to main following Git Flow best practices",
+            inputSchema: {
+              type: "object",
+              properties: {
+                version: {
+                  type: "string",
+                  description:
+                    "Optional specific version to merge (e.g., '1.2.1'). " +
+                    "When not provided, automatically finds the most recent hotfix version available on the upstream Git repository. " +
+                    "If provided, this parameter must be entered by a human user.",
+                },
                 workingDirectory: {
                   type: "string",
                   description:
@@ -255,16 +304,20 @@ class ReleaseManagementMCPServer {
             result = await this.handleReleaseVersion(args);
             break;
 
-          case "show_version":
-            result = await this.handleShowVersion(args);
-            break;
-
           case "initialize_versioner":
             result = await this.handleInitializeVersioner(args);
             break;
 
           case "downmerge_main_to_develop":
             result = await this.handleDownmergeMaintoDevelop(args);
+            break;
+
+          case "downmerge_release_to_main":
+            result = await this.handleDownmergeReleaseToMain(args);
+            break;
+
+          case "downmerge_hotfix_to_main":
+            result = await this.handleDownmergeHotfixToMain(args);
             break;
 
           default:
@@ -459,6 +512,147 @@ ${!dryRun && prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
 Common issues:
 - Not in a git repository
 - Missing main or develop branches
+- Network issues with git operations
+- Permission issues with git push or PR creation
+- GitHub CLI (gh) not available or not authenticated`;
+    }
+  }
+
+  private async handleDownmergeReleaseToMain(args: any): Promise<string> {
+    const version = args?.version;
+    const workingDirectory = args?.workingDirectory || process.cwd();
+    const dryRun = args?.dryRun || false;
+
+    try {
+      // Initialize git flow manager if needed
+      if (!this.gitFlowManager) {
+        this.gitFlowManager = new GitFlowManager(workingDirectory);
+      }
+
+      // Check if we're in a git repository
+      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      // Check for staged changes (prevents committing unrelated changes)
+      await this.gitFlowManager.validateNoStagedChanges();
+
+      const prUrl = await this.gitFlowManager.downmergeReleaseToMain(
+        version,
+        dryRun
+      );
+
+      return `🚀 Downmerge Release to Main ${
+        dryRun ? "(Dry Run) " : ""
+      }Completed Successfully!
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Release"}
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+
+${
+  dryRun
+    ? "🔧 Would have performed the following actions:"
+    : "✅ Completed the following actions:"
+}
+1. Validated target release branch exists
+2. Fetched latest changes from origin
+3. Created pull request from release branch to main
+
+${!dryRun && prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
+
+📋 Next Steps:
+1. Review the pull request for merge conflicts
+2. Deploy the release to production environment
+3. Merge the PR when deployment is successful
+4. Celebrate the successful release! 🎉`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return `❌ Downmerge Release to Main Failed
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Release"}
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+💥 Error: ${errorMessage}
+
+Common issues:
+- No release branches found matching the criteria
+- Network issues with git operations
+- Permission issues with git push or PR creation
+- GitHub CLI (gh) not available or not authenticated`;
+    }
+  }
+
+  private async handleDownmergeHotfixToMain(args: any): Promise<string> {
+    const version = args?.version;
+    const workingDirectory = args?.workingDirectory || process.cwd();
+    const dryRun = args?.dryRun || false;
+
+    try {
+      // Initialize git flow manager if needed
+      if (!this.gitFlowManager) {
+        this.gitFlowManager = new GitFlowManager(workingDirectory);
+      }
+
+      // Check if we're in a git repository
+      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      // Check for staged changes (prevents committing unrelated changes)
+      await this.gitFlowManager.validateNoStagedChanges();
+
+      const prUrl = await this.gitFlowManager.downmergeHotfixToMain(
+        version,
+        dryRun
+      );
+
+      return `🚀 Downmerge Hotfix to Main ${
+        dryRun ? "(Dry Run) " : ""
+      }Completed Successfully!
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Hotfix"}
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+
+${
+  dryRun
+    ? "🔧 Would have performed the following actions:"
+    : "✅ Completed the following actions:"
+}
+1. Validated target hotfix branch exists
+2. Fetched latest changes from origin
+3. Created pull request from hotfix branch to main
+
+${!dryRun && prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
+
+⚠️  IMPORTANT: This is a HOTFIX merge to production.
+
+📋 Next Steps:
+1. Review the pull request for merge conflicts
+2. Deploy the hotfix to production environment FIRST
+3. Verify the hotfix is working correctly in production
+4. THEN merge the PR after successful deployment
+5. Create follow-up PR to merge hotfix changes back to develop`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return `❌ Downmerge Hotfix to Main Failed
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Hotfix"}
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+💥 Error: ${errorMessage}
+
+Common issues:
+- No hotfix branches found matching the criteria
 - Network issues with git operations
 - Permission issues with git push or PR creation
 - GitHub CLI (gh) not available or not authenticated`;

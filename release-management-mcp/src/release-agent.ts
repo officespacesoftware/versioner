@@ -1376,7 +1376,45 @@ ${
     branchType: BranchType
   ): Promise<BranchTypeInfo | null> {
     const branches = await this.gitFlowManager.findBranchesOfType(branchType);
-    const rcBranches = branches.filter((b) => b.version.full.includes("-RC."));
+    const rcBranches: BranchTypeInfo[] = [];
+
+    // Check each branch's VERSION file content for RC versions
+    for (const branch of branches) {
+      try {
+        // Read VERSION file from the branch
+        const cleanBranchName = branch.name.replace(/^remotes\/origin\//, "");
+        const versionContent = await this.gitFlowManager.readFileFromBranch(
+          cleanBranchName,
+          "VERSION"
+        );
+
+        // Check if VERSION file contains RC version
+        if (versionContent.includes("-RC.")) {
+          // Update the branch version info with actual VERSION file content
+          const versionMatch = versionContent.match(
+            /^(\d+)\.(\d+)\.(\d+)(-RC\.\d+)?/
+          );
+          if (versionMatch) {
+            const [fullVersion, majorStr, minorStr, patchStr] = versionMatch;
+            rcBranches.push({
+              ...branch,
+              version: {
+                major: parseInt(majorStr || "0", 10),
+                minor: parseInt(minorStr || "0", 10),
+                patch: parseInt(patchStr || "0", 10),
+                full: fullVersion.trim(),
+              },
+            });
+          }
+        }
+      } catch (error) {
+        // Branch might not have VERSION file, skip it
+        console.warn(
+          `Could not read VERSION file from branch ${branch.name}: ${error}`
+        );
+        continue;
+      }
+    }
 
     if (rcBranches.length === 0) {
       return null;
