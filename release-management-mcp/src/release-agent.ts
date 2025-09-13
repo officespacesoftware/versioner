@@ -1096,13 +1096,32 @@ This pull request contains the release branch for **${version}**.
           branchInfo.type === "release" ? "Release" : "Hotfix"
         } Candidate Increment
 
-This PR increments the release candidate version for ${branchName}.
+This PR increments the release candidate version for \`${branchName}\`.
 
-### Changes
+### 📋 ${branchInfo.type === "release" ? "Release" : "Hotfix"} RC Information
+- **Version**: \`${targetVersion?.version || "new version"}\`
+- **Branch**: \`${branchName}\`
+- **Target**: \`${targetBranch}\`
+- **Type**: ${branchInfo.type} release candidate
+
+- **Version**: ${targetVersion?.version || "new version"}
+- **Branch**: ${branchName}
+- **Target**: ${targetBranch}
+
+### 🔄 Changes
 - Incremented RC version to ${targetVersion?.version || "new version"}
 - Updated VERSION file and git tag
 
-### Next Steps
+**Workflow Steps Completed:**
+1. ✅ Select Target Branch
+2. ✅ Checkout Release/Hotfix Branch
+3. ✅ Pull Latest Changes
+4. ✅ Validate Branch Version
+5. ✅ Increment Release Candidate
+6. ✅ Push Changes and Tag
+7. ✅ Create Pull Request
+
+### 🔄 Next Steps
 1. **Final release**: Use \`release_version\` tool when ready for production
 
 ---
@@ -1602,7 +1621,13 @@ This PR increments the release candidate version for ${branchName}.
 
 This PR contains the final release version for ${branchName}.
 
-### Changes
+### 📋 ${branchInfo.type === "release" ? "Release" : "Hotfix"} Information
+- **Version**: ${targetVersion?.version || "new version"}
+- **Branch**: ${branchName}
+- **Target**: ${targetBranch}
+- **Type**: ${branchInfo.type}
+
+### 🔄 Changes
 - Released version ${
           targetVersion?.version || "new version"
         } (converted from RC)
