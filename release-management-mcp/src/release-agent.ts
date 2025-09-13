@@ -542,10 +542,14 @@ export class ReleaseAgent {
         await this.gitFlowManager["execGit"](`checkout -b ${hotfixBranchName}`);
         console.log(`   🔄 Created hotfix branch: ${hotfixBranchName}`);
         step.message = `Created hotfix branch: ${hotfixBranchName}`;
+        // Update context with the actual hotfix branch name
+        this.context!.currentBranch = hotfixBranchName;
       } else {
         const hotfixBranchName = `hotfix/${nextVersion}`;
         console.log(`   🔄 [DRY RUN] Would create branch: ${hotfixBranchName}`);
         step.message = `[DRY RUN] Would create hotfix branch: ${hotfixBranchName}`;
+        // Update context for dry run as well
+        this.context!.currentBranch = hotfixBranchName;
       }
 
       this.updateStepStatus(3, "completed");

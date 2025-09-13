@@ -874,7 +874,7 @@ ${
     : ""
 }
 
-✅ All steps completed successfully. The hotfix has been created and is ready for production deployment.
+✅ All steps completed successfully.
 
 ${
   workflowResult.pullRequestUrl
@@ -984,49 +984,7 @@ ${
     : ""
 }
 
-✅ All steps completed successfully. The release candidate has been incremented and is ready for ${
-        workflowResult.branchType === "release"
-          ? "integration testing"
-          : "production deployment"
-      }.
-
-${
-  workflowResult.pullRequestUrl
-    ? `
-📋 Next steps:
-1. Review the pull request: ${workflowResult.pullRequestUrl}
-2. ${
-        workflowResult.branchType === "release"
-          ? "Run integration tests on the release branch"
-          : "Deploy the hotfix to production environment"
-      }
-3. Merge the PR when ready${
-        workflowResult.branchType === "hotfix"
-          ? " (AFTER production deployment)"
-          : ""
-      }
-4. ${
-        workflowResult.branchType === "release"
-          ? "Deploy to staging environment for testing"
-          : "Create follow-up PR to merge hotfix changes back to develop"
-      }`
-    : `
-📋 Next steps:
-1. Review the ${workflowResult.branchType} branch
-2. ${
-        workflowResult.branchType === "release"
-          ? "Run integration tests"
-          : "Deploy to production environment"
-      }
-3. Create PR to ${
-        workflowResult.branchInfo.targetBranch
-      } branch (Step 7 completed)
-4. ${
-        workflowResult.branchType === "release"
-          ? "Deploy to staging environment for testing"
-          : "Merge AFTER successful production deployment"
-      }`
-}`;
+✅ All steps completed successfully.`;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -1129,28 +1087,7 @@ ${
         workflowResult.branchType === "release"
           ? "production deployment"
           : "production hotfix deployment"
-      }.
-
-${
-  workflowResult.branchType === "hotfix"
-    ? `⚠️  IMPORTANT: This is a HOTFIX release. The PR must be merged ONLY AFTER the hotfix has been deployed to production.
-
-📋 Hotfix Deployment Steps:
-1. Deploy the hotfix to production environment
-2. Verify the hotfix is working correctly in production
-3. THEN merge the PR: ${workflowResult.pullRequestUrl || "[PR URL]"}
-4. Create follow-up PR to merge hotfix changes back to develop`
-    : `
-📋 Next Steps:
-1. Review the pull request: ${workflowResult.pullRequestUrl || "[PR URL]"}
-2. Deploy to production environment
-3. Merge the PR when deployment is successful
-4. ${
-        workflowResult.branchType === "release"
-          ? "Celebrate the successful release! 🎉"
-          : "Monitor the deployed changes"
-      }`
-}`;
+      }.`;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
