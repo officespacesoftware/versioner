@@ -719,21 +719,12 @@ This PR contains the release branch for ${branchName}.
       await this.execGit(`checkout -b ${branchName}`);
       console.log(`✅ Created new branch: ${branchName}`);
 
-      // Step 6: Merge main into the new branch
-      await this.execGit('merge main --no-ff -m "Downmerge main into develop"');
-      console.log("✅ Merged main into the new branch");
-
-      // Step 7: Push the new branch to origin
-      await this.execGit(`push origin ${branchName}`);
-      console.log(`✅ Pushed branch ${branchName} to origin`);
-
-      // Step 8: Create pull request targeting develop
-      // Check if last commit in main is "To version {version}" to determine title
+      // Check version BEFORE creating any commits - skip merge commits
       let prTitle = "Downmerge main into develop";
       let detectedVersion: string | undefined;
       try {
         const lastCommitMessage = await this.execGit(
-          "log -1 --pretty=format:%s origin/main"
+          "log -1 --no-merges --pretty=format:%s origin/main"
         );
         const versionMatch = lastCommitMessage.match(/^To version (.+)$/);
         if (versionMatch) {
@@ -742,11 +733,18 @@ This PR contains the release branch for ${branchName}.
           prTitle = `Release ${version} to develop`;
         }
       } catch (error) {
-        // If we can't get the commit message, fall back to default title
         console.warn(
           "Could not determine last commit message, using default title"
         );
       }
+
+      // Step 6: Merge main into the new branch
+      await this.execGit('merge main --no-ff -m "Downmerge main into develop"');
+      console.log("✅ Merged main into the new branch");
+
+      // Step 7: Push the new branch to origin
+      await this.execGit(`push origin ${branchName}`);
+      console.log(`✅ Pushed branch ${branchName} to origin`);
 
       const versionLine = detectedVersion
         ? `- **Version**: ${detectedVersion}`
