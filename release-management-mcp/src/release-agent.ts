@@ -308,12 +308,16 @@ export class ReleaseAgent {
         );
         console.log(`   🔄 Created release branch: ${releaseBranchName}`);
         step.message = `Created release branch: ${releaseBranchName}`;
+        // Update context with the actual release branch name
+        this.context!.currentBranch = releaseBranchName;
       } else {
         const releaseBranchName = `release/${nextVersion}`;
         console.log(
           `   🔄 [DRY RUN] Would create branch: ${releaseBranchName}`
         );
         step.message = `[DRY RUN] Would create release branch: ${releaseBranchName}`;
+        // Update context for dry run as well
+        this.context!.currentBranch = releaseBranchName;
       }
 
       this.updateStepStatus(3, "completed");
