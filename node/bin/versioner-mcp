@@ -149,7 +149,7 @@ class VersionerMCPServer {
 
       try {
         let result;
-        
+
         switch (name) {
           case 'versioner_init':
             const initArgs = args;
