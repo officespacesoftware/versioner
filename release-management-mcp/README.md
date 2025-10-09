@@ -230,7 +230,7 @@ release-management-mcp/
 │   ├── index.ts              # Main MCP server
 │   ├── release-agent.ts      # Workflow orchestration
 │   ├── versioner-adapter.ts  # Version management integration
-│   ├── mcp-client.ts         # MCP protocol client
+│   ├── versioner-direct.ts   # Direct versioner integration
 │   └── git-flow.ts          # Git operations
 ├── lib/                      # Compiled JavaScript
 ├── bin/

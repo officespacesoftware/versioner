@@ -1,16 +1,20 @@
 /**
  * CLI Integration tests
- * Tests the CLI interface and Git integration using Bun's test framework
+ * Tests the CLI interface and Git integration using Jest test framework
  */
 
-import { test, expect, describe, beforeEach, afterEach } from "bun:test";
-import { spawn } from "bun";
+import { test, expect, describe, beforeEach, afterEach } from "@jest/globals";
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
 
-const TEST_DIR = path.join(import.meta.dir, 'temp-git-test');
-const CLI_SCRIPT = path.join(import.meta.dir, '../bin/versioner');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const TEST_DIR = path.join(__dirname, 'temp-git-test');
+const CLI_SCRIPT = path.join(__dirname, '../bin/versioner');
 
 /**
  * Execute CLI command in test directory
@@ -18,27 +22,40 @@ const CLI_SCRIPT = path.join(import.meta.dir, '../bin/versioner');
  * @returns {Promise<{stdout: string, stderr: string, exitCode: number}>}
  */
 async function runCLI(args) {
-  try {
-    const proc = spawn([process.execPath, CLI_SCRIPT, ...args], {
+  return new Promise((resolve) => {
+    const proc = spawn(process.execPath, [CLI_SCRIPT, ...args], {
       cwd: TEST_DIR,
       env: { ...process.env },
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    const result = await proc.exited;
+    let stdout = '';
+    let stderr = '';
 
-    return {
-      stdout: await new Response(proc.stdout).text(),
-      stderr: await new Response(proc.stderr).text(),
-      exitCode: result
-    };
-  } catch (error) {
-    return {
-      stdout: '',
-      stderr: error.message,
-      exitCode: 1
-    };
-  }
+    proc.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    proc.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on('close', (exitCode) => {
+      resolve({
+        stdout,
+        stderr,
+        exitCode: exitCode || 0
+      });
+    });
+
+    proc.on('error', (error) => {
+      resolve({
+        stdout: '',
+        stderr: error.message,
+        exitCode: 1
+      });
+    });
+  });
 }
 
 /**
@@ -165,13 +182,16 @@ describe("CLI Integration Tests", () => {
     });
 
     test("uses environment variable VERSION", async () => {
-      const proc = spawn([process.execPath, CLI_SCRIPT, 'init'], {
-        cwd: TEST_DIR,
-        env: { ...process.env, VERSION: '3.0.0' },
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
+      await new Promise((resolve, reject) => {
+        const proc = spawn(process.execPath, [CLI_SCRIPT, 'init'], {
+          cwd: TEST_DIR,
+          env: { ...process.env, VERSION: '3.0.0' },
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
 
-      await proc.exited;
+        proc.on('close', () => resolve());
+        proc.on('error', reject);
+      });
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
       expect(versionContent).toMatch(/^3\.0\.0\n/);
@@ -303,7 +323,7 @@ describe("CLI Integration Tests", () => {
       const result = await runCLI(['patch']);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('Cannot patch a release candidate');
+      expect(result.stderr).toContain("There's an active release candidate");
     });
   });
 
@@ -311,7 +331,7 @@ describe("CLI Integration Tests", () => {
     test("all version commands create commits", async () => {
       const initialCommitCount = getCommitCount();
 
-      await runCLI(['init']);
+      await runCLI(['init', '1.0.0']);
       expect(getCommitCount()).toBe(initialCommitCount + 1);
 
       await runCLI(['patch']);

@@ -1,16 +1,20 @@
 /**
  * Test suite for VersionFile functionality
- * Uses Bun's test framework
+ * Uses Jest test framework
  */
 
-import { test, expect, describe, beforeEach, afterEach } from "bun:test";
+import { test, expect, describe, beforeEach, afterEach } from "@jest/globals";
 import { VersionFile } from "../lib/version-file.js";
 import { writeVersionFile, fileExists } from "../lib/file-utils.js";
 import { setOption, resetOptions } from "../lib/options.js";
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const TEST_FIXTURES_DIR = path.join(import.meta.dir, 'fixtures');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const TEST_FIXTURES_DIR = path.join(__dirname, 'fixtures');
 const TEST_VERSION_FILE = path.join(TEST_FIXTURES_DIR, 'version_file.txt');
 
 describe("VersionFile", () => {

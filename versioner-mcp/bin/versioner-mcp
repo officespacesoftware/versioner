@@ -1,0 +1,14 @@
+#!/usr/bin/env node
+
+/**
+ * Versioner MCP Server - Entry point
+ * Loads the compiled TypeScript server from lib/index.js
+ */
+
+import { main } from '../lib/index.js';
+
+// Run the server
+main().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});
