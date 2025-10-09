@@ -1,9 +1,9 @@
 /**
  * Versioner Adapter - High-level abstraction for versioner operations
- * Provides a clean interface between Release Management workflows and versioner-mcp
+ * Provides a clean interface between Release Management workflows and versioner
  */
 
-import { VersionerMCPClient } from "./mcp-client.js";
+import { VersionerDirectClient } from "./versioner-direct.js";
 
 export interface VersionInfo {
   version: string;
@@ -18,15 +18,15 @@ export interface VersionInfo {
  * Adapter class that provides high-level versioning operations
  */
 export class VersionerAdapter {
-  private versionerClient: VersionerMCPClient;
+  private versionerClient: VersionerDirectClient;
   private isConnected = false;
 
   constructor() {
-    this.versionerClient = new VersionerMCPClient();
+    this.versionerClient = new VersionerDirectClient();
   }
 
   /**
-   * Initialize connection to versioner-mcp
+   * Initialize versioner adapter
    */
   async initialize(
     versionerMCPCommand?: string,
@@ -35,7 +35,7 @@ export class VersionerAdapter {
     try {
       await this.versionerClient.connect(versionerMCPCommand, workingDirectory);
       this.isConnected = true;
-      console.log("VersionerAdapter: Successfully connected to versioner-mcp");
+      console.log("VersionerAdapter: Successfully initialized versioner");
       if (workingDirectory) {
         console.log(
           `VersionerAdapter: Using working directory: ${workingDirectory}`
@@ -43,7 +43,7 @@ export class VersionerAdapter {
       }
     } catch (error) {
       console.error(
-        "VersionerAdapter: Failed to connect to versioner-mcp:",
+        "VersionerAdapter: Failed to initialize versioner:",
         error
       );
       throw new Error(`Failed to initialize versioner connection: ${error}`);
@@ -257,13 +257,13 @@ export class VersionerAdapter {
   }
 
   /**
-   * Disconnect from versioner-mcp
+   * Disconnect versioner adapter
    */
   async disconnect(): Promise<void> {
     if (this.isConnected) {
       await this.versionerClient.disconnect();
       this.isConnected = false;
-      console.log("VersionerAdapter: Disconnected from versioner-mcp");
+      console.log("VersionerAdapter: Disconnected versioner");
     }
   }
 }

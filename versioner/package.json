@@ -5,15 +5,18 @@
   "main": "lib/index.js",
   "type": "module",
   "bin": {
-    "versioner": "bin/versioner",
-    "versioner-mcp": "bin/versioner-mcp"
+    "versioner": "bin/versioner"
   },
   "scripts": {
-    "test": "bun test",
-    "dev:test": "bun test --watch",
-    "prepublishOnly": "bun test",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "dev:test": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "prepublishOnly": "npm test",
     "build": "echo 'No build step required - pure JS'",
     "prepack": "echo 'Preparing package for publishing...'"
+  },
+  "devDependencies": {
+    "jest": "^30.0.0",
+    "@jest/globals": "^30.0.0"
   },
   "engines": {
     "node": ">=14.0.0"
@@ -21,7 +24,6 @@
   "files": [
     "lib/**/*.js",
     "bin/versioner",
-    "bin/versioner-mcp",
     "README.md",
     "LICENSE"
   ],
@@ -34,9 +36,7 @@
     "semver",
     "cli",
     "release-candidate",
-    "git-tags",
-    "mcp",
-    "model-context-protocol"
+    "git-tags"
   ],
   "author": "Esteban Trejos",
   "license": "MIT",
@@ -44,7 +44,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/officespacesoftware/versioner.git",
-    "directory": "node"
+    "directory": "versioner"
   },
   "bugs": {
     "url": "https://github.com/officespacesoftware/versioner/issues"
@@ -52,9 +52,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.dev/@officespacesoftware/versioner",
     "access": "restricted"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.18.0",
-    "zod": "^3.25.76"
   }
 }

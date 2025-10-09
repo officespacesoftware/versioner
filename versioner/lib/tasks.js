@@ -169,7 +169,6 @@ export function show() {
 export function showVersion() {
   const version = show();
   console.log(version);
-  return version;
 }
 
 // Export all tasks for convenience

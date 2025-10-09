@@ -173,7 +173,7 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
       "args": [
         "--yes",
         "-p",
-        "@officespacesoftware/versioner",
+        "@officespacesoftware/versioner-mcp",
         "versioner-mcp"
       ]
     }
@@ -205,9 +205,9 @@ claude mcp add-json versioner '{"type":"stdio","command":"versioner-mcp"}'
 {
   "mcpServers": {
     "versioner": {
-      "command": "node",
+      "command": "npx",
       "args": [
-        "/path/to/versioner/node/bin/versioner-mcp"
+        "versioner-mcp"
       ]
     }
   }

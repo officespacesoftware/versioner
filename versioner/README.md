@@ -172,7 +172,7 @@ bun test test/version-file.test.js
 ### Project Structure
 
 ```
-node/
+versioner/
 ├── lib/
 │   ├── index.js           # Main entry point
 │   ├── version-file.js    # Core VersionFile class

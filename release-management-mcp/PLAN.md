@@ -22,15 +22,15 @@ The Release Management MCP is a TypeScript-based Model Context Protocol server t
 
 3. **VersionerAdapter** (`src/versioner-adapter.ts`)
    - High-level abstraction for versioner operations
-   - Manages connection to versioner-mcp
+   - Manages direct integration with versioner
    - Provides structured version information
    - Handles version parsing and validation
 
-4. **MCPClient** (`src/mcp-client.ts`)
-   - Generic MCP client for discovering and calling tools
-   - Handles stdio transport communication
-   - Manages JSON-RPC protocol interaction
-   - Specialized VersionerMCPClient for versioner operations
+4. **VersionerDirectClient** (`src/versioner-direct.ts`)
+   - Direct integration with versioner package
+   - Handles working directory management
+   - Provides clean interface for version operations
+   - No subprocess overhead or protocol complexity
 
 5. **GitFlowManager** (`src/git-flow.ts`)
    - Git operations and branch management

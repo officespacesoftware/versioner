@@ -6,6 +6,7 @@ test/
 # Development configuration
 bun.lockb
 .bun/
+jest.config.js
 
 # IDE and editor files
 .vscode/

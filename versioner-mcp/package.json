@@ -1,51 +1,54 @@
 {
-  "name": "@officespacesoftware/release-management-mcp",
-  "version": "0.1.0",
-  "description": "Git Flow Release Management MCP Server with AI-powered workflow orchestration",
+  "name": "@officespacesoftware/versioner-mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for versioner - Git-integrated version management",
   "main": "lib/index.js",
   "type": "module",
   "bin": {
-    "release-management-mcp": "bin/release-management-mcp"
+    "versioner-mcp": "bin/versioner-mcp"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "clean": "rm -rf lib",
     "test": "bun test",
     "dev:test": "bun test --watch",
-    "prepublishOnly": "npm run build && npm test",
-    "start": "node bin/release-management-mcp",
-    "clean": "rm -rf lib/"
+    "prepublishOnly": "npm run build && npm test"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=14.0.0"
   },
   "files": [
     "lib/**/*.js",
     "lib/**/*.d.ts",
-    "bin/release-management-mcp",
+    "bin/versioner-mcp",
     "README.md",
     "LICENSE"
   ],
   "keywords": [
-    "release-management",
-    "git-flow",
-    "versioning",
     "mcp",
     "model-context-protocol",
-    "ai-agent",
-    "typescript",
-    "workflow-automation"
+    "versioner",
+    "version-management",
+    "git",
+    "semantic-versioning",
+    "ai-tools",
+    "release-management"
   ],
   "author": "Esteban Trejos",
   "license": "MIT",
-  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/release-management-mcp#readme",
+  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/versioner-mcp#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/officespacesoftware/versioner.git",
-    "directory": "release-management-mcp"
+    "directory": "versioner-mcp"
   },
   "bugs": {
     "url": "https://github.com/officespacesoftware/versioner/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.dev/@officespacesoftware/versioner-mcp",
+    "access": "restricted"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",
