@@ -43,14 +43,13 @@
   "homepage": "https://github.com/officespacesoftware/versioner#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/officespacesoftware/versioner.git",
-    "directory": "versioner"
+    "url": "git+https://github.com/officespacesoftware/versioner.git"
   },
   "bugs": {
     "url": "https://github.com/officespacesoftware/versioner/issues"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.dev/@officespacesoftware/versioner",
+    "registry": "https://npm.pkg.github.com",
     "access": "restricted"
   }
 }
