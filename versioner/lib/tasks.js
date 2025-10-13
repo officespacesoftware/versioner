@@ -159,15 +159,15 @@ export function release() {
  * Show the current version
  * @returns {string} Current version
  */
-export function show() {
+export function showVersion() {
   return getCurrentVersion();
 }
 
 /**
  * Print the current version to console
  */
-export function showVersion() {
-  const version = show();
+export function printVersion() {
+  const version = showVersion();
   console.log(version);
 }
 
@@ -182,6 +182,6 @@ export default {
   majorReleaseCandidate,
   incrementReleaseCandidate,
   release,
-  show,
-  showVersion
+  showVersion,
+  printVersion
 };

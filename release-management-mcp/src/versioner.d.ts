@@ -12,8 +12,8 @@ declare module '@officespacesoftware/versioner' {
   export function majorReleaseCandidate(): string;
   export function incrementReleaseCandidate(): string;
   export function release(): string;
-  export function show(): string;
   export function showVersion(): string;
+  export function printVersion(): void;
 
   // VersionFile class
   export class VersionFile {
