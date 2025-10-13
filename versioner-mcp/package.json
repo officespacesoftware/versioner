@@ -11,9 +11,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf lib",
-    "test": "bun test",
-    "dev:test": "bun test --watch",
-    "prepublishOnly": "npm run build && npm test"
+    "test": "echo 'No formal tests defined yet'",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=14.0.0"

@@ -1,9 +1,5 @@
-/**
- * Test suite for VersionFile functionality
- * Uses Jest test framework
- */
-
-import { test, expect, describe, beforeEach, afterEach } from "@jest/globals";
+import { describe, test, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert';
 import { VersionFile } from "../lib/version-file.js";
 import { writeVersionFile, fileExists } from "../lib/file-utils.js";
 import { setOption, resetOptions } from "../lib/options.js";
@@ -43,8 +39,8 @@ describe("VersionFile", () => {
 
   test("gets the current version from the file", () => {
     const versionFile = new VersionFile(TEST_VERSION_FILE);
-    expect(versionFile.version()).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(versionFile.version()).toBe("0.9.12");
+    assert.match(versionFile.version(), /^\d+\.\d+\.\d+$/);
+    assert.strictEqual(versionFile.version(), "0.9.12");
   });
 
   describe("when incrementing the patch version", () => {
@@ -56,19 +52,19 @@ describe("VersionFile", () => {
     });
 
     test("increments patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("13");
+      assert.strictEqual(versionFile.currentPatchVersion(), "13");
     });
 
     test("keeps the minor version the same", () => {
-      expect(versionFile.currentMinorVersion()).toBe("9");
+      assert.strictEqual(versionFile.currentMinorVersion(), "9");
     });
 
     test("keeps the major version the same", () => {
-      expect(versionFile.currentMajorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMajorVersion(), "0");
     });
 
     test("isn't a release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(false);
+      assert.strictEqual(versionFile.isReleaseCandidate(), false);
     });
   });
 
@@ -81,19 +77,19 @@ describe("VersionFile", () => {
     });
 
     test("resets the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentPatchVersion(), "0");
     });
 
     test("increments the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("10");
+      assert.strictEqual(versionFile.currentMinorVersion(), "10");
     });
 
     test("does not change the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMajorVersion(), "0");
     });
 
     test("isn't a release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(false);
+      assert.strictEqual(versionFile.isReleaseCandidate(), false);
     });
   });
 
@@ -106,19 +102,19 @@ describe("VersionFile", () => {
     });
 
     test("resets the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentPatchVersion(), "0");
     });
 
     test("resets the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMinorVersion(), "0");
     });
 
     test("increments major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("1");
+      assert.strictEqual(versionFile.currentMajorVersion(), "1");
     });
 
     test("isn't a release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(false);
+      assert.strictEqual(versionFile.isReleaseCandidate(), false);
     });
   });
 
@@ -131,27 +127,27 @@ describe("VersionFile", () => {
     });
 
     test("marks the version as a release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(true);
+      assert.strictEqual(versionFile.isReleaseCandidate(), true);
     });
 
     test("increments the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("13");
+      assert.strictEqual(versionFile.currentPatchVersion(), "13");
     });
 
     test("does not change the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("9");
+      assert.strictEqual(versionFile.currentMinorVersion(), "9");
     });
 
     test("does not change the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMajorVersion(), "0");
     });
 
     test("is at RC iteration 0", () => {
-      expect(versionFile.releaseCandidateIteration()).toBe("0");
+      assert.strictEqual(versionFile.releaseCandidateIteration(), "0");
     });
 
     test("has RC and the RC version number at the end of the name", () => {
-      expect(versionFile.version()).toBe("0.9.13-RC.0");
+      assert.strictEqual(versionFile.version(), "0.9.13-RC.0");
     });
   });
 
@@ -164,27 +160,27 @@ describe("VersionFile", () => {
     });
 
     test("marks the version as a release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(true);
+      assert.strictEqual(versionFile.isReleaseCandidate(), true);
     });
 
     test("resets the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentPatchVersion(), "0");
     });
 
     test("increments the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("10");
+      assert.strictEqual(versionFile.currentMinorVersion(), "10");
     });
 
     test("does not change the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMajorVersion(), "0");
     });
 
     test("is at RC iteration 0", () => {
-      expect(versionFile.releaseCandidateIteration()).toBe("0");
+      assert.strictEqual(versionFile.releaseCandidateIteration(), "0");
     });
 
     test("has RC and the RC version number at the end of the name", () => {
-      expect(versionFile.version()).toBe("0.10.0-RC.0");
+      assert.strictEqual(versionFile.version(), "0.10.0-RC.0");
     });
   });
 
@@ -197,27 +193,27 @@ describe("VersionFile", () => {
     });
 
     test("marks the version as a release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(true);
+      assert.strictEqual(versionFile.isReleaseCandidate(), true);
     });
 
     test("resets the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentPatchVersion(), "0");
     });
 
     test("resets the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMinorVersion(), "0");
     });
 
     test("increments the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("1");
+      assert.strictEqual(versionFile.currentMajorVersion(), "1");
     });
 
     test("is at RC iteration 0", () => {
-      expect(versionFile.releaseCandidateIteration()).toBe("0");
+      assert.strictEqual(versionFile.releaseCandidateIteration(), "0");
     });
 
     test("has RC and the RC version number at the end of the name", () => {
-      expect(versionFile.version()).toBe("1.0.0-RC.0");
+      assert.strictEqual(versionFile.version(), "1.0.0-RC.0");
     });
   });
 
@@ -231,27 +227,27 @@ describe("VersionFile", () => {
     });
 
     test("marks the version as a release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(true);
+      assert.strictEqual(versionFile.isReleaseCandidate(), true);
     });
 
     test("increments the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("13");
+      assert.strictEqual(versionFile.currentPatchVersion(), "13");
     });
 
     test("does not change the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("9");
+      assert.strictEqual(versionFile.currentMinorVersion(), "9");
     });
 
     test("does not change the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMajorVersion(), "0");
     });
 
     test("is at RC iteration 1", () => {
-      expect(versionFile.releaseCandidateIteration()).toBe("1");
+      assert.strictEqual(versionFile.releaseCandidateIteration(), "1");
     });
 
     test("has RC and the RC version number at the end of the name", () => {
-      expect(versionFile.version()).toBe("0.9.13-RC.1");
+      assert.strictEqual(versionFile.version(), "0.9.13-RC.1");
     });
   });
 
@@ -265,27 +261,27 @@ describe("VersionFile", () => {
     });
 
     test("marks the version as a release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(true);
+      assert.strictEqual(versionFile.isReleaseCandidate(), true);
     });
 
     test("resets the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentPatchVersion(), "0");
     });
 
     test("increments the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("10");
+      assert.strictEqual(versionFile.currentMinorVersion(), "10");
     });
 
     test("does not change the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMajorVersion(), "0");
     });
 
     test("is at RC iteration 1", () => {
-      expect(versionFile.releaseCandidateIteration()).toBe("1");
+      assert.strictEqual(versionFile.releaseCandidateIteration(), "1");
     });
 
     test("has RC and the RC version number at the end of the name", () => {
-      expect(versionFile.version()).toBe("0.10.0-RC.1");
+      assert.strictEqual(versionFile.version(), "0.10.0-RC.1");
     });
   });
 
@@ -299,27 +295,27 @@ describe("VersionFile", () => {
     });
 
     test("marks the version as a release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(true);
+      assert.strictEqual(versionFile.isReleaseCandidate(), true);
     });
 
     test("resets the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentPatchVersion(), "0");
     });
 
     test("resets the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMinorVersion(), "0");
     });
 
     test("increments the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("1");
+      assert.strictEqual(versionFile.currentMajorVersion(), "1");
     });
 
     test("is at RC iteration 1", () => {
-      expect(versionFile.releaseCandidateIteration()).toBe("1");
+      assert.strictEqual(versionFile.releaseCandidateIteration(), "1");
     });
 
     test("has RC and the RC version number at the end of the name", () => {
-      expect(versionFile.version()).toBe("1.0.0-RC.1");
+      assert.strictEqual(versionFile.version(), "1.0.0-RC.1");
     });
   });
 
@@ -333,23 +329,23 @@ describe("VersionFile", () => {
     });
 
     test("removes the release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(false);
+      assert.strictEqual(versionFile.isReleaseCandidate(), false);
     });
 
     test("does not change the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("13");
+      assert.strictEqual(versionFile.currentPatchVersion(), "13");
     });
 
     test("does not change the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("9");
+      assert.strictEqual(versionFile.currentMinorVersion(), "9");
     });
 
     test("does not change the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMajorVersion(), "0");
     });
 
     test("goes back to looking like a normal release", () => {
-      expect(versionFile.version()).toBe("0.9.13");
+      assert.strictEqual(versionFile.version(), "0.9.13");
     });
   });
 
@@ -363,23 +359,23 @@ describe("VersionFile", () => {
     });
 
     test("removes the release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(false);
+      assert.strictEqual(versionFile.isReleaseCandidate(), false);
     });
 
     test("does not change the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentPatchVersion(), "0");
     });
 
     test("does not change the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("10");
+      assert.strictEqual(versionFile.currentMinorVersion(), "10");
     });
 
     test("does not change the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMajorVersion(), "0");
     });
 
     test("goes back to looking like a normal release", () => {
-      expect(versionFile.version()).toBe("0.10.0");
+      assert.strictEqual(versionFile.version(), "0.10.0");
     });
   });
 
@@ -393,23 +389,23 @@ describe("VersionFile", () => {
     });
 
     test("removes the release candidate", () => {
-      expect(versionFile.isReleaseCandidate()).toBe(false);
+      assert.strictEqual(versionFile.isReleaseCandidate(), false);
     });
 
     test("does not change the patch version", () => {
-      expect(versionFile.currentPatchVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentPatchVersion(), "0");
     });
 
     test("does not change the minor version", () => {
-      expect(versionFile.currentMinorVersion()).toBe("0");
+      assert.strictEqual(versionFile.currentMinorVersion(), "0");
     });
 
     test("does not change the major version", () => {
-      expect(versionFile.currentMajorVersion()).toBe("1");
+      assert.strictEqual(versionFile.currentMajorVersion(), "1");
     });
 
     test("goes back to looking like a normal release", () => {
-      expect(versionFile.version()).toBe("1.0.0");
+      assert.strictEqual(versionFile.version(), "1.0.0");
     });
   });
 
@@ -421,57 +417,57 @@ describe("VersionFile", () => {
     });
 
     test("isn't able to increment the release candidate unless the current version is some kind of release candidate", () => {
-      expect(() => {
+      assert.throws(() => {
         versionFile.incrementReleaseCandidate();
-      }).toThrow();
+      });
     });
 
     test("isn't able to declare a patch release candidate unless the current version is not a release candidate", () => {
       versionFile.minorReleaseCandidate();
-      expect(() => {
+      assert.throws(() => {
         versionFile.patchReleaseCandidate();
-      }).toThrow();
+      });
     });
 
     test("isn't able to declare a minor release candidate unless the current version is not a release candidate", () => {
       versionFile.minorReleaseCandidate();
-      expect(() => {
+      assert.throws(() => {
         versionFile.minorReleaseCandidate();
-      }).toThrow();
+      });
     });
 
     test("isn't able to declare a major release candidate unless the current version is not a release candidate", () => {
       versionFile.minorReleaseCandidate();
-      expect(() => {
+      assert.throws(() => {
         versionFile.majorReleaseCandidate();
-      }).toThrow();
+      });
     });
 
     test("isn't able to increment the patch version on a release candidate", () => {
       versionFile.minorReleaseCandidate();
-      expect(() => {
+      assert.throws(() => {
         versionFile.patch();
-      }).toThrow();
+      });
     });
 
     test("isn't able to increment the minor version on a release candidate", () => {
       versionFile.minorReleaseCandidate();
-      expect(() => {
+      assert.throws(() => {
         versionFile.minor();
-      }).toThrow();
+      });
     });
 
     test("isn't able to increment the major version on a release candidate", () => {
       versionFile.minorReleaseCandidate();
-      expect(() => {
+      assert.throws(() => {
         versionFile.major();
-      }).toThrow();
+      });
     });
 
     test("cannot release a non release candidate", () => {
-      expect(() => {
+      assert.throws(() => {
         versionFile.release();
-      }).toThrow();
+      });
     });
   });
 
@@ -485,21 +481,18 @@ describe("VersionFile", () => {
     });
 
     test("does not create a file if one exists", () => {
-      // File already exists from beforeEach
-      expect(() => {
+      assert.throws(() => {
         VersionFile.create({ path: TEST_VERSION_FILE });
-      }).toThrow();
+      });
     });
 
     test("creates a version file", () => {
-      // Mock git command for this test since we're not in the Ruby repo's git context
       const mockGitHash = "abc123";
       
-      // Write directly first to avoid git dependency in test
       writeVersionFile(newVersionFile, '1.0.0', mockGitHash);
       
       const versionFile = new VersionFile(newVersionFile);
-      expect(versionFile.version()).toBe('1.0.0');
+      assert.strictEqual(versionFile.version(), '1.0.0');
     });
   });
 });

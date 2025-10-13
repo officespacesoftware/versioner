@@ -1,9 +1,5 @@
-/**
- * CLI Integration tests
- * Tests the CLI interface and Git integration using Jest test framework
- */
-
-import { test, expect, describe, beforeEach, afterEach } from "@jest/globals";
+import { describe, test, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -131,22 +127,22 @@ describe("CLI Integration Tests", () => {
   describe("help command", () => {
     test("shows help with no arguments", async () => {
       const result = await runCLI([]);
-      expect(result.stdout).toContain('Versioner - Version management tool');
-      expect(result.stdout).toContain('Usage:');
-      expect(result.exitCode).toBe(0);
+      assert.ok(result.stdout.includes('Versioner - Version management tool'));
+      assert.ok(result.stdout.includes('Usage:'));
+      assert.strictEqual(result.exitCode, 0);
     });
 
     test("shows help with help command", async () => {
       const result = await runCLI(['help']);
-      expect(result.stdout).toContain('Versioner - Version management tool');
-      expect(result.stdout).toContain('Commands:');
-      expect(result.exitCode).toBe(0);
+      assert.ok(result.stdout.includes('Versioner - Version management tool'));
+      assert.ok(result.stdout.includes('Commands:'));
+      assert.strictEqual(result.exitCode, 0);
     });
 
     test("shows help with --help flag", async () => {
       const result = await runCLI(['--help']);
-      expect(result.stdout).toContain('Versioner - Version management tool');
-      expect(result.exitCode).toBe(0);
+      assert.ok(result.stdout.includes('Versioner - Version management tool'));
+      assert.strictEqual(result.exitCode, 0);
     });
   });
 
@@ -154,21 +150,21 @@ describe("CLI Integration Tests", () => {
     test("initializes project with default version", async () => {
       const result = await runCLI(['init']);
 
-      expect(result.exitCode).toBe(0);
-      expect(fs.existsSync(path.join(TEST_DIR, 'VERSION'))).toBe(true);
+      assert.strictEqual(result.exitCode, 0);
+      assert.strictEqual(fs.existsSync(path.join(TEST_DIR, 'VERSION')), true);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^0\.1\.0-RC\.0\n/);
+      assert.match(versionContent, /^0\.1\.0-RC\.0\n/);
     });
 
     test("initializes project with specified version", async () => {
       const result = await runCLI(['init', '2.0.0-RC.1']);
 
-      expect(result.exitCode).toBe(0);
-      expect(fs.existsSync(path.join(TEST_DIR, 'VERSION'))).toBe(true);
+      assert.strictEqual(result.exitCode, 0);
+      assert.strictEqual(fs.existsSync(path.join(TEST_DIR, 'VERSION')), true);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^2\.0\.0-RC\.1\n/);
+      assert.match(versionContent, /^2\.0\.0-RC\.1\n/);
     });
 
     test("creates git commit and tag", async () => {
@@ -176,9 +172,9 @@ describe("CLI Integration Tests", () => {
 
       const result = await runCLI(['init']);
 
-      expect(result.exitCode).toBe(0);
-      expect(getCommitCount()).toBe(initialCommitCount + 1);
-      expect(gitTagExists('0.1.0-RC.0')).toBe(true);
+      assert.strictEqual(result.exitCode, 0);
+      assert.strictEqual(getCommitCount(), initialCommitCount + 1);
+      assert.strictEqual(gitTagExists('0.1.0-RC.0'), true);
     });
 
     test("uses environment variable VERSION", async () => {
@@ -194,7 +190,7 @@ describe("CLI Integration Tests", () => {
       });
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^3\.0\.0\n/);
+      assert.match(versionContent, /^3\.0\.0\n/);
     });
   });
 
@@ -207,31 +203,31 @@ describe("CLI Integration Tests", () => {
     test("patch command increments patch version", async () => {
       const result = await runCLI(['patch']);
 
-      expect(result.exitCode).toBe(0);
+      assert.strictEqual(result.exitCode, 0);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^1\.0\.1\n/);
-      expect(gitTagExists('1.0.1')).toBe(true);
+      assert.match(versionContent, /^1\.0\.1\n/);
+      assert.strictEqual(gitTagExists('1.0.1'), true);
     });
 
     test("minor command increments minor version", async () => {
       const result = await runCLI(['minor']);
 
-      expect(result.exitCode).toBe(0);
+      assert.strictEqual(result.exitCode, 0);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^1\.1\.0\n/);
-      expect(gitTagExists('1.1.0')).toBe(true);
+      assert.match(versionContent, /^1\.1\.0\n/);
+      assert.strictEqual(gitTagExists('1.1.0'), true);
     });
 
     test("major command increments major version", async () => {
       const result = await runCLI(['major']);
 
-      expect(result.exitCode).toBe(0);
+      assert.strictEqual(result.exitCode, 0);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^2\.0\.0\n/);
-      expect(gitTagExists('2.0.0')).toBe(true);
+      assert.match(versionContent, /^2\.0\.0\n/);
+      assert.strictEqual(gitTagExists('2.0.0'), true);
     });
   });
 
@@ -243,53 +239,53 @@ describe("CLI Integration Tests", () => {
     test("patch-rc creates patch release candidate", async () => {
       const result = await runCLI(['patch-rc']);
 
-      expect(result.exitCode).toBe(0);
+      assert.strictEqual(result.exitCode, 0);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^1\.0\.1-RC\.0\n/);
-      expect(gitTagExists('1.0.1-RC.0')).toBe(true);
+      assert.match(versionContent, /^1\.0\.1-RC\.0\n/);
+      assert.strictEqual(gitTagExists('1.0.1-RC.0'), true);
     });
 
     test("minor-rc creates minor release candidate", async () => {
       const result = await runCLI(['minor-rc']);
 
-      expect(result.exitCode).toBe(0);
+      assert.strictEqual(result.exitCode, 0);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^1\.1\.0-RC\.0\n/);
-      expect(gitTagExists('1.1.0-RC.0')).toBe(true);
+      assert.match(versionContent, /^1\.1\.0-RC\.0\n/);
+      assert.strictEqual(gitTagExists('1.1.0-RC.0'), true);
     });
 
     test("major-rc creates major release candidate", async () => {
       const result = await runCLI(['major-rc']);
 
-      expect(result.exitCode).toBe(0);
+      assert.strictEqual(result.exitCode, 0);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^2\.0\.0-RC\.0\n/);
-      expect(gitTagExists('2.0.0-RC.0')).toBe(true);
+      assert.match(versionContent, /^2\.0\.0-RC\.0\n/);
+      assert.strictEqual(gitTagExists('2.0.0-RC.0'), true);
     });
 
     test("increment-rc increments release candidate number", async () => {
       await runCLI(['patch-rc']);
       const result = await runCLI(['increment-rc']);
 
-      expect(result.exitCode).toBe(0);
+      assert.strictEqual(result.exitCode, 0);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^1\.0\.1-RC\.1\n/);
-      expect(gitTagExists('1.0.1-RC.1')).toBe(true);
+      assert.match(versionContent, /^1\.0\.1-RC\.1\n/);
+      assert.strictEqual(gitTagExists('1.0.1-RC.1'), true);
     });
 
     test("release removes RC suffix", async () => {
       await runCLI(['patch-rc']);
       const result = await runCLI(['release']);
 
-      expect(result.exitCode).toBe(0);
+      assert.strictEqual(result.exitCode, 0);
 
       const versionContent = fs.readFileSync(path.join(TEST_DIR, 'VERSION'), 'utf8');
-      expect(versionContent).toMatch(/^1\.0\.1\n/);
-      expect(gitTagExists('1.0.1')).toBe(true);
+      assert.match(versionContent, /^1\.0\.1\n/);
+      assert.strictEqual(gitTagExists('1.0.1'), true);
     });
   });
 
@@ -298,8 +294,8 @@ describe("CLI Integration Tests", () => {
       await runCLI(['init', '2.5.3']);
       const result = await runCLI(['show']);
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toBe('2.5.3');
+      assert.strictEqual(result.exitCode, 0);
+      assert.strictEqual(result.stdout.trim(), '2.5.3');
     });
   });
 
@@ -307,23 +303,23 @@ describe("CLI Integration Tests", () => {
     test("shows error for unknown command", async () => {
       const result = await runCLI(['unknown-command']);
 
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('Unknown command: unknown-command');
+      assert.strictEqual(result.exitCode, 1);
+      assert.ok(result.stderr.includes('Unknown command: unknown-command'));
     });
 
     test("shows error when VERSION file doesn't exist", async () => {
       const result = await runCLI(['show']);
 
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("Version file 'VERSION' does not exist. Do you want to:");
+      assert.strictEqual(result.exitCode, 1);
+      assert.ok(result.stderr.includes("Version file 'VERSION' does not exist. Do you want to:"));
     });
 
     test("shows error when trying to patch a release candidate", async () => {
       await runCLI(['init', '1.0.0-RC.0']);
       const result = await runCLI(['patch']);
 
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("There's an active release candidate");
+      assert.strictEqual(result.exitCode, 1);
+      assert.ok(result.stderr.includes("There's an active release candidate"));
     });
   });
 
@@ -332,13 +328,13 @@ describe("CLI Integration Tests", () => {
       const initialCommitCount = getCommitCount();
 
       await runCLI(['init', '1.0.0']);
-      expect(getCommitCount()).toBe(initialCommitCount + 1);
+      assert.strictEqual(getCommitCount(), initialCommitCount + 1);
 
       await runCLI(['patch']);
-      expect(getCommitCount()).toBe(initialCommitCount + 2);
+      assert.strictEqual(getCommitCount(), initialCommitCount + 2);
 
       await runCLI(['patch-rc']);
-      expect(getCommitCount()).toBe(initialCommitCount + 3);
+      assert.strictEqual(getCommitCount(), initialCommitCount + 3);
     });
 
     test("commits have proper messages", async () => {
@@ -350,7 +346,7 @@ describe("CLI Integration Tests", () => {
         stdio: 'pipe'
       });
 
-      expect(commitMessage).toBe('To version 1.0.0');
+      assert.strictEqual(commitMessage, 'To version 1.0.0');
     });
 
     test("tags have proper messages", async () => {
@@ -362,7 +358,7 @@ describe("CLI Integration Tests", () => {
         stdio: 'pipe'
       });
 
-      expect(tagMessage.trim()).toBe('Release version 1.0.0');
+      assert.strictEqual(tagMessage.trim(), 'Release version 1.0.0');
     });
   });
 });

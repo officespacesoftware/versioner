@@ -1,11 +1,12 @@
 # Versioner
 
-Version-numbering tasks that create the appropriate Git objects, available in both Ruby and Node.js implementations.
+Version-numbering tasks that create the appropriate Git objects. Available in both Ruby (gem) and Node.js (npm packages) implementations.
 
+## Ruby Gem
 
-## Installation
+The Ruby implementation provides Rake tasks for version management in Ruby and Rails projects.
 
-### Ruby Version (Gem)
+### Installation
 
 Add this line to your application's Gemfile:
 
@@ -24,51 +25,12 @@ Or install it yourself as:
     $ gem build versioner.gemspec
     $ gem install versioner-VERSION.gem
 
-### Node.js Version
+### Usage
 
-**🚀 Quick Start (One-time use):**
+The tasks are automatically loaded on Rails projects. On non-Rails projects you can add this to your Rakefile:
 
-    # Execute directly without installation
-    $ pnpm dlx @officespacesoftware/versioner init
-    $ npx @officespacesoftware/versioner init
-    $ bunx @officespacesoftware/versioner init
-
-**📦 Install globally:**
-
-    $ npm install -g @officespacesoftware/versioner
-    $ pnpm add -g @officespacesoftware/versioner
-    $ bun add -g @officespacesoftware/versioner
-
-**🗑️ Uninstall:**
-
-    $ npm uninstall -g @officespacesoftware/versioner
-    $ pnpm remove -g @officespacesoftware/versioner
-    $ bun remove -g @officespacesoftware/versioner
-
-**🏗️ Install globally from source:**
-
-    $ git clone git@github.com:officespacesoftware/versioner.git
-    $ cd versioner/node
-    $ npm install -g .
-    # OR
-    $ pnpm add -g .
-    # OR
-    $ bun add -g .
-
-**🛠️ Development setup:**
-
-    $ git clone git@github.com:officespacesoftware/versioner.git
-    $ cd versioner/node
-    $ bun install  # Recommended for development
-
-## Usage
-
-### Ruby Version
-
-The tasks are automatically loaded on Rails projects.
-On non-rails projects you can add this to your Rakefile:
 ```ruby
-require versioner/rake
+require 'versioner/rake'
 ```
 
 Then you can run:
@@ -86,150 +48,77 @@ rake version:release                      # releases the current release candida
 rake version:show                         # print the current version level from the VERSION file
 ```
 
-### Node.js Version
+### Configuration
 
-**If installed globally (from npm or source):**
+You can customize the VERSION file location by adding this to an initializer:
 
-```sh
-versioner init [VERSION]  # initialize project
-versioner patch           # create patch release
-versioner show            # show current version
-
-# All available commands
-versioner init [VERSION]  # initializes the project with the version file
-versioner increment-rc    # increments the current release candidate (n.n.n-RCX)
-versioner major           # create a new major-level (X.n.n) release
-versioner major-rc        # create a new major-level (X.n.n-RC.0) release candidate
-versioner minor           # create a new minor-level (n.X.n) release
-versioner minor-rc        # create a new minor-level (n.X.n-RC.0) release candidate
-versioner patch           # create a new patch-level (n.n.X) release
-versioner patch-rc        # create a new patch-level (n.n.X-RC.0) release candidate
-versioner release         # releases the current release candidate (n.n.n)
-versioner show            # print the current version level from the VERSION file
-```
-
-**Without installation (one-time execution):**
-
-```sh
-# Quick usage with any package manager
-pnpm dlx @officespacesoftware/versioner init [VERSION]  # initialize project
-pnpm dlx @officespacesoftware/versioner patch           # create patch release
-pnpm dlx @officespacesoftware/versioner show            # show current version
-
-# All available commands (replace 'pnpm dlx' with 'npx' or 'bunx')
-pnpm dlx @officespacesoftware/versioner init [VERSION]  # initializes the project with the version file
-pnpm dlx @officespacesoftware/versioner increment-rc    # increments the current release candidate (n.n.n-RCX)
-pnpm dlx @officespacesoftware/versioner major           # create a new major-level (X.n.n) release
-pnpm dlx @officespacesoftware/versioner major-rc        # create a new major-level (X.n.n-RC.0) release candidate
-pnpm dlx @officespacesoftware/versioner minor           # create a new minor-level (n.X.n) release
-pnpm dlx @officespacesoftware/versioner minor-rc        # create a new minor-level (n.X.n-RC.0) release candidate
-pnpm dlx @officespacesoftware/versioner patch           # create a new patch-level (n.n.X) release
-pnpm dlx @officespacesoftware/versioner patch-rc        # create a new patch-level (n.n.X-RC.0) release candidate
-pnpm dlx @officespacesoftware/versioner release         # releases the current release candidate (n.n.n)
-pnpm dlx @officespacesoftware/versioner show            # print the current version level from the VERSION file
-```
-
-
-## Configuration
-
-Both versions store the current version and latest commit in a file by default named VERSION, located in the root of your project.
-
-### Ruby Version Configuration
-
-You can change this by adding this to an initializer:
 ```ruby
 require 'versioner/options'
 Versioner.options[:version_file_path] = '/some/other/path/VERSION_FILE'
 ```
 
-### Node.js Version Configuration
+## Node.js Packages
 
-The Node.js version uses the same VERSION file format and location as the Ruby version, ensuring compatibility between implementations.
+The Node.js implementation provides three npm packages for different use cases:
 
-**Development Notes:**
-- Uses Bun for development and testing (faster execution)
-- Library code uses only Node.js built-ins (no Bun-specific APIs)
-- Can be used in production with Node.js or Bun
-- Tests run with `bun test` in development
+### 1. [@officespacesoftware/versioner](./versioner/README.md)
 
-**Distribution:**
-- Published as `@officespacesoftware/versioner` (scoped package)
-- Supports all major package managers (npm, pnpm, bun, yarn)
-- Can be executed directly without installation using `pnpm dlx`, `npx`, `bunx`, etc.
+Core version management CLI tool and library for Node.js projects.
 
-### Model Context Protocol (MCP) Server
-
-The Node.js version also includes an MCP server that exposes versioner commands as tools for AI assistants.
-
-**Setup for Claude Desktop:**
-
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "versioner": {
-      "command": "npx",
-      "args": [
-        "--yes",
-        "-p",
-        "@officespacesoftware/versioner-mcp",
-        "versioner-mcp"
-      ]
-    }
-  }
-}
+**Quick Start:**
+```bash
+npx @officespacesoftware/versioner init
+npx @officespacesoftware/versioner patch
 ```
 
-**Setup with global installation:**
+**Use Cases:**
+- Command-line version management
+- Programmatic API for version operations
+- Drop-in replacement for Ruby gem in Node.js projects
 
-```json
-{
-  "mcpServers": {
-    "versioner": {
-      "command": "versioner-mcp"
-    }
-  }
-}
+**[📚 Full Documentation →](./versioner/README.md)**
+
+### 2. [@officespacesoftware/versioner-mcp](./versioner-mcp/README.md)
+
+Model Context Protocol (MCP) server that exposes versioner commands as tools for AI assistants.
+
+**Quick Start:**
+```bash
+npx @officespacesoftware/versioner-mcp
 ```
 
-**Setup for Claude Code:**
+**Use Cases:**
+- AI-assisted version management with Claude Desktop
+- Integration with MCP-compatible AI tools
+- Automated versioning workflows
 
-```sh
-claude mcp add-json versioner '{"type":"stdio","command":"versioner-mcp"}'
+**[📚 Full Documentation →](./versioner-mcp/README.md)**
+
+### 3. [@officespacesoftware/release-management-mcp](./release-management-mcp/README.md)
+
+Git Flow Release Management MCP Server with AI-powered workflow orchestration.
+
+**Quick Start:**
+```bash
+npx @officespacesoftware/release-management-mcp
 ```
 
-**Setup from source:**
+**Use Cases:**
+- Git Flow release workflows
+- Complex multi-step release orchestration
+- AI-assisted release management
 
-```json
-{
-  "mcpServers": {
-    "versioner": {
-      "command": "npx",
-      "args": [
-        "versioner-mcp"
-      ]
-    }
-  }
-}
-```
-
-**Available MCP Tools:**
-- `versioner_init` - Initialize project with VERSION file
-- `versioner_show` - Show current version
-- `versioner_patch` - Create patch release
-- `versioner_minor` - Create minor release
-- `versioner_major` - Create major release
-- `versioner_patch_rc` - Create patch release candidate
-- `versioner_minor_rc` - Create minor release candidate
-- `versioner_major_rc` - Create major release candidate
-- `versioner_increment_rc` - Increment current release candidate
-- `versioner_release` - Release current release candidate
+**[📚 Full Documentation →](./release-management-mcp/README.md)**
 
 ## VERSION File Format
 
-Both implementations use the same file format:
-- Line 1: Version string (e.g., "1.2.3" or "1.2.3-RC.1")
-- Line 2: Git commit hash (short format)
+Both Ruby and Node.js implementations use the same VERSION file format, ensuring full compatibility:
 
-This ensures full compatibility - you can switch between Ruby and Node.js versions without any migration.
+- **Line 1:** Version string (e.g., "1.2.3" or "1.2.3-RC.1")
+- **Line 2:** Git commit hash (short format)
+
+This allows you to switch between Ruby and Node.js implementations seamlessly without any migration needed.
+
+## License
+
+MIT License - see the LICENSE file for details.

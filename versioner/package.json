@@ -8,15 +8,11 @@
     "versioner": "bin/versioner"
   },
   "scripts": {
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "dev:test": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test": "node --test test/**/*.test.js",
+    "dev:test": "node --test --watch test/**/*.test.js",
     "prepublishOnly": "npm test",
     "build": "echo 'No build step required - pure JS'",
     "prepack": "echo 'Preparing package for publishing...'"
-  },
-  "devDependencies": {
-    "jest": "^30.0.0",
-    "@jest/globals": "^30.0.0"
   },
   "engines": {
     "node": ">=14.0.0"

@@ -18,11 +18,8 @@ Execute directly without installing using any package manager:
 # npm (Node.js 18+)
 npx @officespacesoftware/release-management-mcp
 
-# pnpm (fastest)
+# pnpm
 pnpm dlx @officespacesoftware/release-management-mcp
-
-# Bun (fastest alternative)
-bunx @officespacesoftware/release-management-mcp
 
 # Yarn
 yarn dlx @officespacesoftware/release-management-mcp
@@ -43,9 +40,6 @@ npm install -g @officespacesoftware/release-management-mcp
 # pnpm
 pnpm add -g @officespacesoftware/release-management-mcp
 
-# Bun
-bun add -g @officespacesoftware/release-management-mcp
-
 # Yarn
 yarn global add @officespacesoftware/release-management-mcp
 ```
@@ -59,13 +53,9 @@ For contributing or local development:
 git clone git@github.com:officespacesoftware/versioner.git
 cd versioner/release-management-mcp
 
-# Development with npm
+# Install dependencies
 npm install
 npm run build
-
-# Or with Bun (recommended for faster development)
-bun install
-bun run build
 ```
 
 ## MCP Server Setup
