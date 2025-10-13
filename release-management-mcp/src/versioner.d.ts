@@ -1,7 +1,7 @@
 /**
  * Type declarations for @officespacesoftware/versioner package
  */
-declare module '@officespacesoftware/versioner' {
+declare module "@officespacesoftware/versioner" {
   // Core versioning functions
   export function init(version?: string | null): string;
   export function patch(): string;
@@ -13,7 +13,6 @@ declare module '@officespacesoftware/versioner' {
   export function incrementReleaseCandidate(): string;
   export function release(): string;
   export function showVersion(): string;
-  export function printVersion(): void;
 
   // VersionFile class
   export class VersionFile {

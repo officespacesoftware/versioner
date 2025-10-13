@@ -15,7 +15,7 @@ import {
   majorReleaseCandidate,
   incrementReleaseCandidate,
   release,
-  printVersion
+  showVersion
 } from '../lib/tasks.js';
 
 /**
@@ -30,7 +30,7 @@ Usage: versioner <command> [options]
 Commands:
   init [VERSION]    Initialize project with VERSION file (default: 0.1.0-RC.0)
   patch             Create a new patch-level (n.n.X) release
-  minor             Create a new minor-level (n.X.n) release  
+  minor             Create a new minor-level (n.X.n) release
   major             Create a new major-level (X.n.n) release
   patch-rc          Create a new patch-level (n.n.X-RC.0) release candidate
   minor-rc          Create a new minor-level (n.X.n-RC.0) release candidate
@@ -82,67 +82,67 @@ async function executeTask(taskFunction, ...args) {
  */
 function main() {
   const args = process.argv.slice(2);
-  
+
   if (args.length === 0) {
     showHelp();
     return;
   }
 
   const command = args[0].toLowerCase();
-  
+
   switch (command) {
     case 'init':
       // Use provided version, environment variable, or default
       const initVersion = args[1] || process.env.VERSION || null;
       executeTask(init, initVersion);
       break;
-      
+
     case 'patch':
       executeTask(patch);
       break;
-      
+
     case 'minor':
       executeTask(minor);
       break;
-      
+
     case 'major':
       executeTask(major);
       break;
-      
+
     case 'patch-rc':
     case 'patch_release_candidate':
       executeTask(patchReleaseCandidate);
       break;
-      
+
     case 'minor-rc':
     case 'minor_release_candidate':
       executeTask(minorReleaseCandidate);
       break;
-      
+
     case 'major-rc':
     case 'major_release_candidate':
       executeTask(majorReleaseCandidate);
       break;
-      
+
     case 'increment-rc':
     case 'increment_release_candidate':
       executeTask(incrementReleaseCandidate);
       break;
-      
+
     case 'release':
       executeTask(release);
       break;
-      
+
     case 'show':
-      executeTask(printVersion);
+      executeTask(showVersion);
       break;
-      
+
     case 'help':
     case '--help':
     case '-h':
       showHelp();
       break;
-      
+
     default:
       showError(`Unknown command: ${command}. Run 'versioner help' for usage information.`);
       break;
