@@ -163,14 +163,6 @@ export function showVersion() {
   return getCurrentVersion();
 }
 
-/**
- * Print the current version to console
- */
-export function printVersion() {
-  const version = showVersion();
-  console.log(version);
-}
-
 // Export all tasks for convenience
 export default {
   init,
@@ -182,6 +174,5 @@ export default {
   majorReleaseCandidate,
   incrementReleaseCandidate,
   release,
-  showVersion,
-  printVersion
+  showVersion
 };
