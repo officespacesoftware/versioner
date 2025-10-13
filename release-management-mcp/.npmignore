@@ -1,0 +1,46 @@
+# Development and testing files
+test/
+*.test.ts
+*.spec.ts
+
+# Source files (publish compiled only)
+src/
+
+# TypeScript config
+tsconfig.json
+
+# Development configuration
+.gitignore
+
+# Development documentation
+PLAN.md
+ARCHITECTURE.md
+todo.md
+increment_rc_sketch.md
+release_version.md
+test-git-integration.js
+test-workflow.js
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+
+# Coverage
+coverage/
+*.lcov
+
+# Temporary folders
+tmp/
+temp/

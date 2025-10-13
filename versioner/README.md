@@ -4,7 +4,7 @@ A Node.js/JavaScript implementation of the versioner tool for Git-integrated sem
 
 ## Overview
 
-This is a pure JavaScript implementation that provides the same functionality as the Ruby version, with the added benefit of using Bun for development and testing while maintaining full Node.js compatibility.
+This is a pure JavaScript implementation that provides the same functionality as the Ruby version, maintaining full Node.js compatibility.
 
 ## Installation & Quick Start
 
@@ -16,11 +16,8 @@ Execute directly without installing using any package manager:
 # npm (Node.js 14+)
 npx @officespacesoftware/versioner init
 
-# pnpm (fastest)
+# pnpm
 pnpm dlx @officespacesoftware/versioner init
-
-# Bun (fastest alternative)
-bunx @officespacesoftware/versioner init
 
 # Yarn
 yarn dlx @officespacesoftware/versioner init
@@ -37,9 +34,6 @@ npm install -g @officespacesoftware/versioner
 # pnpm
 pnpm add -g @officespacesoftware/versioner
 
-# Bun
-bun add -g @officespacesoftware/versioner
-
 # Yarn
 yarn global add @officespacesoftware/versioner
 ```
@@ -51,12 +45,9 @@ For contributing or local development:
 ```bash
 # Clone repository
 git clone git@github.com:officespacesoftware/versioner.git
-cd versioner/node
+cd versioner/versioner
 
-# Development with Bun (recommended)
-bun install
-
-# Or with Node.js
+# Install dependencies
 npm install
 ```
 
@@ -142,31 +133,28 @@ VERSION=2.0.0-RC.1 versioner init
 
 ## Development
 
-This project uses **Bun** for development and testing, but the library code uses only Node.js built-ins for compatibility.
+This project uses Node.js built-in test runner for testing.
 
 ### Development Setup
 
 ```bash
-# Install Bun (if not already installed)
-curl -fsSL https://bun.sh/install | bash
-
 # Clone and setup
 git clone git@github.com:officespacesoftware/versioner.git
-cd versioner/node
-bun install
+cd versioner/versioner
+npm install
 ```
 
 ### Running Tests
 
 ```bash
 # Run all tests
-bun test
+npm test
 
 # Run tests in watch mode
-bun test --watch
+npm run dev:test
 
 # Run specific test file
-bun test test/version-file.test.js
+node --test test/version-file.test.js
 ```
 
 ### Project Structure
@@ -208,9 +196,9 @@ This ensures full compatibility between implementations.
 
 ### Runtime Compatibility
 
-- **Development**: Bun (recommended for faster testing)
-- **Production**: Node.js 14+ or Bun
+- **Node.js**: 14+ required
 - **Library Code**: Uses only Node.js built-ins (fs, child_process, path)
+- **Test Runner**: Node.js built-in test runner (node:test)
 
 ### Feature Compatibility
 
@@ -303,7 +291,7 @@ versionParser.formatVersion(versionObj);
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Run tests: `bun test`
+4. Run tests: `npm test`
 5. Commit your changes (`git commit -am 'Add amazing feature'`)
 6. Push to the branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
