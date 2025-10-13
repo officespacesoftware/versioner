@@ -15,7 +15,7 @@ import {
   majorReleaseCandidate,
   incrementReleaseCandidate,
   release,
-  showVersion
+  printVersion
 } from '../lib/tasks.js';
 
 /**
@@ -134,7 +134,7 @@ function main() {
       break;
       
     case 'show':
-      executeTask(showVersion);
+      executeTask(printVersion);
       break;
       
     case 'help':

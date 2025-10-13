@@ -17,8 +17,8 @@ export {
   majorReleaseCandidate,
   incrementReleaseCandidate,
   release,
-  show,
-  showVersion
+  showVersion,
+  printVersion
 } from './tasks.js';
 
 // Utility modules
@@ -40,8 +40,8 @@ export default {
     majorReleaseCandidate,
     incrementReleaseCandidate,
     release,
-    show,
-    showVersion
+    showVersion,
+    printVersion
   },
   options,
   fileUtils,
@@ -60,8 +60,8 @@ import {
   majorReleaseCandidate,
   incrementReleaseCandidate,
   release,
-  show,
-  showVersion
+  showVersion,
+  printVersion
 } from './tasks.js';
 
 import { VersionFile } from './version-file.js';
