@@ -8,7 +8,7 @@ import { GitFlowManager, BranchType, BranchTypeInfo } from "./git-flow.js";
 export interface ReleaseWorkflowContext {
   workingDirectory: string;
   currentBranch: string;
-  releaseType: "major" | "minor";
+  releaseType: "major" | "minor" | "patch";
   targetVersion?: VersionInfo;
   dryRun: boolean;
   stepProgress: WorkflowStep[];
@@ -89,7 +89,7 @@ export class ReleaseAgent {
    * Execute the release candidate workflow (6-step Git Flow process)
    */
   async executeRCWorkflow(
-    releaseType: "major" | "minor",
+    releaseType: "major" | "minor" | "patch",
     workingDirectory: string,
     dryRun: boolean = false
   ): Promise<ReleaseWorkflowContext> {
@@ -297,6 +297,9 @@ export class ReleaseAgent {
         case "minor":
           nextVersion = `${currentVersion.major}.${currentVersion.minor + 1}.0`;
           break;
+        case "patch":
+          nextVersion = `${currentVersion.major}.${currentVersion.minor}.${currentVersion.patch + 1}`;
+          break;
         default:
           throw new Error(`Invalid release type: ${releaseType}`);
       }
@@ -357,6 +360,11 @@ export class ReleaseAgent {
             mockNewVersion = `${currentVersion.major}.${
               currentVersion.minor + 1
             }.0-RC.0`;
+            break;
+          case "patch":
+            mockNewVersion = `${currentVersion.major}.${currentVersion.minor}.${
+              currentVersion.patch + 1
+            }-RC.0`;
             break;
           default:
             throw new Error(`Invalid release type: ${releaseType}`);
@@ -727,7 +735,7 @@ This pull request contains the hotfix release candidate for **${version}** targe
   private generateReleaseCandidatePRBody(
     version: string,
     releaseBranch: string,
-    releaseType: "major" | "minor"
+    releaseType: "major" | "minor" | "patch"
   ): string {
     return `
 ## Release Branch: ${releaseBranch}
