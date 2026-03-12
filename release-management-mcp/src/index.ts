@@ -86,8 +86,8 @@ What you get:
 
 Creates a Git Flow release branch and initializes an RC version.
 
-- Types: major (X.0.0-RC.0) or minor (x.X.0-RC.0)
-- Branch: release/X.Y.0
+- Types: major (X.0.0-RC.0), minor (x.X.0-RC.0), or patch (x.x.X-RC.0)
+- Branch: release/X.Y.Z
 - Process: 6-step Git Flow with PR to develop
 - Defaults: releaseType=minor, dryRun=false`,
             inputSchema: {
@@ -95,9 +95,9 @@ Creates a Git Flow release branch and initializes an RC version.
               properties: {
                 releaseType: {
                   type: "string",
-                  enum: ["major", "minor"],
+                  enum: ["major", "minor", "patch"],
                   description:
-                    "The type of release candidate to create: major (X.0.0-RC.0) or minor (x.X.0-RC.0). Defaults to minor if not specified.",
+                    "The type of release candidate to create: major (X.0.0-RC.0), minor (x.X.0-RC.0), or patch (x.x.X-RC.0). Defaults to minor if not specified.",
                 },
                 workingDirectory: {
                   type: "string",
@@ -703,9 +703,9 @@ Common issues:
     const dryRun = args?.dryRun || false;
 
     // Validate release type
-    if (!["major", "minor"].includes(releaseType)) {
+    if (!["major", "minor", "patch"].includes(releaseType)) {
       throw new Error(
-        "releaseType must be one of: major, minor (defaults to minor if not specified)"
+        "releaseType must be one of: major, minor, patch (defaults to minor if not specified)"
       );
     }
 
