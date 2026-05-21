@@ -32,6 +32,10 @@ function replaceWatermarkedContent(
   return existingBody + "\n\n" + wrapWithWatermarks(newContent);
 }
 
+function quoteGitArg(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 export interface GitBranchInfo {
   name: string;
   current: boolean;
@@ -205,6 +209,64 @@ ${stagedFiles}
   }
 
   /**
+   * Fetch only the long-lived base branches used by the release workflow.
+   */
+  async fetchBaseBranches(): Promise<void> {
+    await this.execGit(
+      [
+        "fetch origin",
+        quoteGitArg("+refs/heads/main:refs/remotes/origin/main"),
+        quoteGitArg("+refs/heads/develop:refs/remotes/origin/develop"),
+      ].join(" ")
+    );
+  }
+
+  /**
+   * Fetch a single branch to FETCH_HEAD without updating every remote-tracking ref.
+   */
+  async fetchBranch(branchName: string): Promise<void> {
+    await this.execGit(`fetch origin ${quoteGitArg(branchName)}`);
+  }
+
+  /**
+   * Pull a single branch from origin.
+   */
+  async pullBranch(branchName: string): Promise<void> {
+    await this.execGit(`pull origin ${quoteGitArg(branchName)}`);
+  }
+
+  /**
+   * List remote release/hotfix branch names without creating remote-tracking refs.
+   */
+  private async getRemoteBranchesOfType(
+    branchType: BranchType
+  ): Promise<GitBranchInfo[]> {
+    const output = await this.execGit(
+      `ls-remote --heads origin ${quoteGitArg(`refs/heads/${branchType}/*`)}`
+    );
+
+    if (!output) {
+      return [];
+    }
+
+    return output
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => {
+        const [commitHash, refName] = line.split(/\s+/);
+        const branchName = refName?.replace(/^refs\/heads\//, "") || "";
+
+        return {
+          name: `remotes/origin/${branchName}`,
+          current: false,
+          remote: "origin",
+          commitHash: commitHash?.substring(0, 7) || "",
+          commitMessage: "",
+        };
+      });
+  }
+
+  /**
    * Check if one branch is an ancestor of another (i.e., cleanly merged)
    */
   async checkIsAncestor(
@@ -275,8 +337,8 @@ ${stagedFiles}
     canProceed: boolean;
   }> {
     try {
-      // First, fetch latest changes
-      await this.execGit("fetch origin");
+      // First, fetch only the base branches needed for this comparison.
+      await this.fetchBaseBranches();
 
       // Step 1: Check if main is an ancestor of develop (cleanly merged)
       const isAncestor = await this.checkIsAncestor(
@@ -347,15 +409,17 @@ ${stagedFiles}
       );
 
       if (localBranch) {
-        await this.execGit(`checkout ${branchName}`);
-        await this.execGit(`pull origin ${branchName}`);
+        await this.execGit(`checkout ${quoteGitArg(branchName)}`);
+        await this.pullBranch(branchName);
       } else {
-        // Branch doesn't exist locally, check if it exists on remote
-        const remoteBranch = branches.find(
-          (b) => b.name === `remotes/origin/${branchName}`
+        await this.fetchBranch(branchName);
+        const remoteBranch = await this.execGit(
+          `rev-parse --verify FETCH_HEAD`
         );
         if (remoteBranch) {
-          await this.execGit(`checkout -b ${branchName} origin/${branchName}`);
+          await this.execGit(
+            `checkout -b ${quoteGitArg(branchName)} FETCH_HEAD`
+          );
         } else {
           throw new Error(
             `Branch '${branchName}' not found locally or on remote`
@@ -625,14 +689,25 @@ This PR contains the release branch for ${branchName}.
    */
   async findBranchesOfType(branchType: BranchType): Promise<BranchTypeInfo[]> {
     try {
-      const branches = await this.getBranches();
+      const localBranches = (await this.getBranches()).filter(
+        (branch) => !branch.remote
+      );
+      const remoteBranches = await this.getRemoteBranchesOfType(branchType);
+      const branches = [...localBranches, ...remoteBranches];
       const typedBranches: BranchTypeInfo[] = [];
+      const seenBranches = new Set<string>();
 
       for (const branch of branches) {
         const detectedType = this.detectBranchType(branch.name);
         if (detectedType === branchType) {
           const version = this.parseVersionFromBranch(branch.name);
           if (version) {
+            const cleanName = branch.name.replace(/^remotes\/origin\//, "");
+            if (seenBranches.has(cleanName)) {
+              continue;
+            }
+            seenBranches.add(cleanName);
+
             typedBranches.push({
               name: branch.name,
               type: branchType,
@@ -687,9 +762,6 @@ This PR contains the release branch for ${branchName}.
     branchInfo: BranchTypeInfo
   ): Promise<{ valid: boolean; message: string }> {
     try {
-      // First, fetch latest changes
-      await this.execGit("fetch origin");
-
       // Checkout the base branch and get its VERSION file content
       const currentStatus = await this.getStatus();
       const originalBranch = currentStatus.currentBranch;
@@ -772,17 +844,17 @@ This PR contains the release branch for ${branchName}.
       }
 
       // Step 1: Fetch latest changes from origin
-      await this.execGit("fetch origin");
-      console.log("✅ Fetched latest changes from origin");
+      await this.fetchBaseBranches();
+      console.log("✅ Fetched latest main and develop branches from origin");
 
       // Step 2: Checkout and pull main branch
       await this.execGit("checkout main");
-      await this.execGit("pull origin main");
+      await this.pullBranch("main");
       console.log("✅ Checked out and pulled main branch");
 
       // Step 3: Checkout and pull develop branch
       await this.execGit("checkout develop");
-      await this.execGit("pull origin develop");
+      await this.pullBranch("develop");
       console.log("✅ Checked out and pulled develop branch");
 
       // Step 4: Generate unique branch name using Unix timestamp
@@ -916,11 +988,7 @@ ${versionLine}
         `📋 Using release branch: ${cleanBranchName} (${targetBranch.version.full})`
       );
 
-      // Step 2: Fetch latest changes from origin
-      await this.execGit("fetch origin");
-      console.log("✅ Fetched latest changes from origin");
-
-      // Step 3: Create pull request from release branch to main
+      // Step 2: Create pull request from release branch to main
       const prTitle = `Release ${targetBranch.version.full} to main`;
       const prBody = `## Release ${targetBranch.version.full} to main
 
@@ -993,11 +1061,7 @@ This PR merges the release branch into main after deployment to production.
         `📋 Using hotfix branch: ${cleanBranchName} (${targetBranch.version.full})`
       );
 
-      // Step 2: Fetch latest changes from origin
-      await this.execGit("fetch origin");
-      console.log("✅ Fetched latest changes from origin");
-
-      // Step 3: Create pull request from hotfix branch to main
+      // Step 2: Create pull request from hotfix branch to main
       const prTitle = `Release ${targetBranch.version.full} to main`;
       const prBody = `## Hotfix ${targetBranch.version.full} to main
 

@@ -487,8 +487,8 @@ export class ReleaseAgent {
 
     try {
       if (!this.context!.dryRun) {
-        // Fetch latest changes from origin using git command
-        await this.gitFlowManager["execGit"]("fetch origin main");
+        // Fetch only main; broad fetches can fail on unrelated branch-name conflicts.
+        await this.gitFlowManager.fetchBranch("main");
         console.log("   🔄 Fetched latest main branch from origin");
       } else {
         console.log(
@@ -948,7 +948,7 @@ This pull request contains the release branch for **${version}**.
       ).branchInfo.name.replace(/^remotes\/origin\//, "");
 
       console.log(`🔄 Step 3: Pulling latest changes from ${branchName}`);
-      await this.gitFlowManager["execGit"](`pull origin ${branchName}`);
+      await this.gitFlowManager.pullBranch(branchName);
 
       this.updateStepStatus(3, "completed");
     } catch (error) {
@@ -1269,9 +1269,6 @@ This PR increments the release candidate version for \`${branchName}\`.
     version?: string
   ): Promise<BranchTypeInfo> {
     try {
-      // First, fetch latest remote branches
-      await this.gitFlowManager["execGit"]("fetch origin");
-
       // Option 1: Use provided version parameter to find matching branches
       if (version) {
         console.log(
@@ -1496,7 +1493,7 @@ This PR increments the release candidate version for \`${branchName}\`.
       ).branchInfo.name.replace(/^remotes\/origin\//, "");
 
       console.log(`🔄 Step 3: Pulling latest changes from ${branchName}`);
-      await this.gitFlowManager["execGit"](`pull origin ${branchName}`);
+      await this.gitFlowManager.pullBranch(branchName);
 
       this.updateStepStatus(3, "completed");
     } catch (error) {
