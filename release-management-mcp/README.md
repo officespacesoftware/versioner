@@ -71,9 +71,7 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
       "command": "npx",
       "args": [
         "--yes",
-        "-p",
-        "@officespacesoftware/release-management-mcp",
-        "release-management-mcp"
+        "@officespacesoftware/release-management-mcp"
       ]
     }
   }
@@ -94,13 +92,39 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 
 ### 💻 Claude Code
 
+**Setup with the published package:**
+
 ```sh
+claude mcp add-json release-management '{"type":"stdio","command":"npx","args":["--yes","@officespacesoftware/release-management-mcp"]}'
+```
+
+**Setup for local development:**
+
+```sh
+npm run build
+npm install -g .
 claude mcp add-json release-management '{"type":"stdio","command":"release-management-mcp"}'
 ```
 
 ### 🖱️ Cursor and Other Editors
 
-For Cursor or other MCP-compatible editors, add to your MCP configuration:
+For Cursor or other MCP-compatible editors, fetch the published package from npm in your MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "release-management": {
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@officespacesoftware/release-management-mcp"
+      ]
+    }
+  }
+}
+```
+
+**Setup for local development after `npm run build` and `npm install -g .`:**
 
 ```json
 {
