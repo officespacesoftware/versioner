@@ -29,6 +29,36 @@ class ReleaseManagementMCPServer {
   private releaseAgent?: ReleaseAgent;
   private gitFlowManager?: GitFlowManager;
   private versionerAdapter?: VersionerAdapter;
+  private boundWorkingDirectory?: string;
+
+  /**
+   * Ensure gitFlowManager and releaseAgent are bound to `workingDirectory`.
+   *
+   * The MCP server is a long-lived stdio process; without this, the very first
+   * tool call would lock these to whatever cwd it used and every subsequent call
+   * — even with a different `workingDirectory` arg — would silently operate on
+   * the original repo. Re-instantiate whenever the directory changes.
+   */
+  private async bindWorkingDirectory(
+    workingDirectory: string,
+    options: { initializeReleaseAgent?: boolean } = {}
+  ): Promise<void> {
+    if (this.boundWorkingDirectory !== workingDirectory) {
+      this.gitFlowManager = new GitFlowManager(workingDirectory);
+      delete this.releaseAgent;
+      this.boundWorkingDirectory = workingDirectory;
+    } else if (!this.gitFlowManager) {
+      this.gitFlowManager = new GitFlowManager(workingDirectory);
+    }
+
+    if (options.initializeReleaseAgent && !this.releaseAgent) {
+      this.releaseAgent = new ReleaseAgent(
+        this.gitFlowManager!,
+        workingDirectory
+      );
+      await this.releaseAgent.initialize();
+    }
+  }
 
   constructor() {
     this.server = new Server(
@@ -418,13 +448,10 @@ Creates a PR to merge a hotfix branch into main.
         await this.versionerAdapter.initialize(undefined, workingDirectory);
       }
 
-      // Initialize git flow manager to check for staged changes
-      if (!this.gitFlowManager) {
-        this.gitFlowManager = new GitFlowManager(workingDirectory);
-      }
+      await this.bindWorkingDirectory(workingDirectory);
 
       // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
       if (!isGitRepo) {
         throw new Error(
           `Directory '${workingDirectory}' is not a Git repository`
@@ -432,7 +459,7 @@ Creates a PR to merge a hotfix branch into main.
       }
 
       // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager.validateNoStagedChanges();
+      await this.gitFlowManager!.validateNoStagedChanges();
 
       const versionInfo = await this.versionerAdapter.initializeProject(
         version
@@ -475,13 +502,10 @@ Common issues:
     const dryRun = args?.dryRun || false;
 
     try {
-      // Initialize git flow manager if needed
-      if (!this.gitFlowManager) {
-        this.gitFlowManager = new GitFlowManager(workingDirectory);
-      }
+      await this.bindWorkingDirectory(workingDirectory);
 
       // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
       if (!isGitRepo) {
         throw new Error(
           `Directory '${workingDirectory}' is not a Git repository`
@@ -489,9 +513,9 @@ Common issues:
       }
 
       // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager.validateNoStagedChanges();
+      await this.gitFlowManager!.validateNoStagedChanges();
 
-      const prUrl = await this.gitFlowManager.downmergeMainToDevelop(dryRun);
+      const prUrl = await this.gitFlowManager!.downmergeMainToDevelop(dryRun);
 
       return `🚀 Downmerge Main to Develop ${
         dryRun ? "(Dry Run) " : ""
@@ -543,13 +567,10 @@ Common issues:
     const dryRun = args?.dryRun || false;
 
     try {
-      // Initialize git flow manager if needed
-      if (!this.gitFlowManager) {
-        this.gitFlowManager = new GitFlowManager(workingDirectory);
-      }
+      await this.bindWorkingDirectory(workingDirectory);
 
       // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
       if (!isGitRepo) {
         throw new Error(
           `Directory '${workingDirectory}' is not a Git repository`
@@ -557,9 +578,9 @@ Common issues:
       }
 
       // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager.validateNoStagedChanges();
+      await this.gitFlowManager!.validateNoStagedChanges();
 
-      const prUrl = await this.gitFlowManager.downmergeReleaseToMain(
+      const prUrl = await this.gitFlowManager!.downmergeReleaseToMain(
         version,
         dryRun
       );
@@ -612,13 +633,10 @@ Common issues:
     const dryRun = args?.dryRun || false;
 
     try {
-      // Initialize git flow manager if needed
-      if (!this.gitFlowManager) {
-        this.gitFlowManager = new GitFlowManager(workingDirectory);
-      }
+      await this.bindWorkingDirectory(workingDirectory);
 
       // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
       if (!isGitRepo) {
         throw new Error(
           `Directory '${workingDirectory}' is not a Git repository`
@@ -626,9 +644,9 @@ Common issues:
       }
 
       // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager.validateNoStagedChanges();
+      await this.gitFlowManager!.validateNoStagedChanges();
 
-      const prUrl = await this.gitFlowManager.downmergeHotfixToMain(
+      const prUrl = await this.gitFlowManager!.downmergeHotfixToMain(
         version,
         dryRun
       );
@@ -710,21 +728,12 @@ Common issues:
     }
 
     try {
-      // Initialize components if not already done
-      if (!this.gitFlowManager) {
-        this.gitFlowManager = new GitFlowManager(workingDirectory);
-      }
-
-      if (!this.releaseAgent) {
-        this.releaseAgent = new ReleaseAgent(
-          this.gitFlowManager,
-          workingDirectory
-        );
-        await this.releaseAgent.initialize();
-      }
+      await this.bindWorkingDirectory(workingDirectory, {
+        initializeReleaseAgent: true,
+      });
 
       // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
       if (!isGitRepo) {
         throw new Error(
           `Directory '${workingDirectory}' is not a Git repository`
@@ -732,24 +741,24 @@ Common issues:
       }
 
       // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager.validateNoStagedChanges();
+      await this.gitFlowManager!.validateNoStagedChanges();
 
       // Check if versioner is available
-      if (!this.releaseAgent.isVersionerAvailable()) {
+      if (!this.releaseAgent!.isVersionerAvailable()) {
         throw new Error(
           "Versioner MCP is not available. Please ensure versioner-mcp is running."
         );
       }
 
       // Execute the RC workflow with the specified release type
-      const workflowResult = await this.releaseAgent.executeRCWorkflow(
+      const workflowResult = await this.releaseAgent!.executeRCWorkflow(
         releaseType,
         workingDirectory,
         dryRun
       );
 
       // Generate workflow summary
-      const progressSummary = this.releaseAgent.getProgressSummary();
+      const progressSummary = this.releaseAgent!.getProgressSummary();
 
       return `🚀 ${
         releaseType.charAt(0).toUpperCase() + releaseType.slice(1)
@@ -822,21 +831,12 @@ Please review the error and fix any issues before retrying the workflow.`;
     const dryRun = args?.dryRun || false;
 
     try {
-      // Initialize components if not already done
-      if (!this.gitFlowManager) {
-        this.gitFlowManager = new GitFlowManager(workingDirectory);
-      }
-
-      if (!this.releaseAgent) {
-        this.releaseAgent = new ReleaseAgent(
-          this.gitFlowManager,
-          workingDirectory
-        );
-        await this.releaseAgent.initialize();
-      }
+      await this.bindWorkingDirectory(workingDirectory, {
+        initializeReleaseAgent: true,
+      });
 
       // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
       if (!isGitRepo) {
         throw new Error(
           `Directory '${workingDirectory}' is not a Git repository`
@@ -844,23 +844,23 @@ Please review the error and fix any issues before retrying the workflow.`;
       }
 
       // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager.validateNoStagedChanges();
+      await this.gitFlowManager!.validateNoStagedChanges();
 
       // Check if versioner is available
-      if (!this.releaseAgent.isVersionerAvailable()) {
+      if (!this.releaseAgent!.isVersionerAvailable()) {
         throw new Error(
           "Versioner MCP is not available. Please ensure versioner-mcp is running."
         );
       }
 
       // Execute the hotfix workflow
-      const workflowResult = await this.releaseAgent.executeHotfixWorkflow(
+      const workflowResult = await this.releaseAgent!.executeHotfixWorkflow(
         workingDirectory,
         dryRun
       );
 
       // Generate workflow summary
-      const progressSummary = this.releaseAgent.getProgressSummary();
+      const progressSummary = this.releaseAgent!.getProgressSummary();
 
       return `🚀 Hotfix Workflow ${
         dryRun ? "(Dry Run) " : ""
@@ -930,21 +930,12 @@ Please review the error and fix any issues before retrying the workflow.`;
     const dryRun = args?.dryRun || false;
 
     try {
-      // Initialize components if not already done
-      if (!this.gitFlowManager) {
-        this.gitFlowManager = new GitFlowManager(workingDirectory);
-      }
-
-      if (!this.releaseAgent) {
-        this.releaseAgent = new ReleaseAgent(
-          this.gitFlowManager,
-          workingDirectory
-        );
-        await this.releaseAgent.initialize();
-      }
+      await this.bindWorkingDirectory(workingDirectory, {
+        initializeReleaseAgent: true,
+      });
 
       // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
       if (!isGitRepo) {
         throw new Error(
           `Directory '${workingDirectory}' is not a Git repository`
@@ -952,24 +943,24 @@ Please review the error and fix any issues before retrying the workflow.`;
       }
 
       // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager.validateNoStagedChanges();
+      await this.gitFlowManager!.validateNoStagedChanges();
 
       // Check if versioner is available
-      if (!this.releaseAgent.isVersionerAvailable()) {
+      if (!this.releaseAgent!.isVersionerAvailable()) {
         throw new Error(
           "Versioner MCP is not available. Please ensure versioner-mcp is running."
         );
       }
 
       // Execute the increment RC workflow
-      const workflowResult = await this.releaseAgent.executeIncrementRCWorkflow(
+      const workflowResult = await this.releaseAgent!.executeIncrementRCWorkflow(
         workingDirectory,
         version,
         dryRun
       );
 
       // Generate workflow summary
-      const progressSummary = this.releaseAgent.getProgressSummary();
+      const progressSummary = this.releaseAgent!.getProgressSummary();
 
       return `🚀 Increment Release Candidate Workflow ${
         dryRun ? "(Dry Run) " : ""
@@ -1037,21 +1028,12 @@ Please review the error and fix any issues before retrying the workflow.`;
     const dryRun = args?.dryRun || false;
 
     try {
-      // Initialize components if not already done
-      if (!this.gitFlowManager) {
-        this.gitFlowManager = new GitFlowManager(workingDirectory);
-      }
-
-      if (!this.releaseAgent) {
-        this.releaseAgent = new ReleaseAgent(
-          this.gitFlowManager,
-          workingDirectory
-        );
-        await this.releaseAgent.initialize();
-      }
+      await this.bindWorkingDirectory(workingDirectory, {
+        initializeReleaseAgent: true,
+      });
 
       // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager.isGitRepository();
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
       if (!isGitRepo) {
         throw new Error(
           `Directory '${workingDirectory}' is not a Git repository`
@@ -1059,24 +1041,24 @@ Please review the error and fix any issues before retrying the workflow.`;
       }
 
       // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager.validateNoStagedChanges();
+      await this.gitFlowManager!.validateNoStagedChanges();
 
       // Check if versioner is available
-      if (!this.releaseAgent.isVersionerAvailable()) {
+      if (!this.releaseAgent!.isVersionerAvailable()) {
         throw new Error(
           "Versioner MCP is not available. Please ensure versioner-mcp is running."
         );
       }
 
       // Execute the release workflow
-      const workflowResult = await this.releaseAgent.executeReleaseWorkflow(
+      const workflowResult = await this.releaseAgent!.executeReleaseWorkflow(
         workingDirectory,
         version,
         dryRun
       );
 
       // Generate workflow summary
-      const progressSummary = this.releaseAgent.getProgressSummary();
+      const progressSummary = this.releaseAgent!.getProgressSummary();
 
       return `🚀 Release Version Workflow ${
         dryRun ? "(Dry Run) " : ""
