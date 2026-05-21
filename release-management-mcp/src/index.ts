@@ -989,7 +989,16 @@ ${
 }
 ${
   workflowResult.pullRequestUrl
-    ? `🔗 Pull Request: ${workflowResult.pullRequestUrl}`
+    ? `🔗 ${
+        workflowResult.pullRequestAction === "updated"
+          ? "Updated PR"
+          : "Pull Request"
+      }: ${workflowResult.pullRequestUrl}`
+    : ""
+}
+${
+  workflowResult.pullRequestError
+    ? `⚠️  PR step failed: ${workflowResult.pullRequestError}`
     : ""
 }
 
@@ -1088,7 +1097,16 @@ ${
 }
 ${
   workflowResult.pullRequestUrl
-    ? `🔗 Pull Request: ${workflowResult.pullRequestUrl}`
+    ? `🔗 ${
+        workflowResult.pullRequestAction === "updated"
+          ? "Updated PR"
+          : "Pull Request"
+      }: ${workflowResult.pullRequestUrl}`
+    : ""
+}
+${
+  workflowResult.pullRequestError
+    ? `⚠️  PR step failed: ${workflowResult.pullRequestError}`
     : ""
 }
 
