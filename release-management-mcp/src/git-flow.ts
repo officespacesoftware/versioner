@@ -579,8 +579,13 @@ This PR contains the release branch for ${branchName}.
 
     const escapedTitle = title.replaceAll("'", "\\'");
     try {
+      // Use REST (`gh api`) instead of `gh pr edit` — the latter issues a
+      // GraphQL query against `repository.pullRequest.projectCards`, which
+      // GitHub now rejects with a Projects (classic) deprecation error and
+      // causes the command to exit non-zero even though the user only wants
+      // to edit title/body.
       await execAsync(
-        `gh pr edit ${number} --title '${escapedTitle}' --body-file '${tmpFile}'`,
+        `gh api "repos/{owner}/{repo}/pulls/${number}" -X PATCH -f title='${escapedTitle}' -F body=@'${tmpFile}'`,
         { cwd: this.workingDirectory }
       );
     } catch (error) {
