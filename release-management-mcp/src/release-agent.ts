@@ -1124,11 +1124,7 @@ This PR increments the release candidate version for \`${branchName}\`.
 - **Version**: \`${targetVersion?.version || "new version"}\`
 - **Branch**: \`${branchName}\`
 - **Target**: \`${targetBranch}\`
-- **Type**: ${branchInfo.type} release candidate
-
-- **Version**: ${targetVersion?.version || "new version"}
-- **Branch**: ${branchName}
-- **Target**: ${targetBranch}
+- **Type**: release candidate
 
 ### 🔄 Changes
 - Incremented RC version to ${targetVersion?.version || "new version"}
