@@ -1,9 +1,9 @@
 {
-  "name": "release-management-workspace",
+  "name": "versioner-js-workspace",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "pnpm workspace for @officespacesoftware/release-management-{core,mcp,cli}",
+  "description": "pnpm workspace for the JavaScript packages in the versioner repo: @officespacesoftware/versioner and @officespacesoftware/release-management-{core,mcp,cli}",
   "scripts": {
     "build": "pnpm -r build",
     "clean": "pnpm -r clean",
@@ -16,10 +16,5 @@
   "devDependencies": {
     "@types/node": "^22.9.1",
     "typescript": "^5.7.2"
-  },
-  "pnpm": {
-    "overrides": {
-      "@officespacesoftware/versioner": "link:../versioner"
-    }
   }
 }

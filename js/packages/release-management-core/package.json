@@ -22,11 +22,11 @@
   ],
   "author": "Esteban Trejos",
   "license": "MIT",
-  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/release-management#readme",
+  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/js/packages/release-management-core#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/officespacesoftware/versioner.git",
-    "directory": "release-management/packages/core"
+    "directory": "js/packages/release-management-core"
   },
   "bugs": {
     "url": "https://github.com/officespacesoftware/versioner/issues"
@@ -36,6 +36,6 @@
     "access": "restricted"
   },
   "dependencies": {
-    "@officespacesoftware/versioner": "^1.0.1"
+    "@officespacesoftware/versioner": "workspace:^"
   }
 }
