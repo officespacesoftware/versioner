@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@officespacesoftware/versioner': link:../versioner
-
 importers:
 
   .:
@@ -18,32 +15,34 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
-  packages/cli:
+  packages/release-management-cli:
     dependencies:
       '@officespacesoftware/release-management-core':
         specifier: workspace:^
-        version: link:../core
+        version: link:../release-management-core
       commander:
         specifier: ^12.1.0
         version: 12.1.0
 
-  packages/core:
+  packages/release-management-core:
     dependencies:
       '@officespacesoftware/versioner':
-        specifier: link:../../../versioner
-        version: link:../../../versioner
+        specifier: workspace:^
+        version: link:../versioner
 
-  packages/mcp:
+  packages/release-management-mcp:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.18.0
         version: 1.29.0(zod@3.25.76)
       '@officespacesoftware/release-management-core':
         specifier: workspace:^
-        version: link:../core
+        version: link:../release-management-core
       zod:
         specifier: ^3.25.76
         version: 3.25.76
+
+  packages/versioner: {}
 
 packages:
 
