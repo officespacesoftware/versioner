@@ -4,11 +4,25 @@
 
 import { exec } from "child_process";
 import { promisify } from "util";
-import { writeFileSync, unlinkSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
+import { createGitHubClient } from "./github-client.js";
 
 const execAsync = promisify(exec);
+
+function isOctokitStatus(error: unknown, status: number): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error as { status: unknown }).status === status
+  );
+}
+
+function octokitErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+}
 
 export const MCP_WATERMARK_START = "<!-- RELEASE-MANAGEMENT-MCP:START -->";
 export const MCP_WATERMARK_END = "<!-- RELEASE-MANAGEMENT-MCP:END -->";
@@ -519,7 +533,7 @@ ${stagedFiles}
   }
 
   /**
-   * Create a pull request using gh CLI
+   * Create a pull request via the GitHub REST API.
    */
   async createPullRequest(
     branchName: string,
@@ -528,9 +542,6 @@ ${stagedFiles}
     body?: string,
     draft: boolean = false
   ): Promise<PullRequestResult> {
-    // Check if gh CLI is available
-    await execAsync("which gh", { cwd: this.workingDirectory });
-
     const defaultTitle = title || `Release ${branchName} to ${baseBranch}`;
     const defaultBody =
       body ||
@@ -548,112 +559,126 @@ This PR contains the release branch for ${branchName}.
       `.trim();
 
     const watermarkedBody = wrapWithWatermarks(defaultBody);
-    const escapedTitle = defaultTitle.replaceAll("'", "\\'");
-
-    // Write body to temp file to avoid shell escaping issues with backticks, $, etc.
-    const tmpFile = join(tmpdir(), `mcp-pr-body-${Date.now()}.md`);
+    const client = await createGitHubClient(this.workingDirectory);
 
     try {
-      writeFileSync(tmpFile, watermarkedBody, "utf-8");
-
-      const draftFlag = draft ? " --draft" : "";
-      const command = `gh pr create --base ${baseBranch} --head ${branchName} --title '${escapedTitle}' --body-file '${tmpFile}'${draftFlag}`;
-      const output = await execAsync(command, { cwd: this.workingDirectory });
-      return { url: output.stdout.trim(), action: "created" };
+      const { data } = await client.rest.pulls.create({
+        owner: client.owner,
+        repo: client.repo,
+        base: baseBranch,
+        head: branchName,
+        title: defaultTitle,
+        body: watermarkedBody,
+        draft,
+      });
+      return { url: data.html_url, action: "created" };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      if (errorMessage.includes("already exists")) {
+      const message = octokitErrorMessage(error);
+      // GitHub returns 422 with "A pull request already exists" when head/base pair already has an open PR.
+      if (
+        isOctokitStatus(error, 422) &&
+        /pull request already exists/i.test(message)
+      ) {
         return await this.updateExistingPullRequest(
           branchName,
           defaultTitle,
-          defaultBody,
-          tmpFile
+          defaultBody
         );
       }
-
-      throw new Error(`Failed to create pull request: ${errorMessage}`);
-    } finally {
-      try {
-        unlinkSync(tmpFile);
-      } catch {
-        /* ignore cleanup errors */
-      }
+      throw new Error(`Failed to create pull request: ${message}`);
     }
   }
 
   private async updateExistingPullRequest(
     branchName: string,
     title: string,
-    body: string,
-    tmpFile: string
+    body: string
   ): Promise<PullRequestResult> {
-    let number: number;
-    let existingBody: string | undefined;
+    const client = await createGitHubClient(this.workingDirectory);
+    let prNumber: number;
+    let existingBody: string;
     let url: string;
 
     try {
-      const viewCommand = `gh pr view ${branchName} --json number,body,url`;
-      const prInfo = await execAsync(viewCommand, {
-        cwd: this.workingDirectory,
+      const { data: prs } = await client.rest.pulls.list({
+        owner: client.owner,
+        repo: client.repo,
+        head: `${client.owner}:${branchName}`,
+        state: "open",
+        per_page: 1,
       });
-      const parsed = JSON.parse(prInfo.stdout.trim());
-      number = parsed.number;
-      existingBody = parsed.body;
-      url = parsed.url;
+      const pr = prs[0];
+      if (!pr) {
+        throw new Error(
+          `No open PR found for head '${client.owner}:${branchName}'`
+        );
+      }
+      prNumber = pr.number;
+      existingBody = pr.body ?? "";
+      url = pr.html_url;
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = octokitErrorMessage(error);
       throw new Error(
         `Failed to look up existing PR for '${branchName}': ${msg}`
       );
     }
 
-    const updatedBody = replaceWatermarkedContent(existingBody || "", body);
-    writeFileSync(tmpFile, updatedBody, "utf-8");
+    const updatedBody = replaceWatermarkedContent(existingBody, body);
 
-    const escapedTitle = title.replaceAll("'", "\\'");
     try {
-      // Use REST (`gh api`) instead of `gh pr edit` — the latter issues a
-      // GraphQL query against `repository.pullRequest.projectCards`, which
-      // GitHub now rejects with a Projects (classic) deprecation error and
-      // causes the command to exit non-zero even though the user only wants
-      // to edit title/body.
-      await execAsync(
-        `gh api "repos/{owner}/{repo}/pulls/${number}" -X PATCH -f title='${escapedTitle}' -F body=@'${tmpFile}'`,
-        { cwd: this.workingDirectory }
-      );
+      await client.rest.pulls.update({
+        owner: client.owner,
+        repo: client.repo,
+        pull_number: prNumber,
+        title,
+        body: updatedBody,
+      });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to edit PR #${number}: ${msg}`);
+      const msg = octokitErrorMessage(error);
+      throw new Error(`Failed to edit PR #${prNumber}: ${msg}`);
     }
 
-    console.log(`🔄 Updated existing PR #${number}: ${url}`);
+    console.log(`🔄 Updated existing PR #${prNumber}: ${url}`);
     return { url, action: "updated" };
   }
 
   /**
-   * Create a GitHub release using gh CLI
+   * Create a GitHub release via the REST API (auto-generated notes).
    */
   async createGitHubRelease(
     version: string,
     branchName: string
   ): Promise<string> {
+    const client = await createGitHubClient(this.workingDirectory);
+    const title = `Release ${version}`;
+
     try {
-      // Check if gh CLI is available
-      await execAsync("which gh", { cwd: this.workingDirectory });
+      // Generate release notes from commits since the previous tag.
+      let notesBody = "";
+      try {
+        const { data: notes } = await client.rest.repos.generateReleaseNotes({
+          owner: client.owner,
+          repo: client.repo,
+          tag_name: version,
+          target_commitish: branchName,
+        });
+        notesBody = notes.body;
+      } catch {
+        // If notes generation fails (e.g. no previous tag), fall back to empty body.
+      }
 
-      const title = `Release ${version}`;
-
-      // Create GitHub release using gh CLI
-      const command = `gh release create ${version} --title "${title}" --generate-notes --target ${branchName}`;
-      const output = await execAsync(command, { cwd: this.workingDirectory });
-
-      // Extract release URL from output
-      const releaseUrl = output.stdout.trim();
-      return releaseUrl;
+      const { data: release } = await client.rest.repos.createRelease({
+        owner: client.owner,
+        repo: client.repo,
+        tag_name: version,
+        name: title,
+        target_commitish: branchName,
+        body: notesBody,
+      });
+      return release.html_url;
     } catch (error) {
-      throw new Error(`Failed to create GitHub release: ${error}`);
+      const msg = octokitErrorMessage(error);
+      throw new Error(`Failed to create GitHub release: ${msg}`);
     }
   }
 
@@ -793,11 +818,20 @@ This PR contains the release branch for ${branchName}.
     prNumber: number,
     opts: { comment?: string } = {}
   ): Promise<void> {
-    const commentFlag = opts.comment
-      ? ` --comment ${quoteGitArg(opts.comment)}`
-      : "";
-    await execAsync(`gh pr close ${prNumber}${commentFlag}`, {
-      cwd: this.workingDirectory,
+    const client = await createGitHubClient(this.workingDirectory);
+    if (opts.comment && opts.comment.length > 0) {
+      await client.rest.issues.createComment({
+        owner: client.owner,
+        repo: client.repo,
+        issue_number: prNumber,
+        body: opts.comment,
+      });
+    }
+    await client.rest.pulls.update({
+      owner: client.owner,
+      repo: client.repo,
+      pull_number: prNumber,
+      state: "closed",
     });
   }
 
@@ -824,18 +858,58 @@ This PR contains the release branch for ${branchName}.
     const pollIntervalMs = opts.pollIntervalMs ?? 3000;
     const deadline = Date.now() + timeoutMs;
 
+    const client = await createGitHubClient(this.workingDirectory);
+    const query = `
+      query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          pullRequest(number: $number) {
+            commits(last: 1) {
+              nodes {
+                commit {
+                  statusCheckRollup {
+                    contexts(first: 1) {
+                      totalCount
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    interface CheckRollupResponse {
+      repository: {
+        pullRequest: {
+          commits: {
+            nodes: Array<{
+              commit: {
+                statusCheckRollup: {
+                  contexts: { totalCount: number };
+                } | null;
+              };
+            }>;
+          };
+        };
+      };
+    }
+
     while (Date.now() < deadline) {
       try {
-        const { stdout } = await execAsync(
-          `gh pr checks ${prNumber} --json name,status`,
-          { cwd: this.workingDirectory }
-        );
-        const parsed = JSON.parse(stdout.trim() || "[]");
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        const result = await client.graphql<CheckRollupResponse>(query, {
+          owner: client.owner,
+          repo: client.repo,
+          number: prNumber,
+        });
+        const totalCount =
+          result.repository.pullRequest.commits.nodes[0]?.commit
+            .statusCheckRollup?.contexts.totalCount ?? 0;
+        if (totalCount > 0) {
           return true;
         }
       } catch {
-        // `gh pr checks` exits non-zero when no checks exist yet — keep polling.
+        // GraphQL errors when checks aren't yet attached — keep polling.
       }
       await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
     }

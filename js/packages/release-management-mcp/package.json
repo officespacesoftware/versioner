@@ -1,6 +1,6 @@
 {
   "name": "@officespacesoftware/release-management-mcp",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Git Flow Release Management MCP Server with AI-powered workflow orchestration",
   "main": "lib/index.js",
   "type": "module",
