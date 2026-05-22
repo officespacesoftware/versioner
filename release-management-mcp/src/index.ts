@@ -12,7 +12,11 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { ReleaseAgent } from "./release-agent.js";
-import { GitFlowManager } from "./git-flow.js";
+import {
+  GitFlowManager,
+  MergeConflictError,
+  type DownmergeResult,
+} from "./git-flow.js";
 import { VersionerAdapter } from "./versioner-adapter.js";
 
 /**
@@ -292,16 +296,50 @@ Creates a PR to bring production changes back into develop.
             },
           },
           {
+            name: "downmerge_release_to_develop",
+            title: "Downmerge Release to Develop",
+            description: `⬇️  PR: release → develop
+
+Brings a release branch back into develop after the release is cut.
+
+- No conflicts: opens a direct PR release/X.Y.0 → develop
+- Conflicts: opens a draft merge-branch PR (off develop, with release merged in, conflict markers committed) for human resolution, plus a transient build-trigger PR that is auto-closed once CI starts
+- Input: optional version to merge (e.g., 1.2.0); auto-detects newest release when omitted`,
+            inputSchema: {
+              type: "object",
+              properties: {
+                version: {
+                  type: "string",
+                  description:
+                    "Optional specific version to merge (e.g., '1.2.0'). " +
+                    "When not provided, automatically finds the most recent release version available on the upstream Git repository. " +
+                    "If provided, this parameter must be entered by a human user.",
+                },
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+                dryRun: {
+                  type: "boolean",
+                  description:
+                    "Optional: if true, shows what would happen without making changes (default: false)",
+                },
+              },
+            },
+          },
+          {
             name: "downmerge_release_to_main",
             title: "Downmerge Release to Main",
-            description: `📤  PR: release → main
+            description: `📤  PR: release → main (via merge branch)
 
-Creates a PR to merge a release branch into main.
+Creates a merge branch off main with the release merged in, then opens a PR
+from that branch into main. Never opens a PR with head=release/* — that would
+re-trigger CI workflows that build a fresh Docker image for an already-cut release.
 
 - Input: optional version to merge (e.g., 1.2.0)
 - Auto-detects latest release when version is not provided
-- Validates branch existence and syncs with origin
-- Ideal for promoting a tested release`,
+- Aborts with an error listing conflicted files if the merge has conflicts`,
             inputSchema: {
               type: "object",
               properties: {
@@ -397,6 +435,10 @@ Creates a PR to merge a hotfix branch into main.
 
           case "downmerge_main_to_develop":
             result = await this.handleDownmergeMainToDevelop(args);
+            break;
+
+          case "downmerge_release_to_develop":
+            result = await this.handleDownmergeReleaseToDevelop(args);
             break;
 
           case "downmerge_release_to_main":
@@ -561,6 +603,96 @@ Common issues:
     }
   }
 
+  private formatDownmergeResult(result: DownmergeResult): string {
+    switch (result.kind) {
+      case "direct":
+        return `🔗 Pull Request: ${result.pullRequestUrl}`;
+      case "merge-branch":
+        return `🌿 Merge branch: \`${result.mergeBranchName}\`
+🔗 Pull Request: ${result.pullRequestUrl}`;
+      case "merge-branch-with-conflicts": {
+        const checksLine = result.checksStarted
+          ? "✅ Build-trigger CI checks observed before close"
+          : "⚠️  Build-trigger PR closed without checks registering within 60s";
+        const conflictedList = result.conflictedFiles
+          .map((f) => `   - ${f}`)
+          .join("\n");
+        return `🌿 Merge branch (conflicts unresolved): \`${result.mergeBranchName}\`
+🔗 Draft merge-resolution PR: ${result.mergeBranchPullRequestUrl}
+🛠️  Build-trigger PR (auto-closed): ${result.buildTriggerPullRequestUrl}
+${checksLine}
+
+⚠️  Conflicted files (resolve in the draft PR):
+${conflictedList}`;
+      }
+    }
+  }
+
+  private async handleDownmergeReleaseToDevelop(args: any): Promise<string> {
+    const version = args?.version;
+    const workingDirectory = args?.workingDirectory || process.cwd();
+    const dryRun = args?.dryRun || false;
+
+    try {
+      await this.bindWorkingDirectory(workingDirectory);
+
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      await this.gitFlowManager!.validateNoStagedChanges();
+
+      const result = await this.gitFlowManager!.downmergeReleaseToDevelop(
+        version,
+        dryRun
+      );
+
+      const resultSummary = dryRun
+        ? "🔧 Dry run — no PRs created."
+        : this.formatDownmergeResult(result);
+
+      const nextSteps =
+        result.kind === "merge-branch-with-conflicts"
+          ? `📋 Next Steps:
+1. Check out the merge branch locally and resolve the conflicts listed above
+2. Push the resolution and mark the draft PR ready for review
+3. Merge the resolution PR once CI is green`
+          : `📋 Next Steps:
+1. Review the pull request and CI checks
+2. Merge once green`;
+
+      return `🚀 Downmerge Release to Develop ${
+        dryRun ? "(Dry Run) " : ""
+      }Completed Successfully!
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Release"}
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+
+${resultSummary}
+
+${nextSteps}`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return `❌ Downmerge Release to Develop Failed
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Release"}
+🔧 Dry Run: ${dryRun ? "Yes" : "No"}
+💥 Error: ${errorMessage}
+
+Common issues:
+- No release branches found matching the criteria
+- Network issues with git operations
+- Permission issues with git push or PR creation
+- GitHub CLI (gh) not available or not authenticated`;
+    }
+  }
+
   private async handleDownmergeReleaseToMain(args: any): Promise<string> {
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
@@ -569,7 +701,6 @@ Common issues:
     try {
       await this.bindWorkingDirectory(workingDirectory);
 
-      // Check if we're in a git repository
       const isGitRepo = await this.gitFlowManager!.isGitRepository();
       if (!isGitRepo) {
         throw new Error(
@@ -577,13 +708,16 @@ Common issues:
         );
       }
 
-      // Check for staged changes (prevents committing unrelated changes)
       await this.gitFlowManager!.validateNoStagedChanges();
 
-      const prUrl = await this.gitFlowManager!.downmergeReleaseToMain(
+      const result = await this.gitFlowManager!.downmergeReleaseToMain(
         version,
         dryRun
       );
+
+      const resultSummary = dryRun
+        ? "🔧 Dry run — no PR created."
+        : this.formatDownmergeResult(result);
 
       return `🚀 Downmerge Release to Main ${
         dryRun ? "(Dry Run) " : ""
@@ -599,17 +733,35 @@ ${
     : "✅ Completed the following actions:"
 }
 1. Validated target release branch exists
-2. Fetched latest changes from origin
-3. Created pull request from release branch to main
+2. Fetched latest main and release branches from origin
+3. Created merge branch off main and merged release into it
+4. Pushed merge branch and opened PR targeting main
 
-${!dryRun && prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
+${resultSummary}
 
 📋 Next Steps:
-1. Review the pull request for merge conflicts
-2. Deploy the release to production environment
-3. Merge the PR when deployment is successful
-4. Celebrate the successful release! 🎉`;
+1. Review the pull request
+2. Merge the PR when ready`;
     } catch (error) {
+      if (error instanceof MergeConflictError) {
+        const conflictedList = error.conflictedFiles
+          .map((f) => `   - ${f}`)
+          .join("\n");
+        return `❌ Downmerge Release to Main Aborted — Merge Conflicts
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Release"}
+
+The merge of the release branch into main produced conflicts. No remote branch was pushed and no PR was opened.
+
+⚠️  Conflicted files:
+${conflictedList}
+
+📋 To resolve:
+1. Manually create a branch off main, merge the release branch in, and resolve the conflicts
+2. Push that branch and open a PR to main yourself
+3. Re-run this tool only once main and release no longer conflict`;
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       return `❌ Downmerge Release to Main Failed
