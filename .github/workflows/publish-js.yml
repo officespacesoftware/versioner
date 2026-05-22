@@ -1,0 +1,96 @@
+name: Publish JS package
+
+# Triggered by tags of the form `@officespacesoftware/<package>@<version>`
+# (e.g. `@officespacesoftware/release-management-core@1.1.0`). Push the tag and
+# the matching package publishes to GitHub Packages.
+
+on:
+  push:
+    tags:
+      - "@officespacesoftware/*@*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. @officespacesoftware/release-management-core@1.1.0)"
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve tag and target package
+        id: parse
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="${INPUT_TAG}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          # TAG = @officespacesoftware/<pkg>@<version>
+          # Strip leading "@" so rsplit on "@" works cleanly.
+          BODY="${TAG#@}"             # officespacesoftware/<pkg>@<version>
+          PKG_PATH="${BODY%@*}"        # officespacesoftware/<pkg>
+          VER="${BODY##*@}"            # <version>
+          PKG_NAME="@${PKG_PATH}"      # @officespacesoftware/<pkg>
+          PKG_DIR_NAME="${PKG_PATH#officespacesoftware/}"  # <pkg>
+          DIR="js/packages/${PKG_DIR_NAME}"
+          if [ ! -f "${DIR}/package.json" ]; then
+            echo "::error::Package directory ${DIR} does not exist for tag ${TAG}"
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "pkg_name=${PKG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "dir=${DIR}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@officespacesoftware"
+          cache: pnpm
+          cache-dependency-path: js/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: js
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify package.json version matches tag
+        working-directory: ${{ steps.parse.outputs.dir }}
+        run: |
+          set -euo pipefail
+          PKG_VER=$(node -p "require('./package.json').version")
+          if [ "${PKG_VER}" != "${{ steps.parse.outputs.version }}" ]; then
+            echo "::error::Tag version ${{ steps.parse.outputs.version }} != package.json ${PKG_VER}"
+            exit 1
+          fi
+
+      - name: Build workspace
+        working-directory: js
+        run: pnpm -r build
+
+      - name: Publish to GitHub Packages
+        working-directory: ${{ steps.parse.outputs.dir }}
+        run: pnpm publish --no-git-checks --access restricted
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summarize
+        run: |
+          echo "Published ${{ steps.parse.outputs.pkg_name }}@${{ steps.parse.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Registry: https://npm.pkg.github.com" >> "$GITHUB_STEP_SUMMARY"
