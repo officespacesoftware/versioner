@@ -3,6 +3,12 @@ name: Publish JS package
 # Triggered by tags of the form `@officespacesoftware/<package>@<version>`
 # (e.g. `@officespacesoftware/release-management-core@1.1.0`). Push the tag and
 # the matching package publishes to GitHub Packages.
+#
+# TODO: restrict to tags whose commit is reachable from `master`, so feature
+# branches can't accidentally publish. Easiest implementation is a guard step
+# that runs `git merge-base --is-ancestor "$GITHUB_SHA" origin/master` and
+# fails the job otherwise. Holding off until the first master-merged release
+# proves the rest of the pipeline works.
 
 on:
   push:

@@ -3,6 +3,7 @@ lib/
 dist/
 *.log
 .DS_Store
+TODO.md
 .env
 .env.local
 .env.development.local

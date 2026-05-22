@@ -56,6 +56,12 @@ execSync(`git commit -m ${JSON.stringify(`Release ${tag}`)}`, {
 });
 execSync(`git tag ${JSON.stringify(tag)}`, { stdio: "inherit" });
 
+const currentBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+  encoding: "utf8",
+}).trim();
+
 console.log(`\nTagged ${tag}.`);
 console.log("Push to trigger the publish workflow:");
-console.log(`  git push && git push origin ${JSON.stringify(tag)}`);
+console.log(
+  `  git push origin ${currentBranch} && git push origin ${JSON.stringify(tag)}`
+);
