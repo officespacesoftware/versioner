@@ -1,0 +1,53 @@
+{
+  "name": "@officespacesoftware/release-management-cli",
+  "version": "0.1.0",
+  "description": "Plain CLI for release-management workflows. Wraps the same core logic the MCP uses; suitable for GitHub Actions and direct shell use.",
+  "main": "lib/cli.js",
+  "type": "module",
+  "bin": {
+    "release-management": "bin/release-management"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf lib/",
+    "prepublishOnly": "npm run build",
+    "start": "node bin/release-management"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "bin/release-management",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "release-management",
+    "git-flow",
+    "cli",
+    "github-actions",
+    "versioning"
+  ],
+  "author": "Esteban Trejos",
+  "license": "MIT",
+  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/release-management/packages/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/officespacesoftware/versioner.git",
+    "directory": "release-management/packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/officespacesoftware/versioner/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "dependencies": {
+    "@officespacesoftware/release-management-core": "workspace:^",
+    "commander": "^12.1.0"
+  }
+}

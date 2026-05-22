@@ -1,6 +1,6 @@
 {
   "name": "@officespacesoftware/release-management-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Git Flow Release Management MCP Server with AI-powered workflow orchestration",
   "main": "lib/index.js",
   "type": "module",
@@ -10,10 +10,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "echo 'No formal tests defined yet'",
+    "clean": "rm -rf lib/",
     "prepublishOnly": "npm run build",
-    "start": "node bin/release-management-mcp",
-    "clean": "rm -rf lib/"
+    "start": "node bin/release-management-mcp"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -37,11 +36,11 @@
   ],
   "author": "Esteban Trejos",
   "license": "MIT",
-  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/release-management-mcp#readme",
+  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/release-management/packages/mcp#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/officespacesoftware/versioner.git",
-    "directory": "release-management-mcp"
+    "directory": "release-management/packages/mcp"
   },
   "bugs": {
     "url": "https://github.com/officespacesoftware/versioner/issues"
@@ -52,11 +51,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",
-    "@officespacesoftware/versioner": "1.0.1",
+    "@officespacesoftware/release-management-core": "workspace:^",
     "zod": "^3.25.76"
-  },
-  "devDependencies": {
-    "@types/node": "^22.9.1",
-    "typescript": "^5.7.2"
   }
 }
