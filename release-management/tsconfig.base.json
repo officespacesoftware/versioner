@@ -8,8 +8,6 @@
     "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
     "declaration": true,
-    "outDir": "./lib",
-    "rootDir": "./src",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -20,13 +18,5 @@
     "noImplicitOverride": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
-  },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "lib",
-    "test"
-  ]
+  }
 }

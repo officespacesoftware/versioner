@@ -1,0 +1,41 @@
+{
+  "name": "@officespacesoftware/release-management-core",
+  "version": "1.0.0",
+  "description": "Shared business logic for the release-management CLI and MCP: git flow primitives, workflow orchestration, output formatting.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf lib/",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "author": "Esteban Trejos",
+  "license": "MIT",
+  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/release-management#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/officespacesoftware/versioner.git",
+    "directory": "release-management/packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/officespacesoftware/versioner/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "dependencies": {
+    "@officespacesoftware/versioner": "^1.0.1"
+  }
+}

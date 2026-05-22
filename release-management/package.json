@@ -1,0 +1,25 @@
+{
+  "name": "release-management-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "pnpm workspace for @officespacesoftware/release-management-{core,mcp,cli}",
+  "scripts": {
+    "build": "pnpm -r build",
+    "clean": "pnpm -r clean",
+    "dev": "pnpm -r --parallel dev"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.1",
+    "typescript": "^5.7.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "@officespacesoftware/versioner": "link:../versioner"
+    }
+  }
+}

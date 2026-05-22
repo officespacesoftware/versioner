@@ -11,13 +11,13 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { ReleaseAgent } from "./release-agent.js";
 import {
   GitFlowManager,
   MergeConflictError,
+  ReleaseAgent,
+  VersionerAdapter,
   type DownmergeResult,
-} from "./git-flow.js";
-import { VersionerAdapter } from "./versioner-adapter.js";
+} from "@officespacesoftware/release-management-core";
 
 /**
  * Release Management MCP Server
