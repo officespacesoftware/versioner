@@ -42,6 +42,8 @@ export function registerReleaseVersion(parent: Command): void {
             pull_request_url: result.pullRequestUrl,
             pull_request_action: result.pullRequestAction,
             pull_request_error: result.pullRequestError,
+            release_url: result.releaseUrl,
+            release_notes_warning: result.releaseNotesWarning,
           });
           emit(result, opts, renderReleaseVersion);
         }
@@ -61,6 +63,12 @@ function renderReleaseVersion(r: ReleaseVersionWorkflowContext): string {
   }
   if (r.pullRequestError) {
     lines.push(`PR step failed: ${r.pullRequestError}`);
+  }
+  if (r.releaseUrl) {
+    lines.push(`GitHub Release: ${r.releaseUrl}`);
+  }
+  if (r.releaseNotesWarning) {
+    lines.push(`Release notes warning: ${r.releaseNotesWarning}`);
   }
   return lines.join("\n");
 }
