@@ -397,6 +397,7 @@ describe Versioner::VersionFile do
 
   context 'when initializing with new VERSION file' do
     it 'does not create a file if one exists' do
+      allow(Versioner).to receive(:options).and_return(version_file_path: file_path)
       expect { described_class.create }.to raise_error(RuntimeError)
     end
 

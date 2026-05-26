@@ -1,0 +1,5 @@
+source 'https://rubygems.org'
+
+# Gem lives at the repo root (see ../versioner.gemspec); ruby/ holds the gem
+# source so the JS workspace can live alongside it without colliding.
+gemspec path: '..'

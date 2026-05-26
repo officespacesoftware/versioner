@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
-lib = File.expand_path('lib', __dir__)
+# The Ruby gem lives under ruby/; this gemspec stays at the repo root so
+# consumers that pull the gem via `gem 'versioner', git: '...'` find it
+# without having to add a `glob:` override.
+
+lib = File.expand_path('ruby/lib', __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'versioner/version'
 
@@ -25,12 +29,16 @@ Gem::Specification.new do |spec|
       'public gem pushes.'
   end
 
-  spec.files = `git ls-files -z`.split("\x0").reject do |f|
-    f.match(%r{^(test|spec|features)/})
+  # Only ship Ruby gem files. The repo also hosts the JS workspace under js/
+  # and other tooling at the root; `git ls-files` would otherwise vacuum
+  # everything into the gem.
+  spec.files = `git ls-files -z`.split("\x0").select do |f|
+    f.start_with?('ruby/lib/', 'ruby/exe/') ||
+      %w[VERSION LICENSE README.md versioner.gemspec].include?(f)
   end
-  spec.bindir        = 'exe'
-  spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
-  spec.require_paths = ['lib']
+  spec.bindir        = 'ruby/exe'
+  spec.executables   = spec.files.grep(%r{^ruby/exe/}) { |f| File.basename(f) }
+  spec.require_paths = ['ruby/lib']
 
   spec.required_ruby_version = '>= 2.7', '< 5'
 
