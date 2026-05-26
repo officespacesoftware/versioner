@@ -48,6 +48,8 @@ export interface ReleaseVersionWorkflowContext {
   pullRequestUrl?: string;
   pullRequestAction?: "created" | "updated";
   pullRequestError?: string;
+  releaseUrl?: string;
+  releaseNotesWarning?: string;
 }
 
 export interface WorkflowStep {
@@ -1739,10 +1741,14 @@ This PR contains the final release version for ${branchName}.
       const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
 
       if (!context.dryRun) {
-        const releaseUrl = await this.gitFlowManager.createGitHubRelease(
-          version,
-          branchName
-        );
+        const { url: releaseUrl, notesWarning } =
+          await this.gitFlowManager.createGitHubRelease(version, branchName);
+
+        context.releaseUrl = releaseUrl;
+        if (notesWarning) {
+          context.releaseNotesWarning = notesWarning;
+          console.warn(`⚠️  Release notes warning: ${notesWarning}`);
+        }
 
         console.log(`🎯 GitHub Release created: ${releaseUrl}`);
         console.log(`📋 Version: ${version}`);

@@ -30,6 +30,15 @@ export interface GitHubClient {
 
 const cache = new Map<string, GitHubClient>();
 
+/** Test hook: pre-seed the client cache so tests can swap in fakes without
+ *  reaching into network/auth code. Not part of the public API. */
+export function _setGitHubClientForTesting(
+  workingDirectory: string,
+  client: GitHubClient
+): void {
+  cache.set(workingDirectory, client);
+}
+
 export async function createGitHubClient(
   workingDirectory: string
 ): Promise<GitHubClient> {

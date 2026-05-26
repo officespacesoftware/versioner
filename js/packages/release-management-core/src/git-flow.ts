@@ -644,29 +644,27 @@ This PR contains the release branch for ${branchName}.
 
   /**
    * Create a GitHub release via the REST API (auto-generated notes).
+   *
+   * Returns the release URL plus an optional `notesWarning` when GitHub's
+   * `generate-notes` API failed or returned an empty body. We retry the
+   * notes call with backoff to ride out the indexer lag that occurs when a
+   * tag is pushed and a release is created back-to-back. If we still can't
+   * get a body, the release is created first and the body is patched in
+   * afterwards so the release itself is never blocked.
    */
   async createGitHubRelease(
     version: string,
     branchName: string
-  ): Promise<string> {
+  ): Promise<{ url: string; notesWarning?: string }> {
     const client = await createGitHubClient(this.workingDirectory);
     const title = `Release ${version}`;
 
-    try {
-      // Generate release notes from commits since the previous tag.
-      let notesBody = "";
-      try {
-        const { data: notes } = await client.rest.repos.generateReleaseNotes({
-          owner: client.owner,
-          repo: client.repo,
-          tag_name: version,
-          target_commitish: branchName,
-        });
-        notesBody = notes.body;
-      } catch {
-        // If notes generation fails (e.g. no previous tag), fall back to empty body.
-      }
+    const { body: notesBody, warning: notesWarning } =
+      await this.generateReleaseNotesWithRetry(version, branchName);
 
+    let releaseUrl: string;
+    let releaseId: number;
+    try {
       const { data: release } = await client.rest.repos.createRelease({
         owner: client.owner,
         repo: client.repo,
@@ -675,11 +673,88 @@ This PR contains the release branch for ${branchName}.
         target_commitish: branchName,
         body: notesBody,
       });
-      return release.html_url;
+      releaseUrl = release.html_url;
+      releaseId = release.id;
     } catch (error) {
       const msg = octokitErrorMessage(error);
       throw new Error(`Failed to create GitHub release: ${msg}`);
     }
+
+    // If we couldn't get notes before creating the release, try once more
+    // now that the release object (and its tag reference) exists, then
+    // patch the body in. This handles the case where GitHub's PR indexer
+    // hadn't caught up at create time.
+    if (!notesBody) {
+      const retry = await this.generateReleaseNotesWithRetry(
+        version,
+        branchName
+      );
+      if (retry.body) {
+        try {
+          await client.rest.repos.updateRelease({
+            owner: client.owner,
+            repo: client.repo,
+            release_id: releaseId,
+            body: retry.body,
+          });
+          return { url: releaseUrl };
+        } catch (error) {
+          const msg = octokitErrorMessage(error);
+          return {
+            url: releaseUrl,
+            notesWarning: `Failed to patch release notes after creation: ${msg}`,
+          };
+        }
+      }
+      return {
+        url: releaseUrl,
+        notesWarning:
+          retry.warning ??
+          notesWarning ??
+          "GitHub returned empty release notes — generate them manually from the release page.",
+      };
+    }
+
+    return { url: releaseUrl };
+  }
+
+  /**
+   * Call `generateReleaseNotes` with retry/backoff. Returns the body and an
+   * optional warning describing the last failure when no body was obtained.
+   */
+  private async generateReleaseNotesWithRetry(
+    version: string,
+    branchName: string,
+    attempts: number = 3
+  ): Promise<{ body: string; warning?: string }> {
+    const client = await createGitHubClient(this.workingDirectory);
+    let lastWarning: string | undefined;
+
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const { data: notes } = await client.rest.repos.generateReleaseNotes({
+          owner: client.owner,
+          repo: client.repo,
+          tag_name: version,
+          target_commitish: branchName,
+        });
+        if (notes.body && notes.body.trim().length > 0) {
+          return { body: notes.body };
+        }
+        lastWarning = `GitHub returned empty release notes for ${version} on ${branchName} (attempt ${i + 1}/${attempts}).`;
+        console.warn(`⚠️  ${lastWarning}`);
+      } catch (error) {
+        const msg = octokitErrorMessage(error);
+        lastWarning = `generateReleaseNotes failed (attempt ${i + 1}/${attempts}): ${msg}`;
+        console.warn(`⚠️  ${lastWarning}`);
+      }
+      if (i < attempts - 1) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * Math.pow(2, i))
+        );
+      }
+    }
+    return lastWarning ? { body: "", warning: lastWarning } : { body: "" };
   }
 
   /**

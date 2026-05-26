@@ -1243,6 +1243,16 @@ ${
     ? `⚠️  PR step failed: ${workflowResult.pullRequestError}`
     : ""
 }
+${
+  workflowResult.releaseUrl
+    ? `📦 GitHub Release: ${workflowResult.releaseUrl}`
+    : ""
+}
+${
+  workflowResult.releaseNotesWarning
+    ? `⚠️  Release notes: ${workflowResult.releaseNotesWarning}`
+    : ""
+}
 
 ✅ All steps completed successfully. The release candidate has been converted to final version and is ready for ${
         workflowResult.branchType === "release"
