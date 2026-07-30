@@ -62,10 +62,10 @@ repository and that nothing is staged; a staged file aborts the action. The four
 workflows additionally require the versioner library to have loaded. `list_versions`
 checks only that the directory is a git repository, because it never mutates.
 
-**`dryRun`.** Every mutating action except `initialize_versioner` accepts a dry-run flag.
-For the four version workflows, read-only validation still runs and the mutating steps are
-skipped. For the four downmerge actions, the workflow returns immediately with a
-placeholder result and resolves nothing.
+**`dryRun`.** The four version workflows accept a dry-run flag: read-only validation still
+runs and the mutating steps are skipped. The four downmerge actions have no such flag —
+calling one without a confirmation digest returns a plan and is guaranteed not to mutate.
+`initialize_versioner` has neither, because everything it creates is local.
 
 **Working directory.** Every action except `health_check` accepts a working directory and
 defaults to the process's current directory.
@@ -76,29 +76,34 @@ defaults to the process's current directory.
 
 ## The plan/confirm protocol
 
-Mutating actions are two-phase.
+Every mutating action except `initialize_versioner` is two-phase.
 
-**Calling a mutating action without a confirmation digest returns a plan and changes
-nothing.** A plan (`ChangePlan` in
-`js/packages/release-management-core/src/change-plan.ts`) states:
+**Calling one without a confirmation digest returns a plan and changes nothing.** A plan
+(`ChangePlan` in `js/packages/release-management-core/src/change-plan.ts`) states:
 
 | Field | Meaning |
 | --- | --- |
 | `action` | the action being planned |
-| `targetBranch` | the branch that would be modified |
+| `targetBranch` | the branch the plan is anchored to: the one being modified, or the base a new branch is cut from |
 | `targetBranchHead` | that branch's HEAD commit when the plan was computed |
-| `currentVersion` → `resultingVersion` | the version transition |
+| `currentVersion` → `resultingVersion` | the version transition, absent for the downmerges, which create no version commit |
 | `mutations` | the ordered list of objects that would be created, each with a kind (`branch`, `commit`, `tag`, `push`, `pull-request`, `github-release`) and a one-line summary |
 | `warnings` | conditions that do not block planning but change the outcome |
 | `digest` | the confirmation token |
 
 Every fact in a plan comes from read-only primitives: branch selection, `git rev-parse` for
-the head commit, `git tag --list` and `git ls-remote --tags` for tag existence, and a
-pull-request lookup for whether a PR would be updated rather than opened. Where a plan needs
-to predict a merge, it uses `git merge-tree --write-tree`, which merges in memory and writes
-only to the object database — no checkout, no index change, no working-tree change.
-Rendering a plan ends with the line
+the head commit, `git show <commit>:VERSION` for a branch's version, `git tag --list` and
+`git ls-remote --tags` for tag existence, `git merge-base --is-ancestor` for whether a
+merge would be empty, and a pull-request lookup for whether a PR would be updated rather
+than opened. Where a plan needs to predict a merge, it uses `git merge-tree --write-tree`,
+which merges in memory and writes only to the object database — no checkout, no index
+change, no working-tree change. Rendering a plan ends with the line
 `Nothing has been changed. To apply, confirm with digest: <digest>`.
+
+A merge branch carries a Unix timestamp the plan cannot predict, so a downmerge plan names
+it by its pattern — `release-X.Y.Z-into-main-<unix-timestamp>` — and puts the source
+branch's head commit in a mutation summary, so a push to either side of the merge
+invalidates the digest.
 
 A plan refuses to be built at all when the action cannot happen, rather than describing a
 transition that cannot be made: a version bump refuses when the target branch is not
@@ -107,10 +112,11 @@ readable, semantic `VERSION`.
 
 Where the action can happen but a condition changes the outcome, that condition is a
 warning: the resulting tag already exists on origin or locally, a pull request for that
-head/base pair is already open, the branch about to be created already exists, or `main`
-holds content that `origin/develop` does not. That last comparison uses the
-remote-tracking refs as they currently stand, because planning does not fetch;
-`create_release_candidate` fetches them itself before applying.
+head/base pair is already open, the branch about to be created already exists, the source
+of a merge is already an ancestor of its base so the merge would be empty, the merge
+conflicts, or `main` holds content that `origin/develop` does not. The comparisons against
+origin use the remote-tracking refs as they currently stand, because planning does not
+fetch; the actions fetch them themselves before applying.
 
 **Applying requires passing that plan's digest back.** The digest is the first 12 hex
 characters of a SHA-256 over a canonical serialisation of the action, the target branch,
@@ -407,7 +413,8 @@ CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
 | `version` / `--version` | `0.1.0-RC.0` |
 | `workingDirectory` / `--working-directory` | current directory |
 
-There is no dry-run option.
+There is no dry-run option and no plan: this action neither pushes nor opens a pull
+request, and it refuses outright if a `VERSION` file already exists.
 
 **Steps.**
 
@@ -439,8 +446,11 @@ request.
 
 | Input | Default |
 | --- | --- |
+| `confirm` / `--confirm` (plan digest) | absent — plan only |
 | `workingDirectory` / `--working-directory` | current directory |
-| `dryRun` / `--dry-run` | `false` |
+
+The plan is anchored on `develop`, and names `main`'s head as the commit that would be
+merged in.
 
 **Steps.**
 
@@ -480,9 +490,13 @@ CLI `$GITHUB_OUTPUT` keys: `pull_request_url`.
 
 | Input | Default |
 | --- | --- |
+| `confirm` / `--confirm` (plan digest) | absent — plan only |
 | `version` / `--version` | newest release branch by semantic version |
 | `workingDirectory` / `--working-directory` | current directory |
-| `dryRun` / `--dry-run` | `false` |
+
+The plan previews the merge with `merge-tree` and describes only the path that would
+actually be taken: the direct pull request when the merge is clean, or the merge branch,
+the draft pull request and the build-trigger pull request when it is not.
 
 **Steps.**
 
@@ -532,9 +546,13 @@ occurred.
 
 | Input | Default |
 | --- | --- |
+| `confirm` / `--confirm` (plan digest) | absent — plan only |
 | `version` / `--version` | newest release branch by semantic version |
 | `workingDirectory` / `--working-directory` | current directory |
-| `dryRun` / `--dry-run` | `false` |
+
+The plan is anchored on `main`, and names the release branch's head as the commit that
+would be merged in. A previewed conflict is a warning, because the action creates nothing
+at all in that case.
 
 **Steps.**
 
@@ -570,9 +588,12 @@ CLI `$GITHUB_OUTPUT` keys: `kind`, `pull_request_url`, `merge_branch`.
 
 | Input | Default |
 | --- | --- |
+| `confirm` / `--confirm` (plan digest) | absent — plan only |
 | `version` / `--version` | newest hotfix branch by semantic version |
 | `workingDirectory` / `--working-directory` | current directory |
-| `dryRun` / `--dry-run` | `false` |
+
+The plan is anchored on `main`. A previewed conflict is a warning rather than a refusal,
+because the pull request opens either way.
 
 **Steps.**
 

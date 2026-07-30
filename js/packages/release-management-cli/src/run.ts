@@ -45,12 +45,20 @@ export function createGitFlowManager(opts: BaseOptions): GitFlowManager {
   return new GitFlowManager(opts.workingDirectory);
 }
 
+/**
+ * Create a ReleaseAgent. `initialize` loads the versioner library, which only the
+ * commands that rewrite VERSION need; a downmerge reads git and GitHub alone, and
+ * failing on an absent versioner would be a false negative.
+ */
 export async function createReleaseAgent(
   gfm: GitFlowManager,
-  opts: BaseOptions
+  opts: BaseOptions,
+  { initialize = true }: { initialize?: boolean } = {}
 ): Promise<ReleaseAgent> {
   const agent = new ReleaseAgent(gfm, opts.workingDirectory);
-  await agent.initialize();
+  if (initialize) {
+    await agent.initialize();
+  }
   return agent;
 }
 

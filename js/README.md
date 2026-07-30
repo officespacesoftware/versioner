@@ -136,7 +136,8 @@ release-management downmerge hotfix-to-main      [--version <version>]
 ```
 
 Every command accepts `--working-directory <path>`, defaulting to the current directory.
-Every command except `list-versions` and `initialize-versioner` accepts `--dry-run`.
+The four version workflows — `create-rc`, `create-hotfix`, `increment-rc` and
+`release-version` — also accept `--dry-run`.
 
 How mutating commands describe a change before applying it — and the digest that has to be
 handed back to apply it — is documented in

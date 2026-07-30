@@ -1,112 +1,122 @@
 import { Command } from "commander";
 import {
-  ensureGitRepository,
-  ensureNoStagedChanges,
   MergeConflictError,
   type DownmergeResult,
 } from "@officespacesoftware/release-management-core";
 import { emit, writeGithubOutput } from "../output.js";
-import {
-  createGitFlowManager,
-  resolveBaseOptions,
-  runCommand,
-} from "../run.js";
+import { runPlanAwareCommand } from "../plan.js";
+import { resolveBaseOptions } from "../run.js";
+
+/** The plan/confirm flags every downmerge subcommand takes. */
+function withPlanFlags(command: Command): Command {
+  return command
+    .option("--working-directory <path>", "Repo root (defaults to cwd)")
+    .option("--plan", "Describe the change and exit; touches nothing (the default when no apply flag is given)")
+    .option("--confirm <digest>", "Apply the plan carrying this digest, as printed by --plan")
+    .option("--yes", "Apply without a digest, printing the plan for the record (for automation)");
+}
 
 export function registerDownmerge(parent: Command): void {
   const dm = parent.command("downmerge").description("Downmerge workflows");
 
-  dm.command("main-to-develop")
-    .description("PR main → develop via a merge branch")
-    .option("--working-directory <path>", "Repo root (defaults to cwd)")
-    .option("--dry-run", "Validate without making changes")
-    .action(async (cmdOpts) => {
-      const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
-      await runCommand(
-        async () => {
-          const gfm = createGitFlowManager(opts);
-          await ensureGitRepository(gfm, opts.workingDirectory);
-          await ensureNoStagedChanges(gfm);
-          try {
-            const url = await gfm.downmergeMainToDevelop(opts.dryRun);
-            return { kind: "direct" as const, pullRequestUrl: url };
-          } catch (e) {
-            throw asConflictError(e, "main", "develop");
-          }
-        },
-        (result) => {
-          writeGithubOutput({ pull_request_url: result.pullRequestUrl });
-          emit(result, opts, renderDownmerge);
-        }
-      );
-    });
-
-  dm.command("release-to-develop")
-    .description("PR release → develop (direct if clean, merge branch + build-trigger if conflicts)")
-    .option("--version <version>", "Specific release version; auto-detect newest if omitted")
-    .option("--working-directory <path>", "Repo root (defaults to cwd)")
-    .option("--dry-run", "Validate without making changes")
-    .action(async (cmdOpts) => {
-      const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
-      await runCommand(
-        async () => {
-          const gfm = createGitFlowManager(opts);
-          await ensureGitRepository(gfm, opts.workingDirectory);
-          await ensureNoStagedChanges(gfm);
-          return gfm.downmergeReleaseToDevelop(cmdOpts.version, opts.dryRun);
-        },
-        (result) => {
-          writeDownmergeOutputs(result);
-          emit(result, opts, renderDownmerge);
-        }
-      );
-    });
-
-  dm.command("release-to-main")
-    .description("PR release → main via merge branch (never head=release/*)")
-    .option("--version <version>", "Specific release version; auto-detect newest if omitted")
-    .option("--working-directory <path>", "Repo root (defaults to cwd)")
-    .option("--dry-run", "Validate without making changes")
-    .action(async (cmdOpts) => {
-      const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
-      await runCommand(
-        async () => {
-          const gfm = createGitFlowManager(opts);
-          await ensureGitRepository(gfm, opts.workingDirectory);
-          await ensureNoStagedChanges(gfm);
-          try {
-            return await gfm.downmergeReleaseToMain(cmdOpts.version, opts.dryRun);
-          } catch (e) {
-            throw asConflictError(e, "release", "main");
-          }
-        },
-        (result) => {
-          writeDownmergeOutputs(result);
-          emit(result, opts, renderDownmerge);
-        }
-      );
-    });
-
-  dm.command("hotfix-to-main")
-    .description("PR hotfix → main")
-    .option("--version <version>", "Specific hotfix version; auto-detect newest if omitted")
-    .option("--working-directory <path>", "Repo root (defaults to cwd)")
-    .option("--dry-run", "Validate without making changes")
-    .action(async (cmdOpts) => {
-      const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
-      await runCommand(
-        async () => {
-          const gfm = createGitFlowManager(opts);
-          await ensureGitRepository(gfm, opts.workingDirectory);
-          await ensureNoStagedChanges(gfm);
-          const url = await gfm.downmergeHotfixToMain(cmdOpts.version, opts.dryRun);
+  withPlanFlags(
+    dm
+      .command("main-to-develop")
+      .description("PR main → develop via a merge branch")
+  ).action(async (cmdOpts) => {
+    const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
+    await runPlanAwareCommand({
+      commandName: "downmerge main-to-develop",
+      opts,
+      flags: cmdOpts,
+      requiresVersioner: false,
+      buildPlan: (agent) => agent.planDownmergeMainToDevelop(),
+      execute: async (_agent, gfm) => {
+        try {
+          const url = await gfm.downmergeMainToDevelop();
           return { kind: "direct" as const, pullRequestUrl: url };
-        },
-        (result) => {
-          writeGithubOutput({ pull_request_url: result.pullRequestUrl });
-          emit(result, opts, renderDownmerge);
+        } catch (e) {
+          throw asConflictError(e, "main", "develop");
         }
-      );
+      },
+      onExecuted: (result) => {
+        writeGithubOutput({ pull_request_url: result.pullRequestUrl });
+        emit(result, opts, renderDownmerge);
+      },
     });
+  });
+
+  withPlanFlags(
+    dm
+      .command("release-to-develop")
+      .description("PR release → develop (direct if clean, merge branch + build-trigger if conflicts)")
+      .option("--version <version>", "Specific release version; auto-detect newest if omitted")
+  ).action(async (cmdOpts) => {
+    const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
+    await runPlanAwareCommand({
+      commandName: "downmerge release-to-develop",
+      opts,
+      flags: cmdOpts,
+      requiresVersioner: false,
+      buildPlan: (agent) => agent.planDownmergeReleaseToDevelop(cmdOpts.version),
+      execute: (_agent, gfm) => gfm.downmergeReleaseToDevelop(cmdOpts.version),
+      onExecuted: (result) => {
+        writeDownmergeOutputs(result);
+        emit(result, opts, renderDownmerge);
+      },
+    });
+  });
+
+  withPlanFlags(
+    dm
+      .command("release-to-main")
+      .description("PR release → main via merge branch (never head=release/*)")
+      .option("--version <version>", "Specific release version; auto-detect newest if omitted")
+  ).action(async (cmdOpts) => {
+    const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
+    await runPlanAwareCommand({
+      commandName: "downmerge release-to-main",
+      opts,
+      flags: cmdOpts,
+      requiresVersioner: false,
+      buildPlan: (agent) => agent.planDownmergeReleaseToMain(cmdOpts.version),
+      execute: async (_agent, gfm) => {
+        try {
+          return await gfm.downmergeReleaseToMain(cmdOpts.version);
+        } catch (e) {
+          throw asConflictError(e, "release", "main");
+        }
+      },
+      onExecuted: (result) => {
+        writeDownmergeOutputs(result);
+        emit(result, opts, renderDownmerge);
+      },
+    });
+  });
+
+  withPlanFlags(
+    dm
+      .command("hotfix-to-main")
+      .description("PR hotfix → main")
+      .option("--version <version>", "Specific hotfix version; auto-detect newest if omitted")
+  ).action(async (cmdOpts) => {
+    const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
+    await runPlanAwareCommand({
+      commandName: "downmerge hotfix-to-main",
+      opts,
+      flags: cmdOpts,
+      requiresVersioner: false,
+      buildPlan: (agent) => agent.planDownmergeHotfixToMain(cmdOpts.version),
+      execute: async (_agent, gfm) => {
+        const url = await gfm.downmergeHotfixToMain(cmdOpts.version);
+        return { kind: "direct" as const, pullRequestUrl: url };
+      },
+      onExecuted: (result) => {
+        writeGithubOutput({ pull_request_url: result.pullRequestUrl });
+        emit(result, opts, renderDownmerge);
+      },
+    });
+  });
 }
 
 /**

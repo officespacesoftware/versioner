@@ -104,6 +104,15 @@ class ReleaseManagementMCPServer {
     }
   }
 
+  /**
+   * A ReleaseAgent for planning a downmerge. Not initialized, because a downmerge
+   * reads git and GitHub and never rewrites VERSION; requiring the versioner
+   * library to have loaded would refuse a plan it does not need.
+   */
+  private planningAgent(): ReleaseAgent {
+    return new ReleaseAgent(this.gitFlowManager!, this.boundWorkingDirectory!);
+  }
+
   constructor() {
     this.server = new Server(
       {
@@ -376,15 +385,16 @@ Creates a PR to bring production changes back into develop.
             inputSchema: {
               type: "object",
               properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
                 workingDirectory: {
                   type: "string",
                   description:
                     "The working directory path for the project (optional, defaults to current directory)",
-                },
-                dryRun: {
-                  type: "boolean",
-                  description:
-                    "Optional: if true, shows what would happen without making changes (default: false)",
                 },
               },
             },
@@ -402,6 +412,12 @@ Brings a release branch back into develop after the release is cut.
             inputSchema: {
               type: "object",
               properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
                 version: {
                   type: "string",
                   description:
@@ -413,11 +429,6 @@ Brings a release branch back into develop after the release is cut.
                   type: "string",
                   description:
                     "The working directory path for the project (optional, defaults to current directory)",
-                },
-                dryRun: {
-                  type: "boolean",
-                  description:
-                    "Optional: if true, shows what would happen without making changes (default: false)",
                 },
               },
             },
@@ -437,6 +448,12 @@ re-trigger CI workflows that build a fresh Docker image for an already-cut relea
             inputSchema: {
               type: "object",
               properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
                 version: {
                   type: "string",
                   description:
@@ -448,11 +465,6 @@ re-trigger CI workflows that build a fresh Docker image for an already-cut relea
                   type: "string",
                   description:
                     "The working directory path for the project (optional, defaults to current directory)",
-                },
-                dryRun: {
-                  type: "boolean",
-                  description:
-                    "Optional: if true, shows what would happen without making changes (default: false)",
                 },
               },
             },
@@ -471,6 +483,12 @@ Creates a PR to merge a hotfix branch into main.
             inputSchema: {
               type: "object",
               properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
                 version: {
                   type: "string",
                   description:
@@ -482,11 +500,6 @@ Creates a PR to merge a hotfix branch into main.
                   type: "string",
                   description:
                     "The working directory path for the project (optional, defaults to current directory)",
-                },
-                dryRun: {
-                  type: "boolean",
-                  description:
-                    "Optional: if true, shows what would happen without making changes (default: false)",
                 },
               },
             },
@@ -733,7 +746,7 @@ ${candidates.length} release candidate(s) available.
 
   private async handleDownmergeMainToDevelop(args: any): Promise<string> {
     const workingDirectory = args?.workingDirectory || process.cwd();
-    const dryRun = args?.dryRun || false;
+    const confirm: string | undefined = args?.confirm;
 
     try {
       await this.bindWorkingDirectory(workingDirectory);
@@ -749,20 +762,20 @@ ${candidates.length} release candidate(s) available.
       // Check for staged changes (prevents committing unrelated changes)
       await this.gitFlowManager!.validateNoStagedChanges();
 
-      const prUrl = await this.gitFlowManager!.downmergeMainToDevelop(dryRun);
+      // Without a confirmation digest, describe the change and stop.
+      const plan = await this.planningAgent().planDownmergeMainToDevelop();
+      if (!confirm) {
+        return renderPlanForApproval(plan, "downmerge_main_to_develop");
+      }
+      assertPlanIsCurrent(plan, confirm);
 
-      return `🚀 Downmerge Main to Develop ${
-        dryRun ? "(Dry Run) " : ""
-      }Completed Successfully!
+      const prUrl = await this.gitFlowManager!.downmergeMainToDevelop();
+
+      return `🚀 Downmerge Main to Develop Completed Successfully!
 
 📁 Working Directory: ${workingDirectory}
-🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 
-${
-  dryRun
-    ? "🔧 Would have performed the following actions:"
-    : "✅ Completed the following actions:"
-}
+✅ Completed the following actions:
 1. Fetched latest changes from origin
 2. Checked out and pulled main branch
 3. Checked out and pulled develop branch
@@ -771,13 +784,16 @@ ${
 6. Pushed the new branch to origin
 7. Created pull request targeting develop
 
-${!dryRun && prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
+${prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
 
 📋 Next Steps:
 1. Review the pull request for merge conflicts
 2. Test the merged changes in a development environment
 3. Merge the PR when ready to integrate main changes into develop`;
     } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "downmerge_main_to_develop");
+      }
       if (error instanceof MergeConflictError) {
         const conflictedList = error.conflictedFiles
           .map((f) => `   - ${f}`)
@@ -803,7 +819,6 @@ ${conflictedList}
       return `❌ Downmerge Main to Develop Failed
 
 📁 Working Directory: ${workingDirectory}
-🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 💥 Error: ${errorMessage}
 
 Common issues:
@@ -847,7 +862,7 @@ ${conflictedList}`;
   private async handleDownmergeReleaseToDevelop(args: any): Promise<string> {
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
-    const dryRun = args?.dryRun || false;
+    const confirm: string | undefined = args?.confirm;
 
     try {
       await this.bindWorkingDirectory(workingDirectory);
@@ -861,14 +876,18 @@ ${conflictedList}`;
 
       await this.gitFlowManager!.validateNoStagedChanges();
 
-      const result = await this.gitFlowManager!.downmergeReleaseToDevelop(
-        version,
-        dryRun
+      // Without a confirmation digest, describe the change and stop.
+      const plan = await this.planningAgent().planDownmergeReleaseToDevelop(
+        version
       );
+      if (!confirm) {
+        return renderPlanForApproval(plan, "downmerge_release_to_develop");
+      }
+      assertPlanIsCurrent(plan, confirm);
 
-      const resultSummary = dryRun
-        ? "🔧 Dry run — no PRs created."
-        : this.formatDownmergeResult(result);
+      const result = await this.gitFlowManager!.downmergeReleaseToDevelop(
+        version
+      );
 
       const nextSteps =
         result.kind === "merge-branch-with-conflicts"
@@ -880,25 +899,24 @@ ${conflictedList}`;
 1. Review the pull request and CI checks
 2. Merge once green`;
 
-      return `🚀 Downmerge Release to Develop ${
-        dryRun ? "(Dry Run) " : ""
-      }Completed Successfully!
+      return `🚀 Downmerge Release to Develop Completed Successfully!
 
 📁 Working Directory: ${workingDirectory}
 ${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Release"}
-🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 
-${resultSummary}
+${this.formatDownmergeResult(result)}
 
 ${nextSteps}`;
     } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "downmerge_release_to_develop");
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       return `❌ Downmerge Release to Develop Failed
 
 📁 Working Directory: ${workingDirectory}
 ${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Release"}
-🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 💥 Error: ${errorMessage}
 
 Common issues:
@@ -912,7 +930,7 @@ Common issues:
   private async handleDownmergeReleaseToMain(args: any): Promise<string> {
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
-    const dryRun = args?.dryRun || false;
+    const confirm: string | undefined = args?.confirm;
 
     try {
       await this.bindWorkingDirectory(workingDirectory);
@@ -926,39 +944,37 @@ Common issues:
 
       await this.gitFlowManager!.validateNoStagedChanges();
 
-      const result = await this.gitFlowManager!.downmergeReleaseToMain(
-        version,
-        dryRun
+      // Without a confirmation digest, describe the change and stop.
+      const plan = await this.planningAgent().planDownmergeReleaseToMain(
+        version
       );
+      if (!confirm) {
+        return renderPlanForApproval(plan, "downmerge_release_to_main");
+      }
+      assertPlanIsCurrent(plan, confirm);
 
-      const resultSummary = dryRun
-        ? "🔧 Dry run — no PR created."
-        : this.formatDownmergeResult(result);
+      const result = await this.gitFlowManager!.downmergeReleaseToMain(version);
 
-      return `🚀 Downmerge Release to Main ${
-        dryRun ? "(Dry Run) " : ""
-      }Completed Successfully!
+      return `🚀 Downmerge Release to Main Completed Successfully!
 
 📁 Working Directory: ${workingDirectory}
 ${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Release"}
-🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 
-${
-  dryRun
-    ? "🔧 Would have performed the following actions:"
-    : "✅ Completed the following actions:"
-}
+✅ Completed the following actions:
 1. Validated target release branch exists
 2. Fetched latest main and release branches from origin
 3. Created merge branch off main and merged release into it
 4. Pushed merge branch and opened PR targeting main
 
-${resultSummary}
+${this.formatDownmergeResult(result)}
 
 📋 Next Steps:
 1. Review the pull request
 2. Merge the PR when ready`;
     } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "downmerge_release_to_main");
+      }
       if (error instanceof MergeConflictError) {
         const conflictedList = error.conflictedFiles
           .map((f) => `   - ${f}`)
@@ -984,7 +1000,6 @@ ${conflictedList}
 
 📁 Working Directory: ${workingDirectory}
 ${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Release"}
-🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 💥 Error: ${errorMessage}
 
 Common issues:
@@ -998,7 +1013,7 @@ Common issues:
   private async handleDownmergeHotfixToMain(args: any): Promise<string> {
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
-    const dryRun = args?.dryRun || false;
+    const confirm: string | undefined = args?.confirm;
 
     try {
       await this.bindWorkingDirectory(workingDirectory);
@@ -1014,29 +1029,28 @@ Common issues:
       // Check for staged changes (prevents committing unrelated changes)
       await this.gitFlowManager!.validateNoStagedChanges();
 
-      const prUrl = await this.gitFlowManager!.downmergeHotfixToMain(
-        version,
-        dryRun
+      // Without a confirmation digest, describe the change and stop.
+      const plan = await this.planningAgent().planDownmergeHotfixToMain(
+        version
       );
+      if (!confirm) {
+        return renderPlanForApproval(plan, "downmerge_hotfix_to_main");
+      }
+      assertPlanIsCurrent(plan, confirm);
 
-      return `🚀 Downmerge Hotfix to Main ${
-        dryRun ? "(Dry Run) " : ""
-      }Completed Successfully!
+      const prUrl = await this.gitFlowManager!.downmergeHotfixToMain(version);
+
+      return `🚀 Downmerge Hotfix to Main Completed Successfully!
 
 📁 Working Directory: ${workingDirectory}
 ${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Hotfix"}
-🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 
-${
-  dryRun
-    ? "🔧 Would have performed the following actions:"
-    : "✅ Completed the following actions:"
-}
+✅ Completed the following actions:
 1. Validated target hotfix branch exists
 2. Fetched latest changes from origin
 3. Created pull request from hotfix branch to main
 
-${!dryRun && prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
+${prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
 
 ⚠️  IMPORTANT: This is a HOTFIX merge to production.
 
@@ -1047,13 +1061,15 @@ ${!dryRun && prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
 4. THEN merge the PR after successful deployment
 5. Create follow-up PR to merge hotfix changes back to develop`;
     } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "downmerge_hotfix_to_main");
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       return `❌ Downmerge Hotfix to Main Failed
 
 📁 Working Directory: ${workingDirectory}
 ${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Hotfix"}
-🔧 Dry Run: ${dryRun ? "Yes" : "No"}
 💥 Error: ${errorMessage}
 
 Common issues:

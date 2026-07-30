@@ -1593,15 +1593,8 @@ This PR contains the release branch for ${branchName}.
   /**
    * Downmerge main branch into develop via pull request
    */
-  async downmergeMainToDevelop(dryRun: boolean = false): Promise<string> {
+  async downmergeMainToDevelop(): Promise<string> {
     try {
-      if (dryRun) {
-        console.log(
-          "🔧 Dry run: Would perform downmerge main to develop workflow"
-        );
-        return "Dry run completed - no actual changes made";
-      }
-
       // Step 1: Fetch latest changes from origin
       await this.fetchBaseBranches();
       console.log("✅ Fetched latest main and develop branches from origin");
@@ -1620,24 +1613,10 @@ This PR contains the release branch for ${branchName}.
       const timestamp = Math.floor(Date.now() / 1000);
       const branchName = `main-into-develop-${timestamp}`;
 
-      // Check version BEFORE creating any commits - skip merge commits
-      let prTitle = "Downmerge main into develop";
-      let detectedVersion: string | undefined;
-      try {
-        const lastCommitMessage = await this.execGit(
-          "log -1 --no-merges --pretty=format:%s origin/main"
-        );
-        const versionMatch = lastCommitMessage.match(/^To version (.+)$/);
-        if (versionMatch) {
-          const version = versionMatch[1];
-          detectedVersion = version;
-          prTitle = `Release ${version} to develop`;
-        }
-      } catch (error) {
-        console.warn(
-          "Could not determine last commit message, using default title"
-        );
-      }
+      // Read the title before creating any commits, so a merge commit of our own
+      // cannot become the subject it is derived from.
+      const { title: prTitle, version: detectedVersion } =
+        await this.describeMainDownmerge();
 
       // Steps 5-7: branch off develop, merge main in, push. Delegated to
       // createMergeBranch so a conflict aborts the merge, deletes the temporary
@@ -1706,29 +1685,59 @@ ${versionLine}
   }
 
   /**
-   * Resolve the release branch to downmerge — either by version or auto-detect latest.
-   * Returns the BranchTypeInfo plus its clean ref name (without remotes/origin/ prefix).
+   * Resolve the branch a downmerge acts on — either by version or the newest of
+   * that type. Returns the BranchTypeInfo plus its clean ref name (without the
+   * remotes/origin/ prefix). Read-only, so a plan and an apply can share it.
    */
-  private async resolveReleaseBranch(
+  async resolveDownmergeBranch(
+    branchType: BranchType,
     version: string | undefined
   ): Promise<{ branch: BranchTypeInfo; cleanName: string }> {
     let branch: BranchTypeInfo;
     if (version) {
-      const branches = await this.findBranchesOfType("release");
+      const branches = await this.findBranchesOfType(branchType);
       const match = branches.find((b) => b.version.full === version);
       if (!match) {
-        throw new Error(`Release branch for version ${version} not found`);
+        const label = branchType === "release" ? "Release" : "Hotfix";
+        throw new Error(`${label} branch for version ${version} not found`);
       }
       branch = match;
     } else {
-      const latest = await this.findLatestBranch("release");
+      const latest = await this.findLatestBranch(branchType);
       if (!latest) {
-        throw new Error("No release branches found");
+        throw new Error(`No ${branchType} branches found`);
       }
       branch = latest;
     }
     const cleanName = branch.name.replace(/^remotes\/origin\//, "");
     return { branch, cleanName };
+  }
+
+  /**
+   * Title for a main → develop pull request, and the version it names.
+   *
+   * Taken from main's newest non-merge commit subject: `To version <v>` names the
+   * release that reached production, anything else is a plain downmerge.
+   * Read-only.
+   */
+  async describeMainDownmerge(): Promise<{
+    title: string;
+    version: string | undefined;
+  }> {
+    try {
+      const subject = await this.execGit(
+        "log -1 --no-merges --pretty=format:%s origin/main"
+      );
+      const match = subject.match(/^To version (.+)$/);
+      if (match?.[1]) {
+        return { title: `Release ${match[1]} to develop`, version: match[1] };
+      }
+    } catch {
+      console.warn(
+        "Could not determine last commit message, using default title"
+      );
+    }
+    return { title: "Downmerge main into develop", version: undefined };
   }
 
   /**
@@ -1739,22 +1748,12 @@ ${versionLine}
    *   build-trigger PR (release/X.Y.0 → develop) that is auto-closed once CI
    *   checks start.
    */
-  async downmergeReleaseToDevelop(
-    version?: string,
-    dryRun: boolean = false
-  ): Promise<DownmergeResult> {
+  async downmergeReleaseToDevelop(version?: string): Promise<DownmergeResult> {
     try {
-      if (dryRun) {
-        console.log(
-          "🔧 Dry run: Would perform downmerge release to develop workflow"
-        );
-        return {
-          kind: "direct",
-          pullRequestUrl: "(dry-run, no PR created)",
-        };
-      }
-
-      const { branch, cleanName } = await this.resolveReleaseBranch(version);
+      const { branch, cleanName } = await this.resolveDownmergeBranch(
+        "release",
+        version
+      );
       console.log(
         `📋 Using release branch: ${cleanName} (${branch.version.full})`
       );
@@ -1932,23 +1931,12 @@ The actual merge resolution is happening in: ${mergePrResult.url}`;
    * MergeConflictError naming the conflicted files. No remote branch or PR
    * is created in that case.
    */
-  async downmergeReleaseToMain(
-    version?: string,
-    dryRun: boolean = false
-  ): Promise<DownmergeResult> {
+  async downmergeReleaseToMain(version?: string): Promise<DownmergeResult> {
     try {
-      if (dryRun) {
-        console.log(
-          "🔧 Dry run: Would perform downmerge release to main workflow"
-        );
-        return {
-          kind: "merge-branch",
-          pullRequestUrl: "(dry-run, no PR created)",
-          mergeBranchName: "(dry-run)",
-        };
-      }
-
-      const { branch, cleanName } = await this.resolveReleaseBranch(version);
+      const { branch, cleanName } = await this.resolveDownmergeBranch(
+        "release",
+        version
+      );
       console.log(
         `📋 Using release branch: ${cleanName} (${branch.version.full})`
       );
@@ -2008,43 +1996,11 @@ This PR merges the release branch into main via a merge branch (\`${mergeBranchN
   /**
    * Create pull request to merge a hotfix branch directly to main
    */
-  async downmergeHotfixToMain(
-    version?: string,
-    dryRun: boolean = false
-  ): Promise<string> {
+  async downmergeHotfixToMain(version?: string): Promise<string> {
     try {
-      if (dryRun) {
-        console.log(
-          "🔧 Dry run: Would perform downmerge hotfix to main workflow"
-        );
-        return "Dry run completed - no actual changes made";
-      }
-
       // Step 1: Find the target hotfix branch
-      let targetBranch: BranchTypeInfo;
-
-      if (version) {
-        // Find specific version branch
-        const branches = await this.findBranchesOfType("hotfix");
-        const versionBranch = branches.find((b) => b.version.full === version);
-
-        if (!versionBranch) {
-          throw new Error(`Hotfix branch for version ${version} not found`);
-        }
-        targetBranch = versionBranch;
-      } else {
-        // Find latest hotfix branch
-        const latestBranch = await this.findLatestBranch("hotfix");
-        if (!latestBranch) {
-          throw new Error("No hotfix branches found");
-        }
-        targetBranch = latestBranch;
-      }
-
-      const cleanBranchName = targetBranch.name.replace(
-        /^remotes\/origin\//,
-        ""
-      );
+      const { branch: targetBranch, cleanName: cleanBranchName } =
+        await this.resolveDownmergeBranch("hotfix", version);
       console.log(
         `📋 Using hotfix branch: ${cleanBranchName} (${targetBranch.version.full})`
       );

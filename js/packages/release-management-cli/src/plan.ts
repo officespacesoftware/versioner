@@ -15,6 +15,7 @@ import {
   renderChangePlan,
   StalePlanError,
   type ChangePlan,
+  type GitFlowManager,
   type ReleaseAgent,
 } from "@officespacesoftware/release-management-core";
 import { UsageError } from "./errors.js";
@@ -84,11 +85,13 @@ export async function runPlanAwareCommand<T>(params: {
   commandName: string;
   opts: BaseOptions;
   flags: PlanFlags;
-  buildPlan: (agent: ReleaseAgent) => Promise<ChangePlan>;
-  execute: (agent: ReleaseAgent) => Promise<T>;
+  /** False for the downmerges, which never rewrite VERSION. */
+  requiresVersioner?: boolean;
+  buildPlan: (agent: ReleaseAgent, gfm: GitFlowManager) => Promise<ChangePlan>;
+  execute: (agent: ReleaseAgent, gfm: GitFlowManager) => Promise<T>;
   onExecuted: (result: T) => void;
 }): Promise<never> {
-  const { commandName, opts, flags } = params;
+  const { commandName, opts, flags, requiresVersioner = true } = params;
 
   return runCommand<PlanOutcome<T>>(
     async () => {
@@ -98,10 +101,14 @@ export async function runPlanAwareCommand<T>(params: {
       const gfm = createGitFlowManager(opts);
       await ensureGitRepository(gfm, opts.workingDirectory);
       await ensureNoStagedChanges(gfm);
-      const agent = await createReleaseAgent(gfm, opts);
-      ensureVersionerAvailable(agent);
+      const agent = await createReleaseAgent(gfm, opts, {
+        initialize: requiresVersioner,
+      });
+      if (requiresVersioner) {
+        ensureVersionerAvailable(agent);
+      }
 
-      const plan = await params.buildPlan(agent);
+      const plan = await params.buildPlan(agent, gfm);
 
       if (mode.kind === "plan") {
         return { applied: false, plan, requested: mode.requested };
@@ -113,7 +120,7 @@ export async function runPlanAwareCommand<T>(params: {
         process.stderr.write(`${renderChangePlan(plan)}\n\n`);
       }
 
-      return { applied: true, result: await params.execute(agent) };
+      return { applied: true, result: await params.execute(agent, gfm) };
     },
     (outcome) => {
       if (outcome.applied) {

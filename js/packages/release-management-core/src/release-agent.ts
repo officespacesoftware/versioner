@@ -1647,6 +1647,274 @@ This PR increments the release candidate version for \`${branchName}\`.
   }
 
   /**
+   * Describe what merging main back into develop would do, changing nothing.
+   */
+  async planDownmergeMainToDevelop(): Promise<ChangePlan> {
+    const { title } = await this.gitFlowManager.describeMainDownmerge();
+
+    return this.buildMergeBranchDownmergePlan({
+      action: "downmerge_main_to_develop",
+      baseBranch: "develop",
+      sourceBranch: "main",
+      mergeBranch: "main-into-develop-<unix-timestamp>",
+      mergeCommitMessage: "Downmerge main into develop",
+      prTitle: title,
+    });
+  }
+
+  /**
+   * Describe what merging a release branch into main would do, changing nothing.
+   */
+  async planDownmergeReleaseToMain(version?: string): Promise<ChangePlan> {
+    const { branch, cleanName } =
+      await this.gitFlowManager.resolveDownmergeBranch("release", version);
+
+    return this.buildMergeBranchDownmergePlan({
+      action: "downmerge_release_to_main",
+      baseBranch: "main",
+      sourceBranch: cleanName,
+      mergeBranch: `release-${branch.version.full}-into-main-<unix-timestamp>`,
+      mergeCommitMessage: `Merge ${cleanName} into main`,
+      prTitle: `Release ${branch.version.full} to main`,
+    });
+  }
+
+  /**
+   * Shared plan shape for the two downmerges that go through a merge branch: a
+   * branch off the base with the source merged in, a merge commit, one push and a
+   * pull request. Both abort without creating anything if the merge conflicts.
+   *
+   * The merge branch carries a Unix timestamp the plan cannot predict, so it is
+   * named by its pattern. The source branch's head goes into a mutation summary,
+   * which the digest covers, so a push to either side invalidates the plan.
+   */
+  private async buildMergeBranchDownmergePlan(opts: {
+    action: string;
+    baseBranch: "develop" | "main";
+    sourceBranch: string;
+    mergeBranch: string;
+    mergeCommitMessage: string;
+    prTitle: string;
+  }): Promise<ChangePlan> {
+    const { action, baseBranch, sourceBranch, mergeBranch } = opts;
+
+    const baseBranchHead = await this.gitFlowManager.getBranchHead(baseBranch);
+    const sourceHead = await this.gitFlowManager.getBranchHead(sourceBranch);
+    const warnings: string[] = [];
+
+    if (await this.gitFlowManager.checkIsAncestor(sourceHead, baseBranchHead)) {
+      warnings.push(
+        `${sourceBranch} is already merged into ${baseBranch}; the merge produces no ` +
+          `commit and the pull request would be empty.`
+      );
+    }
+
+    const probe = await this.gitFlowManager.previewMergeConflicts(
+      baseBranchHead,
+      sourceHead
+    );
+    if (probe.hasConflicts) {
+      warnings.push(
+        `Merging ${sourceBranch} into ${baseBranch} conflicts in ` +
+          `${probe.conflictedFiles.length} file(s): ${probe.conflictedFiles.join(", ")}. ` +
+          `The action aborts the merge, deletes the temporary branch, and creates nothing.`
+      );
+    }
+
+    const mutations: PlannedMutation[] = [
+      {
+        kind: "branch",
+        summary: `${mergeBranch} off ${baseBranch}, merging ${sourceBranch} at ${sourceHead.slice(0, 11)}`,
+      },
+      {
+        kind: "commit",
+        summary: `merge commit "${opts.mergeCommitMessage}" on ${mergeBranch}`,
+      },
+      { kind: "push", summary: `${mergeBranch} to origin` },
+      {
+        kind: "pull-request",
+        summary: `open ${mergeBranch} → ${baseBranch}`,
+        detail: { title: opts.prTitle },
+      },
+    ];
+
+    return buildChangePlan({
+      action,
+      targetBranch: baseBranch,
+      targetBranchHead: baseBranchHead,
+      mutations,
+      warnings,
+    });
+  }
+
+  /**
+   * Describe what merging a release branch back into develop would do, changing
+   * nothing.
+   *
+   * The outcome depends on whether the merge conflicts, so the plan previews it
+   * with `merge-tree` and describes only the path that would actually be taken.
+   */
+  async planDownmergeReleaseToDevelop(version?: string): Promise<ChangePlan> {
+    const { branch, cleanName } =
+      await this.gitFlowManager.resolveDownmergeBranch("release", version);
+    const releaseVersion = branch.version.full;
+
+    const baseBranchHead = await this.gitFlowManager.getBranchHead("develop");
+    const sourceHead = await this.gitFlowManager.getBranchHead(cleanName);
+    const shortSource = sourceHead.slice(0, 11);
+    const warnings: string[] = [];
+    const mutations: PlannedMutation[] = [];
+
+    const probe = await this.gitFlowManager.previewMergeConflicts(
+      baseBranchHead,
+      sourceHead
+    );
+    const existingPr = await this.gitFlowManager.findOpenPullRequest(
+      cleanName,
+      "develop"
+    );
+
+    if (!probe.hasConflicts) {
+      if (
+        await this.gitFlowManager.checkIsAncestor(sourceHead, baseBranchHead)
+      ) {
+        warnings.push(
+          `${cleanName} is already merged into develop; the pull request would be empty.`
+        );
+      }
+      if (existingPr) {
+        warnings.push(
+          `PR #${existingPr.number} is already open for ${cleanName} → develop; it will be updated, not created.`
+        );
+      }
+      mutations.push({
+        kind: "pull-request",
+        summary: existingPr
+          ? `update PR #${existingPr.number} (${cleanName} at ${shortSource} → develop)`
+          : `open ${cleanName} at ${shortSource} → develop`,
+        detail: { title: `Release ${releaseVersion} to develop` },
+      });
+
+      return buildChangePlan({
+        action: "downmerge_release_to_develop",
+        targetBranch: "develop",
+        targetBranchHead: baseBranchHead,
+        mutations,
+        warnings,
+      });
+    }
+
+    const mergeBranch = `release-${releaseVersion}-into-develop-<unix-timestamp>`;
+    warnings.push(
+      `Merging ${cleanName} into develop conflicts in ${probe.conflictedFiles.length} ` +
+        `file(s): ${probe.conflictedFiles.join(", ")}. They are committed with their ` +
+        `markers intact, for resolution in the draft pull request.`
+    );
+
+    mutations.push(
+      {
+        kind: "branch",
+        summary: `${mergeBranch} off develop, merging ${cleanName} at ${shortSource}`,
+      },
+      {
+        kind: "commit",
+        summary: `merge commit "Merge ${cleanName} into develop (conflicts unresolved — needs manual resolution)" on ${mergeBranch}`,
+        detail: { files: probe.conflictedFiles.join(", ") },
+      },
+      { kind: "push", summary: `${mergeBranch} to origin` },
+      {
+        kind: "pull-request",
+        summary: `open draft ${mergeBranch} → develop`,
+        detail: { title: `Release ${releaseVersion} to develop (conflict resolution)` },
+      }
+    );
+
+    if (existingPr) {
+      warnings.push(
+        `PR #${existingPr.number} is already open for ${cleanName} → develop, so the ` +
+          `transient build-trigger pull request is skipped and CI is not re-triggered.`
+      );
+    } else {
+      mutations.push({
+        kind: "pull-request",
+        summary: `open ${cleanName} → develop as a transient build trigger, then close it`,
+        detail: { title: `[Build trigger] Release ${releaseVersion} → develop` },
+      });
+    }
+
+    return buildChangePlan({
+      action: "downmerge_release_to_develop",
+      targetBranch: "develop",
+      targetBranchHead: baseBranchHead,
+      mutations,
+      warnings,
+    });
+  }
+
+  /**
+   * Describe what opening the hotfix → main pull request would do, changing
+   * nothing.
+   *
+   * A conflict is information rather than a blocker here: the pull request still
+   * opens, and GitHub reports the conflict on it.
+   */
+  async planDownmergeHotfixToMain(version?: string): Promise<ChangePlan> {
+    const { branch, cleanName } =
+      await this.gitFlowManager.resolveDownmergeBranch("hotfix", version);
+
+    const baseBranchHead = await this.gitFlowManager.getBranchHead("main");
+    const sourceHead = await this.gitFlowManager.getBranchHead(cleanName);
+    const warnings: string[] = [];
+
+    if (await this.gitFlowManager.checkIsAncestor(sourceHead, baseBranchHead)) {
+      warnings.push(
+        `${cleanName} is already merged into main; the pull request would be empty.`
+      );
+    }
+
+    const probe = await this.gitFlowManager.previewMergeConflicts(
+      baseBranchHead,
+      sourceHead
+    );
+    if (probe.hasConflicts) {
+      warnings.push(
+        `${cleanName} conflicts with main in ${probe.conflictedFiles.length} file(s): ` +
+          `${probe.conflictedFiles.join(", ")}. The pull request still opens, recording ` +
+          `the conflict in its body.`
+      );
+    }
+
+    const existingPr = await this.gitFlowManager.findOpenPullRequest(
+      cleanName,
+      "main"
+    );
+    if (existingPr) {
+      warnings.push(
+        `PR #${existingPr.number} is already open for ${cleanName} → main; it will be updated, not created.`
+      );
+    }
+
+    const shortSource = sourceHead.slice(0, 11);
+    const mutations: PlannedMutation[] = [
+      {
+        kind: "pull-request",
+        summary: existingPr
+          ? `update PR #${existingPr.number} (${cleanName} at ${shortSource} → main)`
+          : `open ${cleanName} at ${shortSource} → main`,
+        detail: { title: `Release ${branch.version.full} to main` },
+      },
+    ];
+
+    return buildChangePlan({
+      action: "downmerge_hotfix_to_main",
+      targetBranch: "main",
+      targetBranchHead: baseBranchHead,
+      mutations,
+      warnings,
+    });
+  }
+
+  /**
    * The read-only half of the main/develop synchronisation check that gates
    * creating a release branch.
    *
