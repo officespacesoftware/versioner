@@ -12,3 +12,9 @@ node_modules
 ruby/Gemfile.lock
 ruby/.bundle/
 *.gem
+
+# Local working notes, deliberately untracked
+SPEC.md
+todo.md
+AGENTS.md
+**/AGENTS.md
