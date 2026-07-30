@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'fileutils'
+require 'tmpdir'
+
 require 'versioner'
 
 describe Versioner::VersionFile do
@@ -7,10 +10,18 @@ describe Versioner::VersionFile do
     described_class.new(file_path)
   end
 
-  let(:file_path) { 'spec/fixtures/txt/version_file.txt' }
+  # The fixture is copied into a per-example tmpdir so the committed file is never written to.
+  let(:fixture_path) { File.expand_path('../fixtures/txt/version_file.txt', __dir__) }
+  let(:tmp_dir) { Dir.mktmpdir('versioner-version-file-spec') }
+  let(:file_path) { File.join(tmp_dir, 'version_file.txt') }
 
   before do
+    FileUtils.cp(fixture_path, file_path)
     File.write(file_path, "0.9.12\n42324b")
+  end
+
+  after do
+    FileUtils.remove_entry(tmp_dir)
   end
 
   it 'gets the current version from the file' do
@@ -345,6 +356,19 @@ describe Versioner::VersionFile do
 
     it 'goes back to looking like a normal release' do
       expect(version_file.version).to eq '1.0.0'
+    end
+  end
+
+  context 'when writing a shorter version over a longer one' do
+    let(:revision) { `git rev-parse --short HEAD`.chomp }
+
+    before do
+      File.write(file_path, "1.10.0-RC.10\n42324b")
+      version_file.release
+    end
+
+    it 'leaves no trailing bytes from the previous version behind' do
+      expect(File.read(file_path)).to eq "1.10.0\n#{revision}"
     end
   end
 

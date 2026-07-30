@@ -133,6 +133,8 @@ module Versioner
       @version_file.rewind
       @version_file.puts(version)
       @version_file.print(revision)
+      @version_file.flush
+      @version_file.truncate(@version_file.pos)
       @version_file.rewind
       version
     end
