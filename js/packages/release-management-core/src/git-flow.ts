@@ -1218,8 +1218,24 @@ This PR contains the release branch for ${branchName}.
     }
 
     if (!mergeFailed) {
-      await this.execGit(`push -u origin ${quoteGitArg(branchName)}`);
+      // `merge --no-ff` of a commit already reachable from the base reports
+      // "Already up to date" and creates nothing, leaving a branch identical to
+      // the base. Pushing it would put an empty branch on origin and GitHub would
+      // then refuse the pull request for having no commits, so refuse here while
+      // the only thing to undo is local.
       const sha = await this.getCurrentCommit();
+      const baseSha = await this.execGit(
+        `rev-parse ${quoteGitArg(baseBranch)}`
+      );
+      if (sha === baseSha) {
+        await this.discardLocalBranch(branchName, baseBranch);
+        throw new Error(
+          `${sourceBranch} is already merged into ${baseBranch}, so the merge ` +
+            `produced no commit. Nothing was pushed and no pull request was opened.`
+        );
+      }
+
+      await this.execGit(`push -u origin ${quoteGitArg(branchName)}`);
       return { hasConflicts: false, sha, conflictedFiles: [], branchName };
     }
 
@@ -1231,16 +1247,7 @@ This PR contains the release branch for ${branchName}.
       } catch {
         /* ignore */
       }
-      try {
-        await this.execGit(`checkout ${quoteGitArg(baseBranch)}`);
-      } catch {
-        /* ignore */
-      }
-      try {
-        await this.execGit(`branch -D ${quoteGitArg(branchName)}`);
-      } catch {
-        /* ignore */
-      }
+      await this.discardLocalBranch(branchName, baseBranch);
       throw new MergeConflictError(
         `Merge of ${sourceBranch} into ${baseBranch} produced conflicts in ${conflictedFiles.length} file(s): ${conflictedFiles.join(", ")}`,
         conflictedFiles
@@ -1261,6 +1268,27 @@ This PR contains the release branch for ${branchName}.
     await this.execGit(`push -u origin ${quoteGitArg(branchName)}`);
     const sha = await this.getCurrentCommit();
     return { hasConflicts: true, sha, conflictedFiles, branchName };
+  }
+
+  /**
+   * Return to `baseBranch` and delete a local-only merge branch, so an abandoned
+   * merge leaves the repository as it was found. Each step is best-effort: the
+   * caller is already reporting a failure and must not have it masked by another.
+   */
+  private async discardLocalBranch(
+    branchName: string,
+    baseBranch: string
+  ): Promise<void> {
+    try {
+      await this.execGit(`checkout ${quoteGitArg(baseBranch)}`);
+    } catch {
+      /* ignore */
+    }
+    try {
+      await this.execGit(`branch -D ${quoteGitArg(branchName)}`);
+    } catch {
+      /* ignore */
+    }
   }
 
   /**

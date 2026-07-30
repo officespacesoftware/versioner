@@ -102,6 +102,7 @@ export function classifyError(error: unknown, message: string): ExitCode {
     lower.includes("not found") ||
     lower.includes("no release branches") ||
     lower.includes("no hotfix branches") ||
+    lower.includes("is already merged into") ||
     lower.includes("refusing to") ||
     lower.includes("versioner mcp is not available")
   ) {
