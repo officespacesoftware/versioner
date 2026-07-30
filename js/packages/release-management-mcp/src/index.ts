@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Release Management MCP Server - Model Context Protocol server for Git Flow release management
- * Orchestrates complex release workflows using AI agents and integrates with versioner-mcp
+ * Release Management MCP Server — Model Context Protocol server for Git Flow
+ * release management.
+ *
+ * Mutating actions follow a plan/confirm protocol: called without a confirmation
+ * digest they describe the git objects they would create and change nothing.
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -15,9 +18,40 @@ import {
   GitFlowManager,
   MergeConflictError,
   ReleaseAgent,
+  StalePlanError,
   VersionerAdapter,
+  assertPlanIsCurrent,
+  renderChangePlan,
+  type ChangePlan,
   type DownmergeResult,
 } from "@officespacesoftware/release-management-core";
+
+/**
+ * Present a plan for a human to approve, making it unambiguous that nothing has
+ * happened yet and stating exactly how to proceed.
+ */
+function renderPlanForApproval(plan: ChangePlan, toolName: string): string {
+  return `📋 Plan — nothing has been changed yet
+
+${renderChangePlan(plan)}
+
+To apply, call ${toolName} again with:
+  confirm: "${plan.digest}"`;
+}
+
+/** Format a rejected apply, showing what the repository looks like now. */
+function renderStalePlan(error: StalePlanError, toolName: string): string {
+  return `⚠️  Not applied — the repository changed since this plan was made
+
+${error.message}
+
+The current plan is:
+
+${renderChangePlan(error.plan)}
+
+To apply this one instead, call ${toolName} with:
+  confirm: "${error.plan.digest}"`;
+}
 
 /**
  * Release Management MCP Server
@@ -191,10 +225,24 @@ Bumps the RC number for an existing release or hotfix branch (e.g. RC.1 → RC.2
   rather than silently acting on a different release train. Use list_versions to
   see every candidate, then pass the version you want.
 - Works with both release/X.Y.0 and hotfix/X.Y.Z
-- Creates commit and tag, and opens or updates a PR to develop`,
+
+Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+commit, tag, pushes and pull request it would create, plus a digest. Pass that
+digest back as 'confirm' to apply. If the repository changed in between, the
+digest no longer matches and it refuses, returning a fresh plan.
+
+Applying creates: a commit "To version X.Y.Z-RC.<n+1>" touching only VERSION, an
+annotated tag of the same name, a push of both to origin, and a pull request to
+develop (opened, or updated if one is already open).`,
             inputSchema: {
               type: "object",
               properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
                 version: {
                   type: "string",
                   description:
@@ -1221,6 +1269,7 @@ Please review the error and fix any issues before retrying the workflow.`;
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
+    const confirm: string | undefined = args?.confirm;
 
     try {
       await this.bindWorkingDirectory(workingDirectory, {
@@ -1241,9 +1290,16 @@ Please review the error and fix any issues before retrying the workflow.`;
       // Check if versioner is available
       if (!this.releaseAgent!.isVersionerAvailable()) {
         throw new Error(
-          "Versioner MCP is not available. Please ensure versioner-mcp is running."
+          "Versioner is not available; the version management library failed to load."
         );
       }
+
+      // Without a confirmation digest, describe the change and stop.
+      const plan = await this.releaseAgent!.planIncrementRC(version);
+      if (!confirm) {
+        return renderPlanForApproval(plan, "increment_release_candidate");
+      }
+      assertPlanIsCurrent(plan, confirm);
 
       // Execute the increment RC workflow
       const workflowResult = await this.releaseAgent!.executeIncrementRCWorkflow(
@@ -1288,6 +1344,9 @@ ${
 
 ✅ All steps completed successfully.`;
     } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "increment_release_candidate");
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error("Increment RC workflow failed:", error);
