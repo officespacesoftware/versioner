@@ -167,6 +167,12 @@ Creates a Git Flow release branch and initializes an RC version.
             inputSchema: {
               type: "object",
               properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
                 releaseType: {
                   type: "string",
                   enum: ["major", "minor", "patch"],
@@ -202,6 +208,12 @@ Creates a Git Flow hotfix branch off main and initializes a patch RC version.
             inputSchema: {
               type: "object",
               properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
                 workingDirectory: {
                   type: "string",
                   description:
@@ -1075,6 +1087,7 @@ Common issues:
     const releaseType = args?.releaseType || "minor"; // Default to minor
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
+    const confirm: string | undefined = args?.confirm;
 
     // Validate release type
     if (!["major", "minor", "patch"].includes(releaseType)) {
@@ -1105,6 +1118,15 @@ Common issues:
           "Versioner MCP is not available. Please ensure versioner-mcp is running."
         );
       }
+
+      // Without a confirmation digest, describe the change and stop.
+      const plan = await this.releaseAgent!.planCreateReleaseCandidate(
+        releaseType
+      );
+      if (!confirm) {
+        return renderPlanForApproval(plan, "create_release_candidate");
+      }
+      assertPlanIsCurrent(plan, confirm);
 
       // Execute the RC workflow with the specified release type
       const workflowResult = await this.releaseAgent!.executeRCWorkflow(
@@ -1157,6 +1179,9 @@ ${
 4. Deploy to staging environment for testing`
 }`;
     } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "create_release_candidate");
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error(`${releaseType} RC workflow failed:`, error);
@@ -1185,6 +1210,7 @@ Please review the error and fix any issues before retrying the workflow.`;
   private async handleCreateHotfix(args: any): Promise<string> {
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
+    const confirm: string | undefined = args?.confirm;
 
     try {
       await this.bindWorkingDirectory(workingDirectory, {
@@ -1208,6 +1234,13 @@ Please review the error and fix any issues before retrying the workflow.`;
           "Versioner MCP is not available. Please ensure versioner-mcp is running."
         );
       }
+
+      // Without a confirmation digest, describe the change and stop.
+      const plan = await this.releaseAgent!.planCreateHotfix();
+      if (!confirm) {
+        return renderPlanForApproval(plan, "create_hotfix");
+      }
+      assertPlanIsCurrent(plan, confirm);
 
       // Execute the hotfix workflow
       const workflowResult = await this.releaseAgent!.executeHotfixWorkflow(
@@ -1262,6 +1295,9 @@ Note: the PR above targets develop. The hotfix → main PR is a separate step
 5. Merge the → main PR only AFTER the deployment succeeds`
 }`;
     } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "create_hotfix");
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error("Hotfix workflow failed:", error);

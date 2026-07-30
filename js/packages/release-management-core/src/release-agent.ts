@@ -40,6 +40,25 @@ export function predictPromotedVersion(version: string): string {
   return version.replace(/-RC\.\d+$/, "");
 }
 
+interface VersionParts {
+  major: number;
+  minor: number;
+  patch: number;
+}
+
+/** `1.2.3-RC.4` → `{ major: 1, minor: 2, patch: 3 }`; null when unparseable. */
+function parseVersionParts(version: string): VersionParts | null {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    return null;
+  }
+  return {
+    major: parseInt(match[1] ?? "0", 10),
+    minor: parseInt(match[2] ?? "0", 10),
+    patch: parseInt(match[3] ?? "0", 10),
+  };
+}
+
 export interface ReleaseWorkflowContext {
   workingDirectory: string;
   currentBranch: string;
@@ -1477,6 +1496,193 @@ This PR increments the release candidate version for \`${branchName}\`.
       mutations,
       warnings,
     });
+  }
+
+  /**
+   * Describe what cutting a new release branch off develop would do, changing
+   * nothing.
+   */
+  async planCreateReleaseCandidate(
+    releaseType: "major" | "minor" | "patch"
+  ): Promise<ChangePlan> {
+    return this.buildBranchCreationPlan({
+      action: "create_release_candidate",
+      baseBranch: "develop",
+      branchType: "release",
+      nextBaseVersion: (v) => {
+        switch (releaseType) {
+          case "major":
+            return `${v.major + 1}.0.0`;
+          case "minor":
+            return `${v.major}.${v.minor + 1}.0`;
+          case "patch":
+            return `${v.major}.${v.minor}.${v.patch + 1}`;
+        }
+      },
+      extraWarnings: await this.describeMainDevelopSync(),
+    });
+  }
+
+  /**
+   * Describe what cutting a new hotfix branch off main would do, changing nothing.
+   */
+  async planCreateHotfix(): Promise<ChangePlan> {
+    return this.buildBranchCreationPlan({
+      action: "create_hotfix",
+      baseBranch: "main",
+      branchType: "hotfix",
+      nextBaseVersion: (v) => `${v.major}.${v.minor}.${v.patch + 1}`,
+    });
+  }
+
+  /**
+   * Shared plan shape for the two workflows that cut a branch off a base and set
+   * it to an RC.0: a branch, a commit, an annotated tag, two pushes and a pull
+   * request into develop.
+   */
+  private async buildBranchCreationPlan(opts: {
+    action: string;
+    baseBranch: "develop" | "main";
+    branchType: BranchType;
+    nextBaseVersion: (parts: VersionParts) => string;
+    extraWarnings?: string[];
+  }): Promise<ChangePlan> {
+    const { action, baseBranch, branchType } = opts;
+
+    // Resolve the head first and read VERSION at that exact commit, so the version
+    // the plan states and the commit it is anchored to cannot disagree.
+    const baseBranchHead = await this.gitFlowManager.getBranchHead(baseBranch);
+    const currentVersion = await this.gitFlowManager.readBranchVersion(
+      baseBranchHead
+    );
+    if (!currentVersion) {
+      throw new BranchSelectionError(
+        `${baseBranch} has no readable VERSION file at ` +
+          `${baseBranchHead.slice(0, 11)}, so ${action} cannot be planned. ` +
+          `Use initialize_versioner to create one.`
+      );
+    }
+
+    const parts = parseVersionParts(currentVersion);
+    if (!parts) {
+      throw new BranchSelectionError(
+        `${baseBranch} is at '${currentVersion}', which is not a semantic version, ` +
+          `so ${action} cannot be planned.`
+      );
+    }
+
+    const nextVersion = opts.nextBaseVersion(parts);
+    const newBranch = `${branchType}/${nextVersion}`;
+    const rcVersion = `${nextVersion}-RC.0`;
+    // Both creation workflows send their release candidate to develop for
+    // integration; the pull request into main is a later, separate action.
+    const prBase = "develop";
+    const warnings = [...(opts.extraWarnings ?? [])];
+
+    const existing = await this.gitFlowManager.findBranchesOfType(branchType);
+    const alreadyExists = existing.some(
+      (b) => b.name.replace(/^remotes\/origin\//, "") === newBranch
+    );
+    if (alreadyExists) {
+      warnings.push(`Branch ${newBranch} already exists; creating it will fail.`);
+    }
+
+    if (await this.gitFlowManager.tagExistsRemotely(rcVersion)) {
+      warnings.push(
+        `Tag ${rcVersion} already exists on origin; pushing it will fail.`
+      );
+    } else if (await this.gitFlowManager.tagExistsLocally(rcVersion)) {
+      warnings.push(
+        `Tag ${rcVersion} already exists locally; creating it will fail.`
+      );
+    }
+
+    const existingPr = await this.gitFlowManager.findOpenPullRequest(
+      newBranch,
+      prBase
+    );
+    if (existingPr) {
+      warnings.push(
+        `PR #${existingPr.number} is already open for ${newBranch} → ${prBase}; it will be updated, not created.`
+      );
+    }
+
+    const mutations: PlannedMutation[] = [
+      {
+        kind: "branch",
+        summary: `${newBranch} off ${baseBranch}`,
+      },
+      {
+        kind: "commit",
+        summary: `"To version ${rcVersion}" on ${newBranch}`,
+        detail: { files: "VERSION" },
+      },
+      {
+        kind: "tag",
+        summary: `annotated tag ${rcVersion}`,
+        detail: { message: `Release version ${rcVersion}` },
+      },
+      {
+        kind: "push",
+        summary: `${newBranch} and tag ${rcVersion} to origin`,
+      },
+      {
+        kind: "pull-request",
+        summary: existingPr
+          ? `update PR #${existingPr.number} (${newBranch} → ${prBase})`
+          : `open ${newBranch} → ${prBase}`,
+        detail: { title: `RC ${rcVersion} to ${prBase}` },
+      },
+    ];
+
+    return buildChangePlan({
+      action,
+      targetBranch: baseBranch,
+      targetBranchHead: baseBranchHead,
+      currentVersion,
+      resultingVersion: rcVersion,
+      mutations,
+      warnings,
+    });
+  }
+
+  /**
+   * The read-only half of the main/develop synchronisation check that gates
+   * creating a release branch.
+   *
+   * Compares the remote-tracking refs as they currently stand, because planning
+   * must not write refs and a fetch would.
+   */
+  private async describeMainDevelopSync(): Promise<string[]> {
+    const merged = await this.gitFlowManager.checkIsAncestor(
+      "origin/main",
+      "origin/develop"
+    );
+    if (merged) {
+      return [];
+    }
+
+    const { ahead } = await this.gitFlowManager.compareBranches(
+      "origin/main",
+      "origin/develop"
+    );
+    if (ahead === 0) {
+      return [];
+    }
+
+    const hasContentDiff = await this.gitFlowManager.checkContentDiff(
+      "origin/develop",
+      "origin/main"
+    );
+    if (!hasContentDiff) {
+      return [];
+    }
+
+    return [
+      `origin/main has ${ahead} commit(s) whose content is not in origin/develop, ` +
+        `so the synchronization check aborts the action. This compares the ` +
+        `remote-tracking refs as they stand; the action fetches them first.`,
+    ];
   }
 
   /**

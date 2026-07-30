@@ -994,16 +994,16 @@ This PR contains the release branch for ${branchName}.
   }
 
   /**
-   * Read a branch's version — the first line of its VERSION file — or null when the
-   * file is missing or unparseable.
+   * Read the version at a ref — the first line of its VERSION file — or null when
+   * the file is missing or unparseable. Takes a branch name or a commit sha.
    *
    * Branch names never carry the RC suffix, so this is the only source of truth for
    * whether a branch currently holds a release candidate.
    */
-  async readBranchVersion(branchName: string): Promise<string | null> {
-    const cleanBranchName = branchName.replace(/^remotes\/origin\//, "");
+  async readBranchVersion(ref: string): Promise<string | null> {
+    const cleanRef = ref.replace(/^remotes\/origin\//, "");
     try {
-      const content = await this.readFileFromBranch(cleanBranchName, "VERSION");
+      const content = await this.readFileFromBranch(cleanRef, "VERSION");
       const firstLine = content.split("\n")[0]?.trim() ?? "";
       return /^\d+\.\d+\.\d+/.test(firstLine) ? firstLine : null;
     } catch {

@@ -1,17 +1,8 @@
 import { Command } from "commander";
-import {
-  ensureGitRepository,
-  ensureNoStagedChanges,
-  ensureVersionerAvailable,
-  type ReleaseWorkflowContext,
-} from "@officespacesoftware/release-management-core";
+import type { ReleaseWorkflowContext } from "@officespacesoftware/release-management-core";
 import { emit, writeGithubOutput } from "../output.js";
-import {
-  createGitFlowManager,
-  createReleaseAgent,
-  resolveBaseOptions,
-  runCommand,
-} from "../run.js";
+import { runPlanAwareCommand } from "../plan.js";
+import { resolveBaseOptions } from "../run.js";
 
 export function registerCreateRC(parent: Command): void {
   parent
@@ -19,35 +10,40 @@ export function registerCreateRC(parent: Command): void {
     .description("Create a new release branch (release/X.Y.0) at RC.0")
     .option("--release-type <type>", "major | minor | patch (default: minor)", "minor")
     .option("--working-directory <path>", "Repo root (defaults to cwd)")
-    .option("--dry-run", "Validate without making changes")
+    .option("--plan", "Describe the change and exit; touches nothing (the default when no apply flag is given)")
+    .option("--confirm <digest>", "Apply the plan carrying this digest, as printed by --plan")
+    .option("--yes", "Apply without a digest, printing the plan for the record (for automation)")
+    .option(
+      "--dry-run",
+      "Validate without making changes; prefer --plan, which is guaranteed not to mutate"
+    )
     .action(async (cmdOpts) => {
       if (!["major", "minor", "patch"].includes(cmdOpts.releaseType)) {
         process.stderr.write(`Error: --release-type must be one of major, minor, patch\n`);
         process.exit(1);
       }
       const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
-      await runCommand(
-        async () => {
-          const gfm = createGitFlowManager(opts);
-          await ensureGitRepository(gfm, opts.workingDirectory);
-          await ensureNoStagedChanges(gfm);
-          const agent = await createReleaseAgent(gfm, opts);
-          ensureVersionerAvailable(agent);
-          return agent.executeRCWorkflow(
+      await runPlanAwareCommand({
+        commandName: "create-rc",
+        opts,
+        flags: cmdOpts,
+        buildPlan: (agent) =>
+          agent.planCreateReleaseCandidate(cmdOpts.releaseType),
+        execute: (agent) =>
+          agent.executeRCWorkflow(
             cmdOpts.releaseType,
             opts.workingDirectory,
             opts.dryRun
-          );
-        },
-        (result) => {
+          ),
+        onExecuted: (result) => {
           writeGithubOutput({
             release_type: result.releaseType,
             version: result.targetVersion?.version,
             pull_request_url: result.pullRequestUrl,
           });
           emit(result, opts, renderCreateRC);
-        }
-      );
+        },
+      });
     });
 }
 

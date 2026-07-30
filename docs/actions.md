@@ -100,10 +100,17 @@ only to the object database — no checkout, no index change, no working-tree ch
 Rendering a plan ends with the line
 `Nothing has been changed. To apply, confirm with digest: <digest>`.
 
-A plan for a version bump refuses to be built at all when the target branch is not holding
-a release candidate, rather than describing a transition that cannot happen. It warns when
-the resulting tag already exists on origin or locally, and when a pull request for that
-head/base pair is already open.
+A plan refuses to be built at all when the action cannot happen, rather than describing a
+transition that cannot be made: a version bump refuses when the target branch is not
+holding a release candidate, and cutting a new branch refuses when the base branch has no
+readable, semantic `VERSION`.
+
+Where the action can happen but a condition changes the outcome, that condition is a
+warning: the resulting tag already exists on origin or locally, a pull request for that
+head/base pair is already open, the branch about to be created already exists, or `main`
+holds content that `origin/develop` does not. That last comparison uses the
+remote-tracking refs as they currently stand, because planning does not fetch;
+`create_release_candidate` fetches them itself before applying.
 
 **Applying requires passing that plan's digest back.** The digest is the first 12 hex
 characters of a SHA-256 over a canonical serialisation of the action, the target branch,
@@ -194,9 +201,13 @@ CLI `$GITHUB_OUTPUT` keys: `current_branch`, `release_candidates`.
 
 | Input | Default |
 | --- | --- |
+| `confirm` / `--confirm` (plan digest) | absent — plan only |
 | `releaseType` / `--release-type` (`major` \| `minor` \| `patch`) | `minor` |
 | `workingDirectory` / `--working-directory` | current directory |
 | `dryRun` / `--dry-run` | `false` |
+
+The plan is anchored on `develop`: its head commit, the `VERSION` read at that commit, the
+release branch and tag that would be created, and the pull request into `develop`.
 
 **Steps.**
 
@@ -239,8 +250,13 @@ CLI `$GITHUB_OUTPUT` keys: `release_type`, `version`, `pull_request_url`.
 
 | Input | Default |
 | --- | --- |
+| `confirm` / `--confirm` (plan digest) | absent — plan only |
 | `workingDirectory` / `--working-directory` | current directory |
 | `dryRun` / `--dry-run` | `false` |
+
+The plan is anchored on `main`, the same way `create_release_candidate`'s is anchored on
+`develop`. It does not consider main/develop synchronization, which gates only the release
+branch.
 
 **Steps.**
 
