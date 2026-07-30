@@ -151,10 +151,12 @@ Creates a Git Flow release branch and initializes an RC version.
             title: "Create Hotfix",
             description: `🚑  Create Hotfix (Patch RC)
 
-Creates a Git Flow hotfix branch and initializes an RC version.
+Creates a Git Flow hotfix branch off main and initializes a patch RC version.
 
-- Branch: hotfix/X.Y.Z
-- Process: 6-step Git Flow with PR to main
+- Branch: hotfix/X.Y.Z, branched from main
+- Process: 6-step Git Flow, opening a PR to **develop** (not main)
+- Does NOT open the hotfix → main PR; use downmerge_hotfix_to_main for that,
+  once the fix is written and deployed
 - For urgent production fixes
 - Defaults: dryRun=false`,
             inputSchema: {
@@ -178,12 +180,18 @@ Creates a Git Flow hotfix branch and initializes an RC version.
             title: "Increment Release Candidate",
             description: `🔼  Increment Release Candidate
 
-Bumps the RC number for an existing release or hotfix branch.
+Bumps the RC number for an existing release or hotfix branch (e.g. RC.1 → RC.2).
 
 - Input: optional base version (e.g., 1.2.0)
-- Auto-selects target branch (latest RC) unless a version is provided
+- Target selection, in order:
+  1. the version you pass explicitly;
+  2. the currently checked-out release/hotfix branch, if it holds an RC;
+  3. otherwise the newest RC across all branches.
+- If a release/hotfix branch IS checked out but does not hold an RC, this ABORTS
+  rather than silently acting on a different release train. Use list_versions to
+  see every candidate, then pass the version you want.
 - Works with both release/X.Y.0 and hotfix/X.Y.Z
-- Creates commit and optional PR`,
+- Creates commit and tag, and opens or updates a PR to develop`,
             inputSchema: {
               type: "object",
               properties: {
@@ -212,12 +220,18 @@ Bumps the RC number for an existing release or hotfix branch.
             title: "Release Version",
             description: `🏁  Release Version (RC → Final)
 
-Converts a release candidate into a final version.
+Promotes a release candidate to a final version (e.g. 1.2.0-RC.3 → 1.2.0).
 
 - Input: optional base version (e.g., 1.2.0)
-- Auto-select order: provided version → current RC branch → latest RC
-- Updates VERSION, tags, and creates PR
-- 8-step Git Flow release`,
+- Target selection, in order:
+  1. the version you pass explicitly;
+  2. the currently checked-out release/hotfix branch, if it holds an RC;
+  3. otherwise the newest RC across all branches.
+- If a release/hotfix branch IS checked out but does not hold an RC, this ABORTS
+  rather than promoting a different release train. Use list_versions first.
+- Updates VERSION, pushes branch and tag, opens a PR to main, and creates a
+  GitHub Release
+- 9-step Git Flow release`,
             inputSchema: {
               type: "object",
               properties: {
@@ -397,6 +411,36 @@ Creates a PR to merge a hotfix branch into main.
               },
             },
           },
+          {
+            name: "list_versions",
+            title: "List Versions",
+            description: `🔎  List Versions (read-only)
+
+Lists every release and hotfix branch with the facts needed to pick one deliberately.
+
+For each branch: its VERSION, whether that version is an RC or final, whether the
+matching tag exists locally and on the remote, whether the branch is already merged
+into the production branch, and which branch is currently checked out.
+
+- Read-only: performs no checkout, fetch, commit, tag, push, or PR operation
+- Use this BEFORE increment_release_candidate or release_version when you are not
+  certain which branch should be acted on, then pass that version explicitly`,
+            inputSchema: {
+              type: "object",
+              properties: {
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+                productionBranch: {
+                  type: "string",
+                  description:
+                    "Branch treated as production when reporting merge status (optional, defaults to 'main')",
+                },
+              },
+            },
+          },
         ],
       };
     });
@@ -447,6 +491,10 @@ Creates a PR to merge a hotfix branch into main.
 
           case "downmerge_hotfix_to_main":
             result = await this.handleDownmergeHotfixToMain(args);
+            break;
+
+          case "list_versions":
+            result = await this.handleListVersions(args);
             break;
 
           default:
@@ -539,6 +587,70 @@ Common issues:
     }
   }
 
+  private async handleListVersions(args: any): Promise<string> {
+    const workingDirectory = args?.workingDirectory || process.cwd();
+    const productionBranch = args?.productionBranch || "main";
+
+    try {
+      await this.bindWorkingDirectory(workingDirectory);
+
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      const listing = await this.gitFlowManager!.listVersions(productionBranch);
+
+      if (listing.entries.length === 0) {
+        return `🔎 No release or hotfix branches found
+
+📁 Working Directory: ${workingDirectory}
+🌿 Current Branch: ${listing.currentBranch}`;
+      }
+
+      const rows = listing.entries.map((e) => {
+        const marker = e.isCurrentBranch ? "👉" : "  ";
+        const kind = e.isReleaseCandidate ? "RC" : "final";
+        const flags = [
+          e.tagExistsRemotely
+            ? "tag:remote"
+            : e.tagExistsLocally
+            ? "tag:local-only"
+            : "tag:none",
+          e.mergedIntoProduction ? `merged→${productionBranch}` : "unmerged",
+        ].join(", ");
+        return `${marker} ${e.branch}  ${e.version ?? "no VERSION"}  [${kind}]  (${flags})`;
+      });
+
+      const candidates = listing.entries.filter((e) => e.isReleaseCandidate);
+
+      return `🔎 Release & Hotfix Branches
+
+📁 Working Directory: ${workingDirectory}
+🌿 Current Branch: ${listing.currentBranch}
+🏁 Production Branch: ${productionBranch}
+
+${rows.join("\n")}
+
+${candidates.length} release candidate(s) available.
+
+📋 Notes:
+- 👉 marks the branch currently checked out
+- Pass the version explicitly to increment_release_candidate or release_version
+  to act on a specific branch
+- "merged→${productionBranch}" means that branch is already in production history`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return `❌ List Versions Failed
+
+📁 Working Directory: ${workingDirectory}
+💥 Error: ${errorMessage}`;
+    }
+  }
+
   private async handleDownmergeMainToDevelop(args: any): Promise<string> {
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
@@ -586,6 +698,26 @@ ${!dryRun && prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
 2. Test the merged changes in a development environment
 3. Merge the PR when ready to integrate main changes into develop`;
     } catch (error) {
+      if (error instanceof MergeConflictError) {
+        const conflictedList = error.conflictedFiles
+          .map((f) => `   - ${f}`)
+          .join("\n");
+        return `❌ Downmerge Main to Develop Aborted — Merge Conflicts
+
+📁 Working Directory: ${workingDirectory}
+
+The merge of main into develop produced conflicts. The merge was aborted, the
+temporary branch was deleted, and the repository is back on develop. No remote
+branch was pushed and no PR was opened.
+
+⚠️  Conflicted files:
+${conflictedList}
+
+📋 To resolve:
+1. Create a branch off develop, merge main in, and resolve the conflicts
+2. Push that branch and open a PR to develop yourself
+3. Re-run this tool only once main and develop no longer conflict`;
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       return `❌ Downmerge Main to Develop Failed
@@ -599,7 +731,7 @@ Common issues:
 - Missing main or develop branches
 - Network issues with git operations
 - Permission issues with git push or PR creation
-- GitHub CLI (gh) not available or not authenticated`;
+- Tracked local changes in the working tree (commit or stash first)`;
     }
   }
 
@@ -611,16 +743,20 @@ Common issues:
         return `🌿 Merge branch: \`${result.mergeBranchName}\`
 🔗 Pull Request: ${result.pullRequestUrl}`;
       case "merge-branch-with-conflicts": {
-        const checksLine = result.checksStarted
-          ? "✅ Build-trigger CI checks observed before close"
-          : "⚠️  Build-trigger PR closed without checks registering within 60s";
+        const buildTriggerLines = result.buildTriggerSkippedReason
+          ? `⏭️  Build-trigger PR skipped: ${result.buildTriggerSkippedReason}`
+          : [
+              `🛠️  Build-trigger PR (auto-closed): ${result.buildTriggerPullRequestUrl}`,
+              result.checksStarted
+                ? "✅ Build-trigger CI checks observed before close"
+                : "⚠️  Build-trigger PR closed without checks registering within 60s",
+            ].join("\n");
         const conflictedList = result.conflictedFiles
           .map((f) => `   - ${f}`)
           .join("\n");
         return `🌿 Merge branch (conflicts unresolved): \`${result.mergeBranchName}\`
 🔗 Draft merge-resolution PR: ${result.mergeBranchPullRequestUrl}
-🛠️  Build-trigger PR (auto-closed): ${result.buildTriggerPullRequestUrl}
-${checksLine}
+${buildTriggerLines}
 
 ⚠️  Conflicted files (resolve in the draft PR):
 ${conflictedList}`;
@@ -1041,16 +1177,21 @@ ${
   workflowResult.pullRequestUrl
     ? `
 📋 Next steps:
-1. Review the pull request: ${workflowResult.pullRequestUrl}
-2. Deploy the hotfix to production environment
-3. Merge the PR AFTER successful production deployment
-4. Create follow-up PR to merge hotfix changes back to develop`
+1. Commit the actual fix on the hotfix branch and push it
+2. Review the RC → develop integration PR: ${workflowResult.pullRequestUrl}
+3. Promote the RC to a final version with release_version — that opens the → main PR
+4. Deploy to production
+5. Merge the → main PR only AFTER the deployment succeeds
+
+Note: the PR above targets develop. The hotfix → main PR is a separate step
+(release_version, or downmerge_hotfix_to_main).`
     : `
 📋 Next steps:
-1. Review the hotfix branch
-2. Deploy to production environment
-3. Create PR to main branch (Step 6 completed)
-4. Merge AFTER successful production deployment`
+1. Commit the actual fix on the hotfix branch and push it
+2. Open the RC → develop integration PR
+3. Promote the RC to a final version with release_version — that opens the → main PR
+4. Deploy to production
+5. Merge the → main PR only AFTER the deployment succeeds`
 }`;
     } catch (error) {
       const errorMessage =

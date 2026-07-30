@@ -6,6 +6,8 @@
   "description": "pnpm workspace for the JavaScript packages in the versioner repo: @officespacesoftware/versioner and @officespacesoftware/release-management-{core,mcp,cli}",
   "scripts": {
     "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r build",
     "clean": "pnpm -r clean",
     "dev": "pnpm -r --parallel dev",
     "release": "node scripts/release.mjs"

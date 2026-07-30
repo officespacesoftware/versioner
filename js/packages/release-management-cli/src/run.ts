@@ -1,4 +1,8 @@
-import { GitFlowManager, ReleaseAgent } from "@officespacesoftware/release-management-core";
+import {
+  GitFlowManager,
+  ReleaseAgent,
+  BranchSelectionError,
+} from "@officespacesoftware/release-management-core";
 import { ExitCode } from "./exit-codes.js";
 
 export interface BaseOptions {
@@ -63,11 +67,15 @@ export async function runCommand<T>(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`Error: ${message}\n`);
-    process.exit(classifyError(message));
+    process.exit(classifyError(error, message));
   }
 }
 
-function classifyError(message: string): ExitCode {
+export function classifyError(error: unknown, message: string): ExitCode {
+  // A refused branch selection is the operator's to resolve, not an environment fault.
+  if (error instanceof BranchSelectionError) {
+    return ExitCode.UserError;
+  }
   const lower = message.toLowerCase();
   if (
     lower.includes("not a git repository") ||
@@ -75,6 +83,7 @@ function classifyError(message: string): ExitCode {
     lower.includes("not found") ||
     lower.includes("no release branches") ||
     lower.includes("no hotfix branches") ||
+    lower.includes("refusing to") ||
     lower.includes("versioner mcp is not available")
   ) {
     return ExitCode.UserError;

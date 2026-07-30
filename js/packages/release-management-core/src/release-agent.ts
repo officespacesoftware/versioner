@@ -3,7 +3,37 @@
  */
 
 import { VersionerAdapter, VersionInfo } from "./versioner-adapter.js";
-import { GitFlowManager, BranchType, BranchTypeInfo } from "./git-flow.js";
+import {
+  GitFlowManager,
+  BranchType,
+  BranchTypeInfo,
+  productionMergeWarning,
+} from "./git-flow.js";
+
+/**
+ * Raised when the target branch cannot be determined safely. Propagated verbatim
+ * rather than wrapped, because the message tells the operator how to proceed.
+ */
+export class BranchSelectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BranchSelectionError";
+  }
+}
+
+/** `1.2.3-RC.4` → `1.2.3-RC.5`. Used to state the pending change before making it. */
+export function predictIncrementedRC(version: string): string {
+  const match = version.match(/^(.*)-RC\.(\d+)$/);
+  if (!match) {
+    return "unknown (not a release candidate)";
+  }
+  return `${match[1]}-RC.${parseInt(match[2] ?? "0", 10) + 1}`;
+}
+
+/** `1.2.3-RC.4` → `1.2.3`. Used to state the pending change before making it. */
+export function predictPromotedVersion(version: string): string {
+  return version.replace(/-RC\.\d+$/, "");
+}
 
 export interface ReleaseWorkflowContext {
   workingDirectory: string;
@@ -702,7 +732,10 @@ export class ReleaseAgent {
   }
 
   /**
-   * Generate PR body for hotfix with production deployment warning
+   * Generate the PR body for a hotfix RC targeting develop.
+   *
+   * No production warning here: this PR integrates the RC into develop. The
+   * hotfix → main PR is a separate step and carries productionMergeWarning().
    */
   private generateHotfixPRBody(version: string, hotfixBranch: string): string {
     return `
@@ -845,22 +878,14 @@ This pull request contains the release branch for **${version}**.
     }
     console.log(`🔧 Dry Run: ${dryRun ? "Yes" : "No"}\n`);
 
-    // Step 1: Determine target branch using version-based branch finding
-    const branchInfo = await this.selectTargetReleaseBranch(version);
-
-    console.log(`🎯 Selected Branch: ${branchInfo.name} (${branchInfo.type})`);
-    console.log(`📊 Branch Version: ${branchInfo.version.full}`);
-    console.log(`🎯 Target PR Branch: ${branchInfo.targetBranch}\n`);
-
-    // Initialize increment RC workflow context
+    // Initialize the context before selecting, so a selection failure is attributable
+    // to step 1 instead of surfacing as "Workflow not started".
     this.context = {
       workingDirectory,
       currentBranch: "unknown",
-      branchType: branchInfo.type,
-      branchInfo,
       dryRun,
       stepProgress: [
-        { step: 1, name: "Select Target Branch", status: "completed" },
+        { step: 1, name: "Select Target Branch", status: "pending" },
         { step: 2, name: "Checkout Release/Hotfix Branch", status: "pending" },
         { step: 3, name: "Pull Latest Changes", status: "pending" },
         { step: 4, name: "Validate Branch Version", status: "pending" },
@@ -869,6 +894,20 @@ This pull request contains the release branch for **${version}**.
         { step: 7, name: "Create Pull Request", status: "pending" },
       ],
     } as IncrementRCWorkflowContext;
+
+    const branchInfo = await this.runSelectionStep(version);
+
+    const incrementCtx = this.context as IncrementRCWorkflowContext;
+    incrementCtx.branchType = branchInfo.type;
+    incrementCtx.branchInfo = branchInfo;
+
+    console.log(`🎯 Selected Branch: ${branchInfo.name} (${branchInfo.type})`);
+    console.log(
+      `📊 Version change: ${branchInfo.version.full} → ${predictIncrementedRC(
+        branchInfo.version.full
+      )}`
+    );
+    console.log(`🎯 Target PR Branch: ${branchInfo.targetBranch}\n`);
 
     try {
       // Step 2: Checkout the target branch
@@ -982,34 +1021,29 @@ This pull request contains the release branch for **${version}**.
         throw new Error("Invalid context for increment RC workflow");
       }
 
-      if (!(this.context as IncrementRCWorkflowContext).dryRun) {
-        // First, get the current version from the checked-out branch
-        const currentVersion = await this.versionerAdapter.getCurrentVersion();
+      // Validation runs in dry run too. These checks are read-only, and skipping them
+      // was what let a dry run pass and the real run then fail on the same input.
+      const currentVersion = await this.versionerAdapter.getCurrentVersion();
 
-        // Validate that this is actually a release candidate
-        if (!currentVersion.version.includes("-RC.")) {
-          throw new Error(
-            `Branch ${branchInfo.name} version ${currentVersion.version} is not a release candidate. Only RC versions can be incremented.`
-          );
-        }
-
-        console.log(
-          `✅ RC validation passed: ${currentVersion.version} is a release candidate`
+      if (!currentVersion.version.includes("-RC.")) {
+        throw new Error(
+          `Branch ${branchInfo.name} version ${currentVersion.version} is not a release candidate. Only RC versions can be incremented.`
         );
-
-        // Then do the branch version validation
-        const validation = await this.gitFlowManager.validateBranchVersion(
-          branchInfo
-        );
-
-        if (!validation.valid) {
-          throw new Error(validation.message);
-        }
-
-        console.log(`✅ Version validation passed: ${validation.message}`);
-      } else {
-        console.log(`🔧 Dry run: Skipping version validation`);
       }
+
+      console.log(
+        `✅ RC validation passed: ${currentVersion.version} is a release candidate`
+      );
+
+      const validation = await this.gitFlowManager.validateBranchVersion(
+        branchInfo
+      );
+
+      if (!validation.valid) {
+        throw new Error(validation.message);
+      }
+
+      console.log(`✅ Version validation passed: ${validation.message}`);
 
       this.updateStepStatus(4, "completed");
     } catch (error) {
@@ -1182,7 +1216,7 @@ This PR increments the release candidate version for \`${branchName}\`.
   }
 
   /**
-   * Execute the release version workflow (8-step process)
+   * Execute the release version workflow (9-step process)
    */
   async executeReleaseWorkflow(
     workingDirectory: string,
@@ -1196,22 +1230,14 @@ This PR increments the release candidate version for \`${branchName}\`.
     }
     console.log(`🔧 Dry Run: ${dryRun ? "Yes" : "No"}\n`);
 
-    // Step 1: Determine target branch using the intelligent selection algorithm
-    const branchInfo = await this.selectTargetReleaseBranch(version);
-
-    console.log(`🎯 Selected Branch: ${branchInfo.name} (${branchInfo.type})`);
-    console.log(`📊 Branch Version: ${branchInfo.version.full}`);
-    console.log(`🎯 Target PR Branch: ${branchInfo.targetBranch}\n`);
-
-    // Initialize release workflow context
+    // Initialize the context before selecting, so a selection failure is attributable
+    // to step 1 instead of surfacing as "Workflow not started".
     this.context = {
       workingDirectory,
       currentBranch: "unknown",
-      branchType: branchInfo.type,
-      branchInfo,
       dryRun,
       stepProgress: [
-        { step: 1, name: "Select Target Branch", status: "completed" },
+        { step: 1, name: "Select Target Branch", status: "pending" },
         { step: 2, name: "Checkout Release/Hotfix Branch", status: "pending" },
         { step: 3, name: "Pull Latest Changes", status: "pending" },
         { step: 4, name: "Release Version (RC → Final)", status: "pending" },
@@ -1226,6 +1252,20 @@ This PR increments the release candidate version for \`${branchName}\`.
         { step: 9, name: "Create GitHub Release", status: "pending" },
       ],
     } as ReleaseVersionWorkflowContext;
+
+    const branchInfo = await this.runSelectionStep(version);
+
+    const releaseCtx = this.context as ReleaseVersionWorkflowContext;
+    releaseCtx.branchType = branchInfo.type;
+    releaseCtx.branchInfo = branchInfo;
+
+    console.log(`🎯 Selected Branch: ${branchInfo.name} (${branchInfo.type})`);
+    console.log(
+      `📊 Version change: ${branchInfo.version.full} → ${predictPromotedVersion(
+        branchInfo.version.full
+      )}`
+    );
+    console.log(`🎯 Target PR Branch: ${branchInfo.targetBranch}\n`);
 
     try {
       // Step 2: Checkout the target branch
@@ -1274,6 +1314,24 @@ This PR increments the release candidate version for \`${branchName}\`.
   }
 
   /**
+   * Run branch selection as step 1, so a failure is attributed to a step rather than
+   * surfacing as "Workflow not started".
+   */
+  private async runSelectionStep(version?: string): Promise<BranchTypeInfo> {
+    this.updateStepStatus(1, "in_progress");
+    try {
+      const branchInfo = await this.selectTargetReleaseBranch(version);
+      const step = this.updateStepStatus(1, "completed");
+      step.message = `Selected ${branchInfo.name} (${branchInfo.version.full})`;
+      return branchInfo;
+    } catch (error) {
+      const step = this.updateStepStatus(1, "failed");
+      step.error = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  }
+
+  /**
    * Step 1: Enhanced branch selection algorithm for release workflow
    */
   private async selectTargetReleaseBranch(
@@ -1307,56 +1365,75 @@ This PR increments the release candidate version for \`${branchName}\`.
         );
 
         if (releaseMatch && hotfixMatch) {
-          throw new Error(
+          throw new BranchSelectionError(
             `Ambiguous: Both release/${version} and hotfix/${version} branches exist. Please specify the full branch name.`
           );
         }
 
         if (releaseMatch) {
+          const resolved = await this.resolveBranchVersion(releaseMatch);
           console.log(`📋 Found release branch: ${releaseMatch.name}`);
-          return releaseMatch;
+          return resolved ?? releaseMatch;
         }
 
         if (hotfixMatch) {
+          const resolved = await this.resolveBranchVersion(hotfixMatch);
           console.log(`📋 Found hotfix branch: ${hotfixMatch.name}`);
-          return hotfixMatch;
+          return resolved ?? hotfixMatch;
         }
 
-        throw new Error(
+        throw new BranchSelectionError(
           `No release/${version} or hotfix/${version} branch found for version ${version}`
         );
       }
 
-      // Option 2: Check if current branch matches release/hotfix pattern and is RC
+      // Option 2: prefer the branch that is actually checked out.
       const currentStatus = await this.gitFlowManager.getStatus();
       const currentBranchType = this.gitFlowManager.detectBranchType(
         currentStatus.currentBranch
       );
+      let currentBranchInfo: BranchTypeInfo | null = null;
 
       if (currentBranchType) {
         const branches = await this.gitFlowManager.findBranchesOfType(
           currentBranchType
         );
-        const currentBranch = branches.find(
+        const match = branches.find(
           (b) =>
             b.name === currentStatus.currentBranch ||
             b.name.endsWith(`/${currentStatus.currentBranch}`)
         );
-
-        if (currentBranch && currentBranch.version.full.includes("-RC.")) {
-          console.log(
-            `📋 Using current RC branch: ${currentBranch.name} (${currentBranchType})`
-          );
-          return currentBranch;
+        if (match) {
+          currentBranchInfo = await this.resolveBranchVersion(match);
         }
+
+        if (currentBranchInfo?.version.full.includes("-RC.")) {
+          console.log(
+            `📋 Using checked-out ${currentBranchType} branch: ` +
+              `${currentStatus.currentBranch} (${currentBranchInfo.version.full})`
+          );
+          return currentBranchInfo;
+        }
+
+        // Standing on a release/hotfix branch that did not qualify. Auto-selecting a
+        // different branch from here is how an unrelated release train gets modified.
+        const detail = currentBranchInfo
+          ? `is at ${currentBranchInfo.version.full}, which is not a release candidate`
+          : `has no readable VERSION file`;
+        throw new BranchSelectionError(
+          `Checked-out branch '${currentStatus.currentBranch}' ${detail}. ` +
+            `Refusing to auto-select a different branch, because that would modify a release ` +
+            `train you are not on. Either pass an explicit version, or check out the branch you ` +
+            `intend to act on. Use list_versions to see every candidate.`
+        );
       }
 
-      // Option 3: Find latest RC branches by type and select the most recent
+      // Option 3: not on a release/hotfix branch — fall back to the most recent RC.
       const latestRelease = await this.findLatestRCBranch("release");
       const latestHotfix = await this.findLatestRCBranch("hotfix");
 
       if (!latestRelease && !latestHotfix) {
-        throw new Error(
+        throw new BranchSelectionError(
           "No release candidate branches found. Cannot determine target branch for release."
         );
       }
@@ -1390,16 +1467,60 @@ This PR increments the release candidate version for \`${branchName}\`.
         }
 
         const selectedBranch = useRelease ? latestRelease : latestHotfix;
-        console.log(
-          `📋 Using most recent RC branch: ${selectedBranch.name} (${selectedBranch.version.full})`
+        const other = useRelease ? latestHotfix : latestRelease;
+        console.warn(
+          `⚠️  Auto-selected the most recent RC branch: ${selectedBranch.name} ` +
+            `(${selectedBranch.version.full}). Other candidate: ${other.name} ` +
+            `(${other.version.full}). Pass an explicit version to choose deliberately.`
         );
         return selectedBranch;
       }
 
       throw new Error("Unexpected error in release branch selection logic");
     } catch (error) {
+      if (error instanceof BranchSelectionError) {
+        throw error;
+      }
       throw new Error(`Failed to select target release branch: ${error}`);
     }
+  }
+
+  /**
+   * Read a branch's authoritative version from its VERSION file.
+   *
+   * Branch names never carry the RC suffix — `hotfix/4.124.1` holds `4.124.1-RC.2` — so
+   * any decision that depends on RC state must read the file rather than parse the name.
+   * Returns null when the branch has no readable, parseable VERSION file.
+   */
+  private async resolveBranchVersion(
+    branch: BranchTypeInfo
+  ): Promise<BranchTypeInfo | null> {
+    const versionContent = await this.gitFlowManager.readBranchVersion(
+      branch.name
+    );
+    if (versionContent === null) {
+      console.warn(`Could not read a version from ${branch.name}:VERSION`);
+      return null;
+    }
+
+    const versionMatch = versionContent.match(
+      /^(\d+)\.(\d+)\.(\d+)(-RC\.\d+)?/
+    );
+    if (!versionMatch) {
+      console.warn(`Could not parse a version from ${branch.name}:VERSION`);
+      return null;
+    }
+
+    const [fullVersion, majorStr, minorStr, patchStr] = versionMatch;
+    return {
+      ...branch,
+      version: {
+        major: parseInt(majorStr || "0", 10),
+        minor: parseInt(minorStr || "0", 10),
+        patch: parseInt(patchStr || "0", 10),
+        full: fullVersion.trim(),
+      },
+    };
   }
 
   /**
@@ -1411,41 +1532,10 @@ This PR increments the release candidate version for \`${branchName}\`.
     const branches = await this.gitFlowManager.findBranchesOfType(branchType);
     const rcBranches: BranchTypeInfo[] = [];
 
-    // Check each branch's VERSION file content for RC versions
     for (const branch of branches) {
-      try {
-        // Read VERSION file from the branch
-        const cleanBranchName = branch.name.replace(/^remotes\/origin\//, "");
-        const versionContent = await this.gitFlowManager.readFileFromBranch(
-          cleanBranchName,
-          "VERSION"
-        );
-
-        // Check if VERSION file contains RC version
-        if (versionContent.includes("-RC.")) {
-          // Update the branch version info with actual VERSION file content
-          const versionMatch = versionContent.match(
-            /^(\d+)\.(\d+)\.(\d+)(-RC\.\d+)?/
-          );
-          if (versionMatch) {
-            const [fullVersion, majorStr, minorStr, patchStr] = versionMatch;
-            rcBranches.push({
-              ...branch,
-              version: {
-                major: parseInt(majorStr || "0", 10),
-                minor: parseInt(minorStr || "0", 10),
-                patch: parseInt(patchStr || "0", 10),
-                full: fullVersion.trim(),
-              },
-            });
-          }
-        }
-      } catch (error) {
-        // Branch might not have VERSION file, skip it
-        console.warn(
-          `Could not read VERSION file from branch ${branch.name}: ${error}`
-        );
-        continue;
+      const resolved = await this.resolveBranchVersion(branch);
+      if (resolved?.version.full.includes("-RC.")) {
+        rcBranches.push(resolved);
       }
     }
 
@@ -1522,29 +1612,32 @@ This PR increments the release candidate version for \`${branchName}\`.
     try {
       console.log(`🔄 Step 4: Releasing version (RC → Final)`);
 
-      if (!(this.context as ReleaseVersionWorkflowContext).dryRun) {
-        // First, get the current version from the checked-out branch
-        const currentVersion = await this.versionerAdapter.getCurrentVersion();
+      // Validation runs in dry run too. It is read-only, and skipping it is what let a
+      // dry run pass on a branch the real run would immediately reject.
+      const currentVersion = await this.versionerAdapter.getCurrentVersion();
 
-        // Validate that this is actually a release candidate
-        if (!currentVersion.version.includes("-RC.")) {
-          throw new Error(
-            `Branch version ${currentVersion.version} is not a release candidate. Only RC versions can be released.`
-          );
-        }
-
-        console.log(
-          `✅ RC validation passed: ${currentVersion.version} is a release candidate`
+      if (!currentVersion.version.includes("-RC.")) {
+        throw new Error(
+          `Branch version ${currentVersion.version} is not a release candidate. Only RC versions can be released.`
         );
+      }
 
-        // Now proceed with the release
+      console.log(
+        `✅ RC validation passed: ${currentVersion.version} is a release candidate`
+      );
+
+      if (!(this.context as ReleaseVersionWorkflowContext).dryRun) {
         const newVersion = await this.versionerAdapter.releaseVersion();
         (this.context as ReleaseVersionWorkflowContext).targetVersion =
           newVersion;
 
         console.log(`🎯 New final version: ${newVersion.version}`);
       } else {
-        console.log(`🔧 Dry run: Would release RC to final version`);
+        console.log(
+          `🔧 Dry run: would promote ${
+            currentVersion.version
+          } → ${predictPromotedVersion(currentVersion.version)}`
+        );
       }
 
       this.updateStepStatus(4, "completed");
@@ -1638,10 +1731,7 @@ This PR increments the release candidate version for \`${branchName}\`.
           branchInfo.type === "release" ? "Release" : "Hotfix"
         } Version ${targetVersion?.version || "new version"}
 
-> [!WARNING]
-> This PR must be merged **after** the ${
-          branchInfo.type
-        } has been deployed to production.
+${productionMergeWarning(branchInfo.type)}
 
 This PR contains the final release version for ${branchName}.
 

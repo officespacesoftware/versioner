@@ -26,8 +26,12 @@ export function registerDownmerge(parent: Command): void {
           const gfm = createGitFlowManager(opts);
           await ensureGitRepository(gfm, opts.workingDirectory);
           await ensureNoStagedChanges(gfm);
-          const url = await gfm.downmergeMainToDevelop(opts.dryRun);
-          return { kind: "direct" as const, pullRequestUrl: url };
+          try {
+            const url = await gfm.downmergeMainToDevelop(opts.dryRun);
+            return { kind: "direct" as const, pullRequestUrl: url };
+          } catch (e) {
+            throw asConflictError(e, "main", "develop");
+          }
         },
         (result) => {
           writeGithubOutput({ pull_request_url: result.pullRequestUrl });
@@ -72,18 +76,7 @@ export function registerDownmerge(parent: Command): void {
           try {
             return await gfm.downmergeReleaseToMain(cmdOpts.version, opts.dryRun);
           } catch (e) {
-            if (e instanceof MergeConflictError) {
-              const lines = [
-                "Aborted: merge of release into main produced conflicts.",
-                "Conflicted files:",
-                ...e.conflictedFiles.map((f) => `  - ${f}`),
-                "",
-                "Resolve manually, then open the PR by hand or re-run once conflicts no longer occur.",
-              ];
-              const error = new Error(lines.join("\n"));
-              throw error;
-            }
-            throw e;
+            throw asConflictError(e, "release", "main");
           }
         },
         (result) => {
@@ -116,6 +109,31 @@ export function registerDownmerge(parent: Command): void {
     });
 }
 
+/**
+ * Turn a MergeConflictError into an operator-facing message. Every aborting merge
+ * path reports the same way: the merge was undone, nothing was pushed, and the
+ * conflicted files are listed.
+ */
+function asConflictError(
+  error: unknown,
+  source: string,
+  target: string
+): unknown {
+  if (!(error instanceof MergeConflictError)) {
+    return error;
+  }
+  return new Error(
+    [
+      `Aborted: merge of ${source} into ${target} produced conflicts.`,
+      "The merge was aborted and no branch or PR was created.",
+      "Conflicted files:",
+      ...error.conflictedFiles.map((f) => `  - ${f}`),
+      "",
+      `Resolve manually, then open the PR by hand or re-run once ${source} and ${target} no longer conflict.`,
+    ].join("\n")
+  );
+}
+
 function writeDownmergeOutputs(result: DownmergeResult): void {
   switch (result.kind) {
     case "direct":
@@ -136,8 +154,11 @@ function writeDownmergeOutputs(result: DownmergeResult): void {
         kind: result.kind,
         merge_branch: result.mergeBranchName,
         merge_pr_url: result.mergeBranchPullRequestUrl,
-        build_trigger_pr_url: result.buildTriggerPullRequestUrl,
-        build_trigger_pr_number: String(result.buildTriggerPullRequestNumber),
+        build_trigger_pr_url: result.buildTriggerPullRequestUrl ?? "",
+        build_trigger_pr_number: result.buildTriggerPullRequestNumber
+          ? String(result.buildTriggerPullRequestNumber)
+          : "",
+        build_trigger_skipped_reason: result.buildTriggerSkippedReason ?? "",
         checks_started: String(result.checksStarted),
         conflicted_files: result.conflictedFiles.join(","),
       });
@@ -158,8 +179,12 @@ function renderDownmerge(r: DownmergeResult): string {
       return [
         `Merge branch (conflicts unresolved): ${r.mergeBranchName}`,
         `Draft merge-resolution PR: ${r.mergeBranchPullRequestUrl}`,
-        `Build-trigger PR (auto-closed): ${r.buildTriggerPullRequestUrl}`,
-        `CI checks observed before close: ${r.checksStarted ? "yes" : "no (60s timeout)"}`,
+        ...(r.buildTriggerSkippedReason
+          ? [`Build-trigger PR skipped: ${r.buildTriggerSkippedReason}`]
+          : [
+              `Build-trigger PR (auto-closed): ${r.buildTriggerPullRequestUrl}`,
+              `CI checks observed before close: ${r.checksStarted ? "yes" : "no (60s timeout)"}`,
+            ]),
         ``,
         `Conflicted files:`,
         ...r.conflictedFiles.map((f) => `  - ${f}`),

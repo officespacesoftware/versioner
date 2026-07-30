@@ -75,9 +75,85 @@ export interface BranchComparisonResult {
 
 export type BranchType = "release" | "hotfix";
 
+const DEFAULT_LOCAL_TIMEOUT_MS = 30_000;
+const DEFAULT_NETWORK_TIMEOUT_MS = 300_000;
+
+export interface GitTimeoutOptions {
+  localTimeoutMs?: number;
+  networkTimeoutMs?: number;
+}
+
+export interface MergeConflictProbe {
+  hasConflicts: boolean;
+  conflictedFiles: string[];
+}
+
+export interface VersionListingEntry {
+  branch: string;
+  type: BranchType;
+  /** First line of the branch's VERSION file, or null when unreadable. */
+  version: string | null;
+  isReleaseCandidate: boolean;
+  isCurrentBranch: boolean;
+  tagExistsLocally: boolean;
+  tagExistsRemotely: boolean;
+  mergedIntoProduction: boolean;
+}
+
+export interface VersionListing {
+  currentBranch: string;
+  productionBranch: string;
+  entries: VersionListingEntry[];
+}
+
+/** Subcommands that talk to the remote and so may legitimately take minutes. */
+const NETWORK_GIT_SUBCOMMANDS = [
+  "fetch",
+  "push",
+  "pull",
+  "clone",
+  "ls-remote",
+  "remote",
+  "submodule",
+];
+
+export function isNetworkGitCommand(command: string): boolean {
+  const subcommand = command.trim().split(/\s+/)[0] ?? "";
+  return NETWORK_GIT_SUBCOMMANDS.includes(subcommand);
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    ("killed" in error || "signal" in error) &&
+    (error as { signal?: string }).signal === "SIGTERM"
+  );
+}
+
+/**
+ * Warning banner for any PR that merges into the production branch.
+ *
+ * Shared so every → production PR carries it. Previously only the final-release PR
+ * did, and the hotfix → main PR — the most production-critical of the three — did not.
+ */
+export function productionMergeWarning(kind: string): string {
+  return [
+    "> [!WARNING]",
+    `> This PR must be merged **after** the ${kind} has been deployed to production.`,
+  ].join("\n");
+}
+
 export interface PullRequestResult {
   url: string;
   action: "created" | "updated";
+}
+
+export interface OpenPullRequest {
+  number: number;
+  url: string;
+  title: string;
+  body: string;
 }
 
 export type DownmergeResult =
@@ -91,8 +167,9 @@ export type DownmergeResult =
       kind: "merge-branch-with-conflicts";
       mergeBranchName: string;
       mergeBranchPullRequestUrl: string;
-      buildTriggerPullRequestUrl: string;
-      buildTriggerPullRequestNumber: number;
+      buildTriggerPullRequestUrl?: string;
+      buildTriggerPullRequestNumber?: number;
+      buildTriggerSkippedReason?: string;
       checksStarted: boolean;
       conflictedFiles: string[];
     };
@@ -131,19 +208,35 @@ export interface BranchTypeInfo {
  */
 export class GitFlowManager {
   private workingDirectory: string;
+  private localTimeoutMs: number;
+  private networkTimeoutMs: number;
 
-  constructor(workingDirectory: string = process.cwd()) {
+  constructor(
+    workingDirectory: string = process.cwd(),
+    options: GitTimeoutOptions = {}
+  ) {
     this.workingDirectory = workingDirectory;
+    this.localTimeoutMs = options.localTimeoutMs ?? DEFAULT_LOCAL_TIMEOUT_MS;
+    this.networkTimeoutMs =
+      options.networkTimeoutMs ?? DEFAULT_NETWORK_TIMEOUT_MS;
   }
 
   /**
-   * Execute git command in the working directory
+   * Execute git command in the working directory.
+   *
+   * Network subcommands get a far longer timeout than local ones: a fetch or push on a
+   * large repository routinely exceeds ten seconds, and a timeout kill is
+   * indistinguishable from a real failure while the operation may have partly completed.
    */
   private async execGit(command: string): Promise<string> {
+    const timeout = isNetworkGitCommand(command)
+      ? this.networkTimeoutMs
+      : this.localTimeoutMs;
+
     try {
       const { stdout, stderr } = await execAsync(`git ${command}`, {
         cwd: this.workingDirectory,
-        timeout: 10000, // 10 second timeout
+        timeout,
       });
 
       if (stderr) {
@@ -152,6 +245,12 @@ export class GitFlowManager {
 
       return stdout.trim();
     } catch (error) {
+      if (isTimeoutError(error)) {
+        throw new Error(
+          `Git command timed out after ${timeout}ms: git ${command}. ` +
+            `The operation may have partially completed — inspect the repository before retrying.`
+        );
+      }
       throw new Error(`Git command failed: ${error}`);
     }
   }
@@ -581,6 +680,7 @@ This PR contains the release branch for ${branchName}.
       ) {
         return await this.updateExistingPullRequest(
           branchName,
+          baseBranch,
           defaultTitle,
           defaultBody
         );
@@ -589,57 +689,75 @@ This PR contains the release branch for ${branchName}.
     }
   }
 
-  private async updateExistingPullRequest(
+  /**
+   * Find the open pull request for a head/base pair, or null when there is none.
+   *
+   * Filters on base as well as head: one branch can have several open PRs against
+   * different bases, and acting on the wrong one silently rewrites an unrelated PR.
+   */
+  async findOpenPullRequest(
     branchName: string,
-    title: string,
-    body: string
-  ): Promise<PullRequestResult> {
+    baseBranch: string
+  ): Promise<OpenPullRequest | null> {
     const client = await createGitHubClient(this.workingDirectory);
-    let prNumber: number;
-    let existingBody: string;
-    let url: string;
 
     try {
       const { data: prs } = await client.rest.pulls.list({
         owner: client.owner,
         repo: client.repo,
         head: `${client.owner}:${branchName}`,
+        base: baseBranch,
         state: "open",
-        per_page: 1,
       });
       const pr = prs[0];
       if (!pr) {
-        throw new Error(
-          `No open PR found for head '${client.owner}:${branchName}'`
-        );
+        return null;
       }
-      prNumber = pr.number;
-      existingBody = pr.body ?? "";
-      url = pr.html_url;
+      return {
+        number: pr.number,
+        url: pr.html_url,
+        title: pr.title,
+        body: pr.body ?? "",
+      };
     } catch (error) {
       const msg = octokitErrorMessage(error);
       throw new Error(
-        `Failed to look up existing PR for '${branchName}': ${msg}`
+        `Failed to look up existing PR for '${branchName}' → '${baseBranch}': ${msg}`
+      );
+    }
+  }
+
+  private async updateExistingPullRequest(
+    branchName: string,
+    baseBranch: string,
+    title: string,
+    body: string
+  ): Promise<PullRequestResult> {
+    const existing = await this.findOpenPullRequest(branchName, baseBranch);
+    if (!existing) {
+      throw new Error(
+        `No open PR found for head '${branchName}' into '${baseBranch}'`
       );
     }
 
-    const updatedBody = replaceWatermarkedContent(existingBody, body);
+    const client = await createGitHubClient(this.workingDirectory);
+    const updatedBody = replaceWatermarkedContent(existing.body, body);
 
     try {
       await client.rest.pulls.update({
         owner: client.owner,
         repo: client.repo,
-        pull_number: prNumber,
+        pull_number: existing.number,
         title,
         body: updatedBody,
       });
     } catch (error) {
       const msg = octokitErrorMessage(error);
-      throw new Error(`Failed to edit PR #${prNumber}: ${msg}`);
+      throw new Error(`Failed to edit PR #${existing.number}: ${msg}`);
     }
 
-    console.log(`🔄 Updated existing PR #${prNumber}: ${url}`);
-    return { url, action: "updated" };
+    console.log(`🔄 Updated existing PR #${existing.number}: ${existing.url}`);
+    return { url: existing.url, action: "updated" };
   }
 
   /**
@@ -778,34 +896,182 @@ This PR contains the release branch for ${branchName}.
   async detectMergeConflicts(
     baseBranch: string,
     sourceBranch: string
-  ): Promise<boolean> {
+  ): Promise<MergeConflictProbe> {
+    // The cleanup below moves HEAD, so refuse to probe over tracked local changes.
+    // validateNoStagedChanges covers only staged files; unstaged edits would be lost.
+    // Untracked files are safe — `reset --hard` leaves them alone.
+    const preStatus = await this.getStatus();
+    const dirty = [...preStatus.staged, ...preStatus.modified];
+    if (dirty.length > 0) {
+      throw new Error(
+        `Refusing to probe for merge conflicts with tracked changes in the working tree, ` +
+          `because cleanup would discard them: ${dirty.join(", ")}. Commit or stash first.`
+      );
+    }
+
     await this.checkoutAndPull(baseBranch);
+    const headBefore = await this.getCurrentCommit();
+
+    let mergeFailed = false;
     try {
       await this.execGit(
         `merge --no-commit --no-ff ${quoteGitArg(sourceBranch)}`
       );
-      // Clean merge — abort so we leave no trace.
-      try {
-        await this.execGit("merge --abort");
-      } catch {
-        // `merge --abort` errors when there's no merge in progress (fast-forward
-        // case). Ignore — the working tree may be ahead but we'll reset below.
-      }
-      // In case fast-forward changed HEAD, hard-reset to origin to be safe.
-      try {
-        await this.execGit(`reset --hard origin/${baseBranch}`);
-      } catch {
-        /* ignore */
-      }
-      return false;
     } catch {
-      const conflicted = await this.getConflictedFiles();
-      try {
-        await this.execGit("merge --abort");
-      } catch {
-        /* ignore */
+      mergeFailed = true;
+    }
+
+    const conflictedFiles = await this.getConflictedFiles();
+
+    try {
+      await this.execGit("merge --abort");
+    } catch {
+      // No merge in progress — fast-forward, or the merge failed before starting.
+    }
+
+    // Rewind only if the probe actually moved HEAD. The previous unconditional
+    // `reset --hard origin/<base>` discarded any local commits on the base branch.
+    const headAfter = await this.getCurrentCommit();
+    if (headAfter !== headBefore) {
+      await this.execGit(`reset --hard ${quoteGitArg(headBefore)}`);
+    }
+
+    // A failed merge with no unmerged paths is not a conflict — it is some other
+    // error (dirty tree, bad ref, unrelated histories). Reporting it as "no
+    // conflicts" sent callers down the clean-merge path on a broken repository.
+    if (mergeFailed && conflictedFiles.length === 0) {
+      throw new Error(
+        `Merge probe of '${sourceBranch}' into '${baseBranch}' failed without producing ` +
+          `conflicts, so this is not a conflict condition. Inspect the repository state ` +
+          `before retrying.`
+      );
+    }
+
+    return {
+      hasConflicts: conflictedFiles.length > 0,
+      conflictedFiles,
+    };
+  }
+
+  /**
+   * Read a branch's version — the first line of its VERSION file — or null when the
+   * file is missing or unparseable.
+   *
+   * Branch names never carry the RC suffix, so this is the only source of truth for
+   * whether a branch currently holds a release candidate.
+   */
+  async readBranchVersion(branchName: string): Promise<string | null> {
+    const cleanBranchName = branchName.replace(/^remotes\/origin\//, "");
+    try {
+      const content = await this.readFileFromBranch(cleanBranchName, "VERSION");
+      const firstLine = content.split("\n")[0]?.trim() ?? "";
+      return /^\d+\.\d+\.\d+/.test(firstLine) ? firstLine : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async tagExistsLocally(tag: string): Promise<boolean> {
+    try {
+      const out = await this.execGit(`tag --list ${quoteGitArg(tag)}`);
+      return out.trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  private async tagExistsRemotely(tag: string): Promise<boolean> {
+    try {
+      const out = await this.execGit(
+        `ls-remote --tags origin ${quoteGitArg(`refs/tags/${tag}`)}`
+      );
+      return out.trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Enumerate every release and hotfix branch with the facts needed to choose one
+   * deliberately. Strictly read-only: no checkout, no fetch, no mutation.
+   */
+  async listVersions(
+    productionBranch: string = "main"
+  ): Promise<VersionListing> {
+    const status = await this.getStatus();
+    const branches = [
+      ...(await this.findBranchesOfType("release")),
+      ...(await this.findBranchesOfType("hotfix")),
+    ];
+
+    const entries: VersionListingEntry[] = [];
+    for (const branch of branches) {
+      const cleanName = branch.name.replace(/^remotes\/origin\//, "");
+      const version = await this.readBranchVersion(cleanName);
+
+      entries.push({
+        branch: cleanName,
+        type: branch.type,
+        version,
+        isReleaseCandidate: version?.includes("-RC.") ?? false,
+        isCurrentBranch: cleanName === status.currentBranch,
+        tagExistsLocally: version ? await this.tagExistsLocally(version) : false,
+        tagExistsRemotely: version
+          ? await this.tagExistsRemotely(version)
+          : false,
+        mergedIntoProduction: await this.checkIsAncestor(
+          cleanName,
+          `origin/${productionBranch}`
+        ),
+      });
+    }
+
+    entries.sort((a, b) => {
+      if (a.isCurrentBranch !== b.isCurrentBranch) {
+        return a.isCurrentBranch ? -1 : 1;
       }
-      return conflicted.length > 0;
+      return (b.version ?? "").localeCompare(a.version ?? "", undefined, {
+        numeric: true,
+      });
+    });
+
+    return { currentBranch: status.currentBranch, productionBranch, entries };
+  }
+
+  /**
+   * Probe for conflicts and describe the outcome in one line, never throwing.
+   *
+   * For paths where a conflict is information rather than a blocker: the caller still
+   * opens its PR, and GitHub reports the conflict there too. Restores the branch that
+   * was checked out beforehand.
+   */
+  private async describeMergeConflictsSafely(
+    baseBranch: string,
+    sourceBranch: string
+  ): Promise<string> {
+    let originalBranch: string | undefined;
+    try {
+      originalBranch = (await this.getStatus()).currentBranch;
+      const probe = await this.detectMergeConflicts(baseBranch, sourceBranch);
+      if (!probe.hasConflicts) {
+        return `merges cleanly into ${baseBranch}`;
+      }
+      console.warn(
+        `⚠️  ${sourceBranch} conflicts with ${baseBranch} in ${probe.conflictedFiles.length} file(s)`
+      );
+      return `⚠️ conflicts with ${baseBranch} in: ${probe.conflictedFiles.join(", ")}`;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.warn(`⚠️  Could not check for conflicts: ${msg}`);
+      return `not checked (${msg})`;
+    } finally {
+      if (originalBranch && originalBranch !== "unknown") {
+        try {
+          await this.execGit(`checkout ${quoteGitArg(originalBranch)}`);
+        } catch {
+          // Best effort — the caller only needs the remote state from here on.
+        }
+      }
     }
   }
 
@@ -875,7 +1141,11 @@ This PR contains the release branch for ${branchName}.
     }
 
     // Commit conflict markers so the branch is pushable for human resolution.
-    await this.execGit("add -A");
+    // Stage only the conflicted paths: git has already staged the cleanly-merged
+    // changes, and `add -A` would sweep unrelated untracked files into the PR.
+    for (const file of conflictedFiles) {
+      await this.execGit(`add ${quoteGitArg(file)}`);
+    }
     await this.execGit(
       `commit -m ${quoteGitArg(
         `${mergeMessage} (conflicts unresolved — needs manual resolution)`
@@ -1255,10 +1525,6 @@ This PR contains the release branch for ${branchName}.
       const timestamp = Math.floor(Date.now() / 1000);
       const branchName = `main-into-develop-${timestamp}`;
 
-      // Step 5: Create and checkout new branch from develop
-      await this.execGit(`checkout -b ${branchName}`);
-      console.log(`✅ Created new branch: ${branchName}`);
-
       // Check version BEFORE creating any commits - skip merge commits
       let prTitle = "Downmerge main into develop";
       let detectedVersion: string | undefined;
@@ -1278,13 +1544,18 @@ This PR contains the release branch for ${branchName}.
         );
       }
 
-      // Step 6: Merge main into the new branch
-      await this.execGit('merge main --no-ff -m "Downmerge main into develop"');
-      console.log("✅ Merged main into the new branch");
-
-      // Step 7: Push the new branch to origin
-      await this.execGit(`push origin ${branchName}`);
-      console.log(`✅ Pushed branch ${branchName} to origin`);
+      // Steps 5-7: branch off develop, merge main in, push. Delegated to
+      // createMergeBranch so a conflict aborts the merge, deletes the temporary
+      // branch, and returns to develop, instead of leaving the repository stranded
+      // mid-merge with an unresolved index.
+      await this.createMergeBranch({
+        baseBranch: "develop",
+        sourceBranch: "main",
+        branchName,
+        commitConflictMarkers: false,
+        mergeCommitMessage: "Downmerge main into develop",
+      });
+      console.log(`✅ Created and pushed merge branch: ${branchName}`);
 
       const versionLine = detectedVersion
         ? `- **Version**: ${detectedVersion}`
@@ -1396,9 +1667,9 @@ ${versionLine}
       await this.checkoutAndPull("develop");
       await this.checkoutAndPull(cleanName);
 
-      const hasConflicts = await this.detectMergeConflicts("develop", cleanName);
+      const probe = await this.detectMergeConflicts("develop", cleanName);
 
-      if (!hasConflicts) {
+      if (!probe.hasConflicts) {
         const prTitle = `Release ${branch.version.full} to develop`;
         const prBody = `## Release ${branch.version.full} to develop
 
@@ -1474,6 +1745,29 @@ ${conflictedList}
       console.log(
         `✅ Created draft merge-resolution PR: ${mergePrResult.url}`
       );
+
+      // The build-trigger PR uses head=release/*, the same head a real release → develop PR
+      // would use. Creating one when such a PR is already open would hit createPullRequest's
+      // 422 fallback, rewrite that PR's title and body, and then close it below.
+      const existingReleasePr = await this.findOpenPullRequest(
+        cleanName,
+        "develop"
+      );
+      if (existingReleasePr) {
+        const reason =
+          `An open PR already exists for ${cleanName} → develop ` +
+          `(#${existingReleasePr.number}: ${existingReleasePr.url}). ` +
+          `Skipped the build-trigger PR to avoid rewriting and closing it — CI was not re-triggered.`;
+        console.warn(`⚠️  ${reason}`);
+        return {
+          kind: "merge-branch-with-conflicts",
+          mergeBranchName,
+          mergeBranchPullRequestUrl: mergePrResult.url,
+          buildTriggerSkippedReason: reason,
+          checksStarted: false,
+          conflictedFiles: mergeResult.conflictedFiles,
+        };
+      }
 
       const buildTriggerTitle = `[Build trigger] Release ${branch.version.full} → develop`;
       const buildTriggerBody = `## Build trigger PR — auto-closed
@@ -1581,6 +1875,8 @@ The actual merge resolution is happening in: ${mergePrResult.url}`;
       const prTitle = `Release ${branch.version.full} to main`;
       const prBody = `## Release ${branch.version.full} to main
 
+${productionMergeWarning("release")}
+
 This PR merges the release branch into main via a merge branch (\`${mergeBranchName}\`). The merge branch is used instead of a direct release/* head so CI workflows that build the release artifact do not re-trigger.
 
 ### 📋 Release Information
@@ -1658,9 +1954,19 @@ This PR merges the release branch into main via a merge branch (\`${mergeBranchN
         `📋 Using hotfix branch: ${cleanBranchName} (${targetBranch.version.full})`
       );
 
-      // Step 2: Create pull request from hotfix branch to main
+      // Step 2: probe for conflicts so the operator learns about them before review.
+      // Deliberately non-fatal: this PR is production-critical and GitHub surfaces
+      // conflicts on the PR itself, so a failed probe must never block opening it.
+      const conflictNote = await this.describeMergeConflictsSafely(
+        "main",
+        cleanBranchName
+      );
+
+      // Step 3: Create pull request from hotfix branch to main
       const prTitle = `Release ${targetBranch.version.full} to main`;
       const prBody = `## Hotfix ${targetBranch.version.full} to main
+
+${productionMergeWarning("hotfix")}
 
 This PR merges the hotfix branch into main.
 
@@ -1669,6 +1975,7 @@ This PR merges the hotfix branch into main.
 - **Branch**: ${cleanBranchName}
 - **Target**: main
 - **Type**: ${targetBranch.type}
+- **Merge check**: ${conflictNote}
 
 ---
 🤖 Auto-generated by [Release Management MCP](https://github.com/officespacesoftware/versioner/tree/main/release-management-mcp)`;

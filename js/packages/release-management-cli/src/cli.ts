@@ -5,6 +5,7 @@ import { registerCreateHotfix } from "./commands/create-hotfix.js";
 import { registerReleaseVersion } from "./commands/release-version.js";
 import { registerInitializeVersioner } from "./commands/initialize-versioner.js";
 import { registerDownmerge } from "./commands/downmerge.js";
+import { registerListVersions } from "./commands/list-versions.js";
 
 const program = new Command();
 
@@ -17,6 +18,7 @@ program
 // Note: no program.version() — subcommands take `--version <ver>` as a release
 // version argument and the global flag would short-circuit it.
 
+registerListVersions(program);
 registerCreateRC(program);
 registerCreateHotfix(program);
 registerIncrementRC(program);
