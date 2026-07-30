@@ -5,6 +5,7 @@
  * commander or the MCP SDK.
  */
 
+export * from "./change-plan.js";
 export * from "./git-flow.js";
 export * from "./release-agent.js";
 export * from "./versioner-adapter.js";

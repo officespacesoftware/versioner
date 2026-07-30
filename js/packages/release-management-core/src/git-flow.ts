@@ -256,6 +256,47 @@ export class GitFlowManager {
   }
 
   /**
+   * Run git tolerating a non-zero exit, returning both stdout and the exit code.
+   *
+   * Needed for commands that use the exit code as a result rather than an error —
+   * `merge-tree` exits 1 to report conflicts while still writing its answer to stdout.
+   */
+  private async execGitTolerant(
+    command: string
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const timeout = isNetworkGitCommand(command)
+      ? this.networkTimeoutMs
+      : this.localTimeoutMs;
+
+    try {
+      const { stdout, stderr } = await execAsync(`git ${command}`, {
+        cwd: this.workingDirectory,
+        timeout,
+      });
+      return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode: 0 };
+    } catch (error) {
+      if (isTimeoutError(error)) {
+        throw new Error(
+          `Git command timed out after ${timeout}ms: git ${command}.`
+        );
+      }
+      const shaped = error as {
+        stdout?: string;
+        stderr?: string;
+        code?: number;
+      };
+      if (typeof shaped.code === "number") {
+        return {
+          stdout: (shaped.stdout ?? "").trim(),
+          stderr: (shaped.stderr ?? "").trim(),
+          exitCode: shaped.code,
+        };
+      }
+      throw new Error(`Git command failed: ${error}`);
+    }
+  }
+
+  /**
    * Get current git status
    */
   async getStatus(): Promise<GitStatus> {
@@ -971,7 +1012,74 @@ This PR contains the release branch for ${branchName}.
     }
   }
 
-  private async tagExistsLocally(tag: string): Promise<boolean> {
+  /**
+   * Predict whether merging `sourceRef` into `baseRef` would conflict, touching
+   * nothing.
+   *
+   * `merge-tree --write-tree` merges in memory and writes only to the object
+   * database, so unlike detectMergeConflicts this is safe to call while building a
+   * plan: no checkout, no index change, no working-tree change. It exits 1 to
+   * report conflicts, which is a result rather than a failure.
+   *
+   * Output shape is a tree OID, then the conflicted paths, then a blank line,
+   * then informational messages.
+   */
+  async previewMergeConflicts(
+    baseRef: string,
+    sourceRef: string
+  ): Promise<MergeConflictProbe> {
+    const { stdout, stderr, exitCode } = await this.execGitTolerant(
+      `merge-tree --write-tree --name-only ${quoteGitArg(
+        baseRef
+      )} ${quoteGitArg(sourceRef)}`
+    );
+
+    if (exitCode === 0) {
+      return { hasConflicts: false, conflictedFiles: [] };
+    }
+
+    const lines = stdout.split("\n");
+    const treeOid = lines[0]?.trim() ?? "";
+
+    // merge-tree exits 1 both for genuine conflicts and for errors such as an
+    // unknown ref, differing only in that a real conflict still writes the merged
+    // tree OID to stdout. Without this check an unmergeable ref would be reported
+    // as a clean merge.
+    if (exitCode > 1 || !/^[0-9a-f]{40,64}$/.test(treeOid)) {
+      throw new Error(
+        `Could not compare '${sourceRef}' with '${baseRef}': git merge-tree exited ${exitCode}` +
+          `${stderr ? ` — ${stderr}` : ""}. Check that both refs exist and share history.`
+      );
+    }
+
+    const conflictedFiles: string[] = [];
+    // Conflicted paths follow the tree OID, terminated by a blank line.
+    for (const line of lines.slice(1)) {
+      if (line.trim() === "") break;
+      conflictedFiles.push(line.trim());
+    }
+
+    return { hasConflicts: conflictedFiles.length > 0, conflictedFiles };
+  }
+
+  /**
+   * Resolve a ref to its commit sha without checking anything out. Prefers the
+   * remote-tracking ref when the branch exists on origin, since that is the state a
+   * push would race against.
+   */
+  async getBranchHead(branchName: string): Promise<string> {
+    const clean = branchName.replace(/^remotes\/origin\//, "");
+    for (const ref of [`origin/${clean}`, clean]) {
+      try {
+        return await this.execGit(`rev-parse ${quoteGitArg(ref)}`);
+      } catch {
+        // Try the next candidate.
+      }
+    }
+    throw new Error(`Could not resolve a commit for branch '${clean}'`);
+  }
+
+  async tagExistsLocally(tag: string): Promise<boolean> {
     try {
       const out = await this.execGit(`tag --list ${quoteGitArg(tag)}`);
       return out.trim().length > 0;
@@ -980,7 +1088,7 @@ This PR contains the release branch for ${branchName}.
     }
   }
 
-  private async tagExistsRemotely(tag: string): Promise<boolean> {
+  async tagExistsRemotely(tag: string): Promise<boolean> {
     try {
       const out = await this.execGit(
         `ls-remote --tags origin ${quoteGitArg(`refs/tags/${tag}`)}`

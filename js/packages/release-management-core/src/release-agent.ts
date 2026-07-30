@@ -9,6 +9,11 @@ import {
   BranchTypeInfo,
   productionMergeWarning,
 } from "./git-flow.js";
+import {
+  buildChangePlan,
+  type ChangePlan,
+  type PlannedMutation,
+} from "./change-plan.js";
 
 /**
  * Raised when the target branch cannot be determined safely. Propagated verbatim
@@ -1311,6 +1316,139 @@ This PR increments the release candidate version for \`${branchName}\`.
 
       throw error;
     }
+  }
+
+  /**
+   * Describe what incrementing the release candidate would do, changing nothing.
+   *
+   * Selection, version resolution and every fact in the plan come from read-only
+   * primitives, so this is safe to call before the operator has decided anything.
+   */
+  async planIncrementRC(version?: string): Promise<ChangePlan> {
+    const branchInfo = await this.selectTargetReleaseBranch(version);
+    const branch = branchInfo.name.replace(/^remotes\/origin\//, "");
+    const currentVersion = branchInfo.version.full;
+    const resultingVersion = predictIncrementedRC(currentVersion);
+
+    return this.buildVersionBumpPlan({
+      action: "increment_release_candidate",
+      branch,
+      currentVersion,
+      resultingVersion,
+      prBase: "develop",
+      createsGitHubRelease: false,
+    });
+  }
+
+  /**
+   * Describe what promoting the release candidate to a final version would do,
+   * changing nothing.
+   */
+  async planReleaseVersion(version?: string): Promise<ChangePlan> {
+    const branchInfo = await this.selectTargetReleaseBranch(version);
+    const branch = branchInfo.name.replace(/^remotes\/origin\//, "");
+    const currentVersion = branchInfo.version.full;
+    const resultingVersion = predictPromotedVersion(currentVersion);
+
+    return this.buildVersionBumpPlan({
+      action: "release_version",
+      branch,
+      currentVersion,
+      resultingVersion,
+      prBase: "main",
+      createsGitHubRelease: true,
+    });
+  }
+
+  /**
+   * Shared plan shape for the two workflows that rewrite VERSION on an existing
+   * branch: one commit, one annotated tag, two pushes, a pull request, and for a
+   * final release a GitHub release.
+   */
+  private async buildVersionBumpPlan(opts: {
+    action: string;
+    branch: string;
+    currentVersion: string;
+    resultingVersion: string;
+    prBase: string;
+    createsGitHubRelease: boolean;
+  }): Promise<ChangePlan> {
+    const { action, branch, currentVersion, resultingVersion, prBase } = opts;
+
+    // Refuse rather than describing an impossible change. Without this the
+    // not-a-release-candidate sentinel would leak into every mutation summary and
+    // the plan would read as though the action were viable.
+    if (!currentVersion.includes("-RC.")) {
+      throw new BranchSelectionError(
+        `${branch} is at ${currentVersion}, which is not a release candidate, so ` +
+          `${action} cannot be planned for it. Use list_versions to find a branch ` +
+          `holding an RC.`
+      );
+    }
+
+    const targetBranchHead = await this.gitFlowManager.getBranchHead(branch);
+    const warnings: string[] = [];
+
+    if (await this.gitFlowManager.tagExistsRemotely(resultingVersion)) {
+      warnings.push(
+        `Tag ${resultingVersion} already exists on origin; pushing it will fail.`
+      );
+    } else if (await this.gitFlowManager.tagExistsLocally(resultingVersion)) {
+      warnings.push(
+        `Tag ${resultingVersion} already exists locally; creating it will fail.`
+      );
+    }
+
+    const existingPr = await this.gitFlowManager.findOpenPullRequest(
+      branch,
+      prBase
+    );
+    if (existingPr) {
+      warnings.push(
+        `PR #${existingPr.number} is already open for ${branch} → ${prBase}; it will be updated, not created.`
+      );
+    }
+
+    const mutations: PlannedMutation[] = [
+      {
+        kind: "commit",
+        summary: `"To version ${resultingVersion}" on ${branch}`,
+        detail: { files: "VERSION" },
+      },
+      {
+        kind: "tag",
+        summary: `annotated tag ${resultingVersion}`,
+        detail: { message: `Release version ${resultingVersion}` },
+      },
+      {
+        kind: "push",
+        summary: `${branch} and tag ${resultingVersion} to origin`,
+      },
+      {
+        kind: "pull-request",
+        summary: existingPr
+          ? `update PR #${existingPr.number} (${branch} → ${prBase})`
+          : `open ${branch} → ${prBase}`,
+      },
+    ];
+
+    if (opts.createsGitHubRelease) {
+      mutations.push({
+        kind: "github-release",
+        summary: `${resultingVersion} with auto-generated notes`,
+        detail: { targetCommitish: branch },
+      });
+    }
+
+    return buildChangePlan({
+      action,
+      targetBranch: branch,
+      targetBranchHead,
+      currentVersion,
+      resultingVersion,
+      mutations,
+      warnings,
+    });
   }
 
   /**
