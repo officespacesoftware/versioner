@@ -1688,9 +1688,26 @@ This PR increments the release candidate version for \`${branchName}\`.
   }
 
   /**
-   * Shared plan shape for the two downmerges that go through a merge branch: a
-   * branch off the base with the source merged in, a merge commit, one push and a
-   * pull request. Both abort without creating anything if the merge conflicts.
+   * Describe what merging a hotfix back into develop would do, changing nothing.
+   */
+  async planDownmergeHotfixToDevelop(version?: string): Promise<ChangePlan> {
+    const { branch, cleanName } =
+      await this.gitFlowManager.resolveDownmergeBranch("hotfix", version);
+
+    return this.buildMergeBranchDownmergePlan({
+      action: "downmerge_hotfix_to_develop",
+      baseBranch: "develop",
+      sourceBranch: cleanName,
+      mergeBranch: `hotfix-${branch.version.full}-into-develop-<unix-timestamp>`,
+      mergeCommitMessage: `Merge ${cleanName} into develop`,
+      prTitle: `Hotfix ${branch.version.full} to develop`,
+    });
+  }
+
+  /**
+   * Shared plan shape for the downmerges that go through a merge branch: a branch
+   * off the base with the source merged in, a merge commit, one push and a pull
+   * request. Each aborts without creating anything if the merge conflicts.
    *
    * The merge branch carries a Unix timestamp the plan cannot predict, so it is
    * named by its pattern. The source branch's head goes into a mutation summary,

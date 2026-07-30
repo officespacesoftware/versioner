@@ -132,6 +132,7 @@ release-management initialize-versioner     [--version <version>]
 release-management downmerge main-to-develop
 release-management downmerge release-to-develop  [--version <version>]
 release-management downmerge release-to-main     [--version <version>]
+release-management downmerge hotfix-to-develop   [--version <version>]
 release-management downmerge hotfix-to-main      [--version <version>]
 ```
 
@@ -155,11 +156,12 @@ is defined for partial success. A fatal parse-time error also exits `2`.
 
 ## `@officespacesoftware/release-management-mcp`
 
-A Model Context Protocol stdio server exposing eleven tools: `health_check`,
+A Model Context Protocol stdio server exposing twelve tools: `health_check`,
 `list_versions`, `create_release_candidate`, `create_hotfix`,
 `increment_release_candidate`, `release_version`, `initialize_versioner`,
 `downmerge_main_to_develop`, `downmerge_release_to_develop`,
-`downmerge_release_to_main`, and `downmerge_hotfix_to_main`. Each is documented in
+`downmerge_release_to_main`, `downmerge_hotfix_to_develop`, and
+`downmerge_hotfix_to_main`. Each is documented in
 [../docs/actions.md](../docs/actions.md).
 
 Every tool takes an optional `workingDirectory`; the server rebinds its `GitFlowManager`

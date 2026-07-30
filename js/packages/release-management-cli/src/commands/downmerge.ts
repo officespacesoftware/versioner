@@ -96,6 +96,33 @@ export function registerDownmerge(parent: Command): void {
 
   withPlanFlags(
     dm
+      .command("hotfix-to-develop")
+      .description("PR hotfix → develop via merge branch (never head=hotfix/*)")
+      .option("--version <version>", "Specific hotfix version; auto-detect newest if omitted")
+  ).action(async (cmdOpts) => {
+    const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
+    await runPlanAwareCommand({
+      commandName: "downmerge hotfix-to-develop",
+      opts,
+      flags: cmdOpts,
+      requiresVersioner: false,
+      buildPlan: (agent) => agent.planDownmergeHotfixToDevelop(cmdOpts.version),
+      execute: async (_agent, gfm) => {
+        try {
+          return await gfm.downmergeHotfixToDevelop(cmdOpts.version);
+        } catch (e) {
+          throw asConflictError(e, "hotfix", "develop");
+        }
+      },
+      onExecuted: (result) => {
+        writeDownmergeOutputs(result);
+        emit(result, opts, renderDownmerge);
+      },
+    });
+  });
+
+  withPlanFlags(
+    dm
       .command("hotfix-to-main")
       .description("PR hotfix → main")
       .option("--version <version>", "Specific hotfix version; auto-detect newest if omitted")

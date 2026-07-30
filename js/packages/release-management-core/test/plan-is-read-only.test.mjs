@@ -94,6 +94,7 @@ const buildEveryPlan = async (agent) => [
   await agent.planDownmergeMainToDevelop(),
   await agent.planDownmergeReleaseToDevelop(),
   await agent.planDownmergeReleaseToMain(),
+  await agent.planDownmergeHotfixToDevelop(),
   await agent.planDownmergeHotfixToMain(),
 ];
 
@@ -106,8 +107,15 @@ test("building every plan leaves the repository untouched", async () => {
 });
 
 test("every plan is built from the real repository, not from defaults", async () => {
-  const [rc, hotfix, mainToDevelop, releaseToDevelop, releaseToMain, hotfixToMain] =
-    await buildEveryPlan(makeAgent());
+  const [
+    rc,
+    hotfix,
+    mainToDevelop,
+    releaseToDevelop,
+    releaseToMain,
+    hotfixToDevelop,
+    hotfixToMain,
+  ] = await buildEveryPlan(makeAgent());
 
   assert.equal(rc.resultingVersion, "4.125.0-RC.0");
   assert.match(
@@ -138,6 +146,13 @@ test("every plan is built from the real repository, not from defaults", async ()
   );
 
   assert.equal(releaseToMain.targetBranch, "main");
+
+  assert.equal(hotfixToDevelop.targetBranch, "develop");
+  assert.deepEqual(
+    hotfixToDevelop.mutations.map((m) => m.kind),
+    ["branch", "commit", "push", "pull-request"]
+  );
+
   assert.equal(hotfixToMain.targetBranch, "main");
   assert.deepEqual(
     hotfixToMain.mutations.map((m) => m.kind),

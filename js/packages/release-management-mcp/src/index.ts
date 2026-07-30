@@ -537,6 +537,54 @@ that it must be merged only after the release has been deployed to production.`,
             },
           },
           {
+            name: "downmerge_hotfix_to_develop",
+            title: "Downmerge Hotfix to Develop",
+            description: `⬇️  PR: hotfix → develop (via merge branch)
+
+Reconciles develop with a fix that reached production through main.
+
+- Input: optional version to merge (e.g. 1.2.1); auto-detects the newest hotfix
+  branch when omitted
+- The pull request head is always the merge branch, never hotfix/* — the latter
+  would re-trigger CI workflows that build an already-deployed hotfix
+- On conflict the merge is aborted, the local merge branch is deleted, and nothing
+  is pushed; the error lists the conflicted files
+- Run this after the fix is written; at creation the hotfix branch holds only a
+  version bump
+
+Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+branch, merge commit, push and pull request it would create, plus a digest. Pass
+that digest back as 'confirm' to apply. If either branch moved in between, the
+digest no longer matches and it refuses, returning a fresh plan.
+
+Applying creates: the branch hotfix-X.Y.Z-into-develop-<unix-timestamp> off
+develop, a merge commit "Merge hotfix/X.Y.Z into develop", a push of that branch,
+and a pull request into develop titled "Hotfix X.Y.Z to develop".`,
+            inputSchema: {
+              type: "object",
+              properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
+                version: {
+                  type: "string",
+                  description:
+                    "Optional specific version to merge (e.g., '1.2.1'). " +
+                    "When not provided, automatically finds the most recent hotfix version available on the upstream Git repository. " +
+                    "If provided, this parameter must be entered by a human user.",
+                },
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+              },
+            },
+          },
+          {
             name: "downmerge_hotfix_to_main",
             title: "Downmerge Hotfix to Main",
             description: `🔥  PR: hotfix → main
@@ -659,6 +707,10 @@ certain which branch should be acted on, then pass that version explicitly.`,
 
           case "downmerge_release_to_main":
             result = await this.handleDownmergeReleaseToMain(args);
+            break;
+
+          case "downmerge_hotfix_to_develop":
+            result = await this.handleDownmergeHotfixToDevelop(args);
             break;
 
           case "downmerge_hotfix_to_main":
@@ -1086,6 +1138,93 @@ Common issues:
 - Network issues with git operations
 - Permission issues with git push or PR creation
 - GitHub CLI (gh) not available or not authenticated`;
+    }
+  }
+
+  private async handleDownmergeHotfixToDevelop(args: any): Promise<string> {
+    const version = args?.version;
+    const workingDirectory = args?.workingDirectory || process.cwd();
+    const confirm: string | undefined = args?.confirm;
+
+    try {
+      await this.bindWorkingDirectory(workingDirectory);
+
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      await this.gitFlowManager!.validateNoStagedChanges();
+
+      // Without a confirmation digest, describe the change and stop.
+      const plan = await this.planningAgent().planDownmergeHotfixToDevelop(
+        version
+      );
+      if (!confirm) {
+        return renderPlanForApproval(plan, "downmerge_hotfix_to_develop");
+      }
+      assertPlanIsCurrent(plan, confirm);
+
+      const result = await this.gitFlowManager!.downmergeHotfixToDevelop(
+        version
+      );
+
+      return `🚀 Downmerge Hotfix to Develop Completed Successfully!
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Hotfix"}
+
+✅ Completed the following actions:
+1. Validated target hotfix branch exists
+2. Checked out and pulled develop and the hotfix branch
+3. Created merge branch off develop and merged the hotfix into it
+4. Pushed merge branch and opened PR targeting develop
+
+${this.formatDownmergeResult(result)}
+
+📋 Next Steps:
+1. Review the pull request and CI checks
+2. Merge once green`;
+    } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "downmerge_hotfix_to_develop");
+      }
+      if (error instanceof MergeConflictError) {
+        const conflictedList = error.conflictedFiles
+          .map((f) => `   - ${f}`)
+          .join("\n");
+        return `❌ Downmerge Hotfix to Develop Aborted — Merge Conflicts
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Hotfix"}
+
+The merge of the hotfix branch into develop produced conflicts. The merge was
+aborted and the local merge branch deleted. No remote branch was pushed and no PR
+was opened.
+
+⚠️  Conflicted files:
+${conflictedList}
+
+📋 To resolve:
+1. Create a branch off develop, merge the hotfix in, and resolve the conflicts
+2. Push that branch and open a PR to develop yourself
+3. Re-run this tool only once develop and the hotfix no longer conflict`;
+      }
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return `❌ Downmerge Hotfix to Develop Failed
+
+📁 Working Directory: ${workingDirectory}
+${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Hotfix"}
+💥 Error: ${errorMessage}
+
+Common issues:
+- No hotfix branches found matching the criteria
+- Network issues with git operations
+- Permission issues with git push or PR creation
+- Tracked local changes in the working tree (commit or stash first)`;
     }
   }
 

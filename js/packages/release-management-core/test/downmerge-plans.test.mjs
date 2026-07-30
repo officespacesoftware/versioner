@@ -192,6 +192,34 @@ test("a clean release into develop reports an open pull request as an update", a
   ]);
 });
 
+test("hotfix into develop goes through a merge branch, never head=hotfix/*", async () => {
+  const plan = await makeAgent().planDownmergeHotfixToDevelop();
+
+  assert.equal(plan.targetBranch, "develop");
+  assert.equal(plan.currentVersion, undefined);
+  assert.deepEqual(summaries(plan), [
+    "branch: hotfix-4.124.1-into-develop-<unix-timestamp> off develop, merging hotfix/4.124.1 at 9876543210a",
+    'commit: merge commit "Merge hotfix/4.124.1 into develop" on hotfix-4.124.1-into-develop-<unix-timestamp>',
+    "push: hotfix-4.124.1-into-develop-<unix-timestamp> to origin",
+    "pull-request: open hotfix-4.124.1-into-develop-<unix-timestamp> → develop",
+  ]);
+  assert.equal(
+    plan.mutations.at(-1).detail.title,
+    "Hotfix 4.124.1 to develop"
+  );
+});
+
+test("a conflicting hotfix into develop warns that nothing is created", async () => {
+  // Unlike the hotfix → main pull request, this one is a deliberate
+  // reconciliation step, so a conflict aborts rather than opening anything.
+  const plan = await makeAgent(
+    conflicting("VERSION")
+  ).planDownmergeHotfixToDevelop();
+
+  assert.match(plan.warnings[0], /conflicts in 1 file\(s\): VERSION/);
+  assert.match(plan.warnings[0], /creates nothing/);
+});
+
 test("hotfix into main is a pull request and nothing else", async () => {
   const plan = await makeAgent().planDownmergeHotfixToMain();
 
