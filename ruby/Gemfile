@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 source 'https://rubygems.org'
 
 # Gem lives at the repo root (see ../versioner.gemspec); ruby/ holds the gem

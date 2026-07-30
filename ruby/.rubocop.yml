@@ -1,11 +1,23 @@
-require: rubocop-rspec
+plugins: rubocop-rspec
+
+AllCops:
+  # The gem declares `required_ruby_version >= 2.7`, so lint against the oldest
+  # Ruby we still support rather than the version CI happens to run.
+  TargetRubyVersion: 2.7
+  NewCops: disable
+
+Layout/LineLength:
+  Max: 120
 
 Metrics/BlockLength:
   Exclude:
     - 'lib/tasks/**/*.rake'
     - 'spec/**/*'
 
-Metrics/LineLength:
+Metrics/ClassLength:
+  # VersionFile is a cohesive unit that parses, bumps and writes the VERSION
+  # file; it sits at 110 lines and splitting it purely to satisfy the default
+  # 100-line limit would risk behaviour. Allow a little headroom instead.
   Max: 120
 
 Style/Documentation:
