@@ -149,14 +149,14 @@ class ReleaseManagementMCPServer {
           {
             name: "health_check",
             title: "Health Check",
-            description: `🩺  Health Check
+            description: `🩺  Health Check (read-only)
 
-Runs a quick self-test to ensure the Release Management MCP server is responsive.
+Reports whether the Release Management MCP server process is responsive.
 
-What you get:
-- Server name, version, and status
-- ISO timestamp
-- Supported capabilities`,
+Creates nothing. It does not read the repository, run git, or contact GitHub.
+
+Returns the server name, its package version, the status, an ISO timestamp, and a
+list of capability descriptions.`,
             inputSchema: {
               type: "object",
               properties: {},
@@ -167,12 +167,22 @@ What you get:
             title: "Create Release Candidate",
             description: `🎯  Create Release Candidate (RC)
 
-Creates a Git Flow release branch and initializes an RC version.
+Cuts a new release branch off develop and sets it to an RC.0 version.
 
-- Types: major (X.0.0-RC.0), minor (x.X.0-RC.0), or patch (x.x.X-RC.0)
-- Branch: release/X.Y.Z
-- Process: 6-step Git Flow with PR to develop
-- Defaults: releaseType=minor, dryRun=false`,
+- Input: releaseType — major (X+1.0.0), minor (X.Y+1.0) or patch (X.Y.Z+1),
+  applied to develop's own VERSION. Defaults to minor.
+- Aborts unless main is already merged into develop: a release must not be cut
+  from a develop that is missing production changes.
+
+Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+branch, commit, tag, pushes and pull request it would create, plus a digest. Pass
+that digest back as 'confirm' to apply. If the repository changed in between, the
+digest no longer matches and it refuses, returning a fresh plan.
+
+Applying creates: the branch release/X.Y.Z off develop, a commit
+"To version X.Y.Z-RC.0" touching only VERSION, an annotated tag X.Y.Z-RC.0, a push
+of the branch and a push of the tag, and a pull request release/X.Y.Z → develop
+titled "RC X.Y.Z-RC.0 to develop" (opened, or updated if one is already open).`,
             inputSchema: {
               type: "object",
               properties: {
@@ -206,14 +216,22 @@ Creates a Git Flow release branch and initializes an RC version.
             title: "Create Hotfix",
             description: `🚑  Create Hotfix (Patch RC)
 
-Creates a Git Flow hotfix branch off main and initializes a patch RC version.
+Cuts a hotfix branch off main and sets it to the next patch RC.0 version.
 
-- Branch: hotfix/X.Y.Z, branched from main
-- Process: 6-step Git Flow, opening a PR to **develop** (not main)
-- Does NOT open the hotfix → main PR; use downmerge_hotfix_to_main for that,
-  once the fix is written and deployed
-- For urgent production fixes
-- Defaults: dryRun=false`,
+- Version: main's own VERSION with the patch number incremented
+- Opens the integration pull request to **develop**, not to main. The hotfix →
+  main pull request comes later, from increment_release_candidate,
+  release_version or downmerge_hotfix_to_main.
+
+Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+branch, commit, tag, pushes and pull request it would create, plus a digest. Pass
+that digest back as 'confirm' to apply. If the repository changed in between, the
+digest no longer matches and it refuses, returning a fresh plan.
+
+Applying creates: the branch hotfix/X.Y.Z off main, a commit
+"To version X.Y.Z-RC.0" touching only VERSION, an annotated tag X.Y.Z-RC.0, a push
+of the branch and a push of the tag, and a pull request hotfix/X.Y.Z → develop
+titled "RC X.Y.Z-RC.0 to develop" (opened, or updated if one is already open).`,
             inputSchema: {
               type: "object",
               properties: {
@@ -349,12 +367,18 @@ target is the release branch.`,
             title: "Initialize Versioner",
             description: `📦  Initialize Versioner
 
-Bootstraps version management by creating a VERSION file and initial tag.
+Bootstraps version management in a repository that has none.
 
-- Input: optional initial version (e.g., 0.1.0-RC.0)
-- Default version: 0.1.0-RC.0
-- Makes initial commit and tag
-- Works in any Git repo (no staged changes allowed)`,
+- Input: optional initial version; defaults to 0.1.0-RC.0
+- Requires at least one commit, and nothing staged
+- Refuses if a VERSION file already exists
+
+Creates, all locally: the VERSION file, holding two lines — the version, then the
+short HEAD hash; a commit "To version <version>" on the current branch staging only
+VERSION; and an annotated tag <version> with the message "Release version
+<version>".
+
+Nothing is pushed and no pull request is opened, so there is no plan to confirm.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -376,12 +400,23 @@ Bootstraps version management by creating a VERSION file and initial tag.
             title: "Downmerge Main to Develop",
             description: `⬇️  Downmerge main → develop
 
-Creates a PR to bring production changes back into develop.
+Brings production changes on main back into develop through a pull request.
 
-- Fetch, branch, and merge main into a new branch from develop
-- Push and open PR targeting develop
-- Use after hotfixes or direct main updates
-- Supports dry runs`,
+- Merges main into a fresh branch cut off develop, never into develop directly
+- On conflict the merge is aborted, the temporary branch is deleted, the
+  repository is left on develop, and nothing is pushed
+- Use after a hotfix or any direct update to main
+
+Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+branch, merge commit, push and pull request it would create, plus a digest. Pass
+that digest back as 'confirm' to apply. If either main or develop moved in
+between, the digest no longer matches and it refuses, returning a fresh plan.
+
+Applying creates: the branch main-into-develop-<unix-timestamp> off develop, a
+merge commit "Downmerge main into develop", a push of that branch, and a pull
+request main-into-develop-<unix-timestamp> → develop, titled "Release <v> to
+develop" when main's newest non-merge commit is a version bump and "Downmerge main
+into develop" otherwise.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -406,9 +441,26 @@ Creates a PR to bring production changes back into develop.
 
 Brings a release branch back into develop after the release is cut.
 
-- No conflicts: opens a direct PR release/X.Y.0 → develop
-- Conflicts: opens a draft merge-branch PR (off develop, with release merged in, conflict markers committed) for human resolution, plus a transient build-trigger PR that is auto-closed once CI starts
-- Input: optional version to merge (e.g., 1.2.0); auto-detects newest release when omitted`,
+- Input: optional version to merge (e.g. 1.2.0); auto-detects the newest release
+  branch when omitted
+- What it creates depends on whether the merge conflicts
+
+Called WITHOUT 'confirm', this changes nothing: it previews the merge with
+git merge-tree — which merges in memory and touches neither the index nor the
+working tree — and returns a plan for the one path that would actually be taken,
+plus a digest. Pass that digest back as 'confirm' to apply. If either branch moved
+in between, the digest no longer matches and it refuses, returning a fresh plan.
+
+Applying, when the merge is clean, creates: one pull request release/X.Y.Z →
+develop titled "Release X.Y.Z to develop".
+
+Applying, when the merge conflicts, creates: the branch
+release-X.Y.Z-into-develop-<unix-timestamp> off develop, a commit staging only the
+conflicted paths with their markers left intact, a push of that branch, a DRAFT
+pull request into develop titled "Release X.Y.Z to develop (conflict resolution)"
+for a human to resolve, and — unless a pull request for release/X.Y.Z → develop is
+already open — a transient "[Build trigger] Release X.Y.Z → develop" pull request
+that this action closes again once CI checks start.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -438,13 +490,25 @@ Brings a release branch back into develop after the release is cut.
             title: "Downmerge Release to Main",
             description: `📤  PR: release → main (via merge branch)
 
-Creates a merge branch off main with the release merged in, then opens a PR
-from that branch into main. Never opens a PR with head=release/* — that would
-re-trigger CI workflows that build a fresh Docker image for an already-cut release.
+Merges a release branch into main through a merge branch.
 
-- Input: optional version to merge (e.g., 1.2.0)
-- Auto-detects latest release when version is not provided
-- Aborts with an error listing conflicted files if the merge has conflicts`,
+- Input: optional version to merge (e.g. 1.2.0); auto-detects the newest release
+  branch when omitted
+- The pull request head is always the merge branch, never release/* — the latter
+  would re-trigger CI workflows that build a fresh artifact for an already-cut
+  release
+- On conflict the merge is aborted, the local merge branch is deleted, and nothing
+  is pushed; the error lists the conflicted files
+
+Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+branch, merge commit, push and pull request it would create, plus a digest. Pass
+that digest back as 'confirm' to apply. If either branch moved in between, the
+digest no longer matches and it refuses, returning a fresh plan.
+
+Applying creates: the branch release-X.Y.Z-into-main-<unix-timestamp> off main, a
+merge commit "Merge release/X.Y.Z into main", a push of that branch, and a pull
+request into main titled "Release X.Y.Z to main", whose body opens with a warning
+that it must be merged only after the release has been deployed to production.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -474,12 +538,22 @@ re-trigger CI workflows that build a fresh Docker image for an already-cut relea
             title: "Downmerge Hotfix to Main",
             description: `🔥  PR: hotfix → main
 
-Creates a PR to merge a hotfix branch into main.
+Opens the pull request that merges a hotfix branch into main.
 
-- Input: optional version to merge (e.g., 1.2.1)
-- Auto-detects latest hotfix when version is not provided
-- Production-critical: merge only after deployment
-- Validates branch and opens PR`,
+- Input: optional version to merge (e.g. 1.2.1); auto-detects the newest hotfix
+  branch when omitted
+- A merge conflict does not block it: the pull request opens either way and
+  records the merge-check result in its body, where GitHub reports the conflict too
+- Production-critical: merge only after the hotfix has been deployed
+
+Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the pull
+request it would create, plus a digest. Pass that digest back as 'confirm' to
+apply. If either branch moved in between, the digest no longer matches and it
+refuses, returning a fresh plan.
+
+Applying creates: one pull request hotfix/X.Y.Z → main titled "Release X.Y.Z to
+main", whose body opens with a warning that it must be merged only after the
+hotfix has been deployed to production. No branch, commit, tag or push.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -515,9 +589,11 @@ For each branch: its VERSION, whether that version is an RC or final, whether th
 matching tag exists locally and on the remote, whether the branch is already merged
 into the production branch, and which branch is currently checked out.
 
-- Read-only: performs no checkout, fetch, commit, tag, push, or PR operation
-- Use this BEFORE increment_release_candidate or release_version when you are not
-  certain which branch should be acted on, then pass that version explicitly`,
+Creates nothing: no branch, commit, tag, push, pull request, checkout or fetch. It
+reads local refs and queries origin with git ls-remote, which creates no local refs.
+
+Use this BEFORE increment_release_candidate or release_version when you are not
+certain which branch should be acted on, then pass that version explicitly.`,
             inputSchema: {
               type: "object",
               properties: {
