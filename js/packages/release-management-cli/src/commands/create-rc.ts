@@ -40,6 +40,7 @@ export function registerCreateRC(parent: Command): void {
             release_type: result.releaseType,
             version: result.targetVersion?.version,
             pull_request_url: result.pullRequestUrl,
+            pull_request_action: result.pullRequestAction,
           });
           emit(result, opts, renderCreateRC);
         },
@@ -52,6 +53,9 @@ function renderCreateRC(r: ReleaseWorkflowContext): string {
     `Release type: ${r.releaseType}`,
     `Version:      ${r.targetVersion?.version ?? "—"}`,
   ];
-  if (r.pullRequestUrl) lines.push(`Pull Request: ${r.pullRequestUrl}`);
+  if (r.pullRequestUrl) {
+    const verb = r.pullRequestAction === "updated" ? "Updated PR" : "Pull Request";
+    lines.push(`${verb}: ${r.pullRequestUrl}`);
+  }
   return lines.join("\n");
 }

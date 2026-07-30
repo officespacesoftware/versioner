@@ -18,7 +18,7 @@ Each action is reachable two ways with the same underlying implementation in
 | Health check | `health_check` | — | No | Nothing |
 | List versions | `list_versions` | `list-versions` | No | Nothing |
 | Create release candidate | `create_release_candidate` | `create-rc` | Yes | Branch, commit, annotated tag, 2 pushes, PR → `develop` |
-| Create hotfix | `create_hotfix` | `create-hotfix` | Yes | Branch, commit, annotated tag, 2 pushes, PR → `develop` |
+| Create hotfix | `create_hotfix` | `create-hotfix` | Yes | Branch, commit, annotated tag, 2 pushes, PR → `main` |
 | Increment release candidate | `increment_release_candidate` | `increment-rc` | Yes | Commit, annotated tag, 2 pushes, PR → the branch's own base |
 | Release version | `release_version` | `release-version` | Yes | Commit, annotated tag, 2 pushes, PR → `main`, GitHub release |
 | Initialize versioner | `initialize_versioner` | `initialize-versioner` | Yes (local only) | `VERSION` file, commit, annotated tag |
@@ -244,7 +244,8 @@ release branch and tag that would be created, and the pull request into `develop
 | Pull request | head `release/X.Y.Z` → base `develop`, title `RC X.Y.Z-RC.0 to develop` |
 | Remote refs | `refs/remotes/origin/main` and `refs/remotes/origin/develop` updated by step 1 |
 
-CLI `$GITHUB_OUTPUT` keys: `release_type`, `version`, `pull_request_url`.
+CLI `$GITHUB_OUTPUT` keys: `release_type`, `version`, `pull_request_url`,
+`pull_request_action`.
 
 ---
 
@@ -272,7 +273,7 @@ branch.
 4. Rewrite `VERSION` to the patch `RC.0` version through the versioner package, which
    commits and tags.
 5. Push the branch and the tag.
-6. Open or update the pull request to `develop`.
+6. Open or update the pull request to `main`.
 
 **Objects and remote effects.**
 
@@ -283,12 +284,16 @@ branch.
 | Tag | annotated `X.Y.Z-RC.0`, message `Release version X.Y.Z-RC.0` |
 | Push | `git push -u origin hotfix/X.Y.Z` (not forced) |
 | Push | `git push origin X.Y.Z-RC.0` (not forced) |
-| Pull request | head `hotfix/X.Y.Z` → base `develop`, title `RC X.Y.Z-RC.0 to develop` |
+| Pull request | head `hotfix/X.Y.Z` → base `main`, title `RC X.Y.Z-RC.0 to main`; body opens with a `> [!WARNING]` block stating the PR must be merged after the hotfix has been deployed to production |
 
-The pull request targets `develop`, not `main`. The hotfix → `main` pull request is a
-separate action (`release_version`, or `downmerge_hotfix_to_main`).
+`hotfix/X.Y.Z` → `main` is the one head/base pair a hotfix uses. Step 6,
+`increment_release_candidate`, `release_version` and `downmerge_hotfix_to_main` all resolve
+to it, so whichever runs first opens the pull request and the rest update its title and the
+watermarked region of its body.
 
-CLI `$GITHUB_OUTPUT` keys: `version`, `pull_request_url`.
+Bringing the hotfix into `develop` is a separate action, `downmerge_hotfix_to_develop`.
+
+CLI `$GITHUB_OUTPUT` keys: `version`, `pull_request_url`, `pull_request_action`.
 
 ---
 
@@ -338,10 +343,6 @@ selecting a different branch.
 | Push | `git push -u origin <target branch>` (not forced) |
 | Push | `git push origin X.Y.Z-RC.N` (not forced) |
 | Pull request | head `<target branch>` → base `develop` (release) or `main` (hotfix), title `RC X.Y.Z-RC.N to <base>`; a `main` base carries the `> [!WARNING]` production-merge block |
-
-A hotfix therefore carries two pull requests: the `→ develop` one opened by
-`create_hotfix`, and the `→ main` one opened here and later updated by `release_version`,
-which shares that head/base pair.
 
 Step 4 checks out the base branch to read its `VERSION`, then returns to the branch it
 started on. A failure in step 7 does not fail the action: the version bump has already

@@ -219,9 +219,10 @@ titled "RC X.Y.Z-RC.0 to develop" (opened, or updated if one is already open).`,
 Cuts a hotfix branch off main and sets it to the next patch RC.0 version.
 
 - Version: main's own VERSION with the patch number incremented
-- Opens the integration pull request to **develop**, not to main. The hotfix →
-  main pull request comes later, from increment_release_candidate,
-  release_version or downmerge_hotfix_to_main.
+- Opens the pull request to **main**, the one head/base pair that every later
+  increment_release_candidate and release_version updates rather than duplicates
+- Does NOT bring the hotfix into develop; use downmerge_hotfix_to_develop for
+  that, once the fix is written
 
 Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
 branch, commit, tag, pushes and pull request it would create, plus a digest. Pass
@@ -230,8 +231,10 @@ digest no longer matches and it refuses, returning a fresh plan.
 
 Applying creates: the branch hotfix/X.Y.Z off main, a commit
 "To version X.Y.Z-RC.0" touching only VERSION, an annotated tag X.Y.Z-RC.0, a push
-of the branch and a push of the tag, and a pull request hotfix/X.Y.Z → develop
-titled "RC X.Y.Z-RC.0 to develop" (opened, or updated if one is already open).`,
+of the branch and a push of the tag, and a pull request hotfix/X.Y.Z → main titled
+"RC X.Y.Z-RC.0 to main", carrying a warning not to merge before the hotfix has
+been deployed. If a pull request for that head/base pair is already open, its
+title and the watermarked region of its body are updated instead.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -1249,7 +1252,11 @@ ${
 }
 ${
   workflowResult.pullRequestUrl
-    ? `🔗 Pull Request: ${workflowResult.pullRequestUrl}`
+    ? `🔗 ${
+        workflowResult.pullRequestAction === "updated"
+          ? "Updated PR"
+          : "Pull Request"
+      }: ${workflowResult.pullRequestUrl}`
     : ""
 }
 
@@ -1360,7 +1367,11 @@ ${
 }
 ${
   workflowResult.pullRequestUrl
-    ? `🔗 Pull Request: ${workflowResult.pullRequestUrl}`
+    ? `🔗 ${
+        workflowResult.pullRequestAction === "updated"
+          ? "Updated PR"
+          : "Pull Request"
+      }: ${workflowResult.pullRequestUrl}`
     : ""
 }
 
@@ -1371,20 +1382,18 @@ ${
     ? `
 📋 Next steps:
 1. Commit the actual fix on the hotfix branch and push it
-2. Review the RC → develop integration PR: ${workflowResult.pullRequestUrl}
-3. Promote the RC to a final version with release_version — that opens the → main PR
+2. Track it on the → main PR: ${workflowResult.pullRequestUrl}
+3. Promote the RC to a final version with release_version
 4. Deploy to production
 5. Merge the → main PR only AFTER the deployment succeeds
-
-Note: the PR above targets develop. The hotfix → main PR is a separate step
-(release_version, or downmerge_hotfix_to_main).`
+6. Bring the hotfix into develop with downmerge_hotfix_to_develop`
     : `
 📋 Next steps:
 1. Commit the actual fix on the hotfix branch and push it
-2. Open the RC → develop integration PR
-3. Promote the RC to a final version with release_version — that opens the → main PR
-4. Deploy to production
-5. Merge the → main PR only AFTER the deployment succeeds`
+2. Promote the RC to a final version with release_version
+3. Deploy to production
+4. Merge the → main PR only AFTER the deployment succeeds
+5. Bring the hotfix into develop with downmerge_hotfix_to_develop`
 }`;
     } catch (error) {
       if (error instanceof StalePlanError) {

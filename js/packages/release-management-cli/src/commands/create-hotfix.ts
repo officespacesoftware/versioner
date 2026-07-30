@@ -29,6 +29,7 @@ export function registerCreateHotfix(parent: Command): void {
           writeGithubOutput({
             version: result.targetVersion?.version,
             pull_request_url: result.pullRequestUrl,
+            pull_request_action: result.pullRequestAction,
           });
           emit(result, opts, renderHotfix);
         },
@@ -38,6 +39,9 @@ export function registerCreateHotfix(parent: Command): void {
 
 function renderHotfix(r: HotfixWorkflowContext): string {
   const lines = [`Version: ${r.targetVersion?.version ?? "—"}`];
-  if (r.pullRequestUrl) lines.push(`Pull Request: ${r.pullRequestUrl}`);
+  if (r.pullRequestUrl) {
+    const verb = r.pullRequestAction === "updated" ? "Updated PR" : "Pull Request";
+    lines.push(`${verb}: ${r.pullRequestUrl}`);
+  }
   return lines.join("\n");
 }

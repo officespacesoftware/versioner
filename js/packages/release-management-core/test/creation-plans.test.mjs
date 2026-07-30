@@ -116,8 +116,31 @@ test("a hotfix is cut off main at the next patch", async () => {
     'commit: "To version 4.124.1-RC.0" on hotfix/4.124.1',
     "tag: annotated tag 4.124.1-RC.0",
     "push: hotfix/4.124.1 and tag 4.124.1-RC.0 to origin",
-    "pull-request: open hotfix/4.124.1 → develop",
+    "pull-request: open hotfix/4.124.1 → main",
   ]);
+  assert.equal(plan.mutations.at(-1).detail.title, "RC 4.124.1-RC.0 to main");
+});
+
+test("an open hotfix pull request into main is reconciled, not duplicated", async () => {
+  // The same head/base pair increment_release_candidate and release_version use,
+  // so a hotfix carries one pull request for its whole life.
+  const agent = makeAgent(
+    { [MAIN_HEAD]: "4.124.0" },
+    {
+      findOpenPullRequest: async (head, base) =>
+        head === "hotfix/4.124.1" && base === "main"
+          ? { number: 31, url: "u", title: "t", body: "" }
+          : null,
+    }
+  );
+
+  const plan = await agent.planCreateHotfix();
+
+  assert.equal(
+    plan.mutations.at(-1).summary,
+    "update PR #31 (hotfix/4.124.1 → main)"
+  );
+  assert.match(plan.warnings[0], /#31 is already open/);
 });
 
 test("an existing branch of the same name is a warning", async () => {

@@ -67,6 +67,7 @@ export interface ReleaseWorkflowContext {
   dryRun: boolean;
   stepProgress: WorkflowStep[];
   pullRequestUrl?: string;
+  pullRequestAction?: "created" | "updated";
 }
 
 export interface HotfixWorkflowContext {
@@ -76,6 +77,7 @@ export interface HotfixWorkflowContext {
   dryRun: boolean;
   stepProgress: WorkflowStep[];
   pullRequestUrl?: string;
+  pullRequestAction?: "created" | "updated";
 }
 
 export interface IncrementRCWorkflowContext {
@@ -246,7 +248,7 @@ export class ReleaseAgent {
         { step: 3, name: "Create hotfix branch", status: "pending" },
         { step: 4, name: "Update version to patch RC", status: "pending" },
         { step: 5, name: "Push hotfix branch and tag", status: "pending" },
-        { step: 6, name: "Create pull request to develop", status: "pending" },
+        { step: 6, name: "Create pull request to main", status: "pending" },
       ],
     };
 
@@ -515,6 +517,8 @@ export class ReleaseAgent {
 
         // Store PR URL in context
         this.context!.pullRequestUrl = prResult.url;
+        (this.context! as ReleaseWorkflowContext).pullRequestAction =
+          prResult.action;
 
         const verb = prResult.action === "updated" ? "Updated" : "Created";
         console.log(`   🔄 ${verb} pull request: ${prResult.url}`);
@@ -699,7 +703,7 @@ export class ReleaseAgent {
    */
   private async executeHotfixStep6_CreatePullRequest(): Promise<void> {
     const step = this.updateStepStatus(6, "in_progress");
-    console.log("📋 Step 6: Creating pull request to develop...");
+    console.log("📋 Step 6: Creating pull request to main...");
 
     try {
       if (!this.context!.dryRun) {
@@ -717,19 +721,23 @@ export class ReleaseAgent {
         const hotfixBranch = currentBranch || `hotfix/${version.split("-")[0]}`;
 
         // Generate PR title and body with hotfix information
-        const prTitle = `RC ${version} to develop`;
+        const prTitle = `RC ${version} to main`;
         const prBody = this.generateHotfixPRBody(version, hotfixBranch);
 
-        // Create PR using GitFlowManager - targeting develop for RC
+        // A hotfix exists to reach production, so its pull request targets main
+        // from the outset. Every later RC increment and the final release update
+        // this same head/base pair rather than opening another.
         const prResult = await this.gitFlowManager.createPullRequest(
           hotfixBranch,
-          "develop",
+          "main",
           prTitle,
           prBody
         );
 
         // Store PR URL in context
         this.context!.pullRequestUrl = prResult.url;
+        (this.context! as HotfixWorkflowContext).pullRequestAction =
+          prResult.action;
 
         const verb = prResult.action === "updated" ? "Updated" : "Created";
         console.log(`   🔄 ${verb} pull request: ${prResult.url}`);
@@ -738,7 +746,7 @@ export class ReleaseAgent {
         // No pull request URL is invented here: a fabricated link is worse than none,
         // because callers cannot tell it from a real one.
         const hotfixBranch = this.context!.currentBranch;
-        step.message = `Dry run: would open or update PR ${hotfixBranch} → develop`;
+        step.message = `Dry run: would open or update PR ${hotfixBranch} → main`;
         console.log(`   ⏭️  ${step.message}`);
         this.updateStepStatus(6, "skipped");
         console.log(`   ✅ ${step.message}`);
@@ -753,31 +761,31 @@ export class ReleaseAgent {
     }
   }
 
-  /**
-   * Generate the PR body for a hotfix RC targeting develop.
-   *
-   * No production warning here: this PR integrates the RC into develop. The
-   * hotfix → main PR is a separate step and carries productionMergeWarning().
-   */
+  /** Generate the PR body for a hotfix RC targeting main. */
   private generateHotfixPRBody(version: string, hotfixBranch: string): string {
     return `
 ## Hotfix RC Branch: ${hotfixBranch}
 
-This pull request contains the hotfix release candidate for **${version}** targeting develop for integration.
+${productionMergeWarning("hotfix")}
+
+This pull request carries the hotfix release candidate **${version}** to main. Each RC increment and the final release update this same pull request.
 
 ### 📋 Hotfix RC Information
 - **Version**: \`${version}\`
 - **Branch**: \`${hotfixBranch}\`
-- **Target**: \`develop\`
+- **Target**: \`main\`
 - **Type**: hotfix release candidate
 
 ### 🔄 Changes
 - Version bump to patch release candidate: \`${version}\`
 - Hotfix branch preparation for integration testing
-- Critical bug fixes ready for testing
 
 ### 🔄 Next Steps
-1. **Final release**: Use \`release_version\` tool to release this hotfix
+1. **Write the fix** on \`${hotfixBranch}\` and push it
+2. **Further candidates**: use \`increment_release_candidate\` while testing
+3. **Final release**: use \`release_version\` to promote this hotfix
+4. **Deploy to production**, then merge this pull request
+5. **Reconcile develop**: use \`downmerge_hotfix_to_develop\`
 
 **Workflow Steps Completed:**
 1. ✅ Latest main branch fetched
@@ -785,7 +793,7 @@ This pull request contains the hotfix release candidate for **${version}** targe
 3. ✅ Hotfix branch created from main
 4. ✅ Version bumped to patch release candidate
 5. ✅ Hotfix branch and tag pushed to origin
-6. ✅ Pull request created for develop integration
+6. ✅ Pull request opened to main
 
 ---
 🤖 Auto-generated by [Release Management MCP](https://github.com/officespacesoftware/versioner/tree/main/release-management-mcp)
@@ -1509,6 +1517,7 @@ This PR increments the release candidate version for \`${branchName}\`.
       action: "create_release_candidate",
       baseBranch: "develop",
       branchType: "release",
+      prBase: "develop",
       nextBaseVersion: (v) => {
         switch (releaseType) {
           case "major":
@@ -1531,6 +1540,7 @@ This PR increments the release candidate version for \`${branchName}\`.
       action: "create_hotfix",
       baseBranch: "main",
       branchType: "hotfix",
+      prBase: "main",
       nextBaseVersion: (v) => `${v.major}.${v.minor}.${v.patch + 1}`,
     });
   }
@@ -1538,16 +1548,17 @@ This PR increments the release candidate version for \`${branchName}\`.
   /**
    * Shared plan shape for the two workflows that cut a branch off a base and set
    * it to an RC.0: a branch, a commit, an annotated tag, two pushes and a pull
-   * request into develop.
+   * request.
    */
   private async buildBranchCreationPlan(opts: {
     action: string;
     baseBranch: "develop" | "main";
     branchType: BranchType;
+    prBase: "develop" | "main";
     nextBaseVersion: (parts: VersionParts) => string;
     extraWarnings?: string[];
   }): Promise<ChangePlan> {
-    const { action, baseBranch, branchType } = opts;
+    const { action, baseBranch, branchType, prBase } = opts;
 
     // Resolve the head first and read VERSION at that exact commit, so the version
     // the plan states and the commit it is anchored to cannot disagree.
@@ -1574,9 +1585,6 @@ This PR increments the release candidate version for \`${branchName}\`.
     const nextVersion = opts.nextBaseVersion(parts);
     const newBranch = `${branchType}/${nextVersion}`;
     const rcVersion = `${nextVersion}-RC.0`;
-    // Both creation workflows send their release candidate to develop for
-    // integration; the pull request into main is a later, separate action.
-    const prBase = "develop";
     const warnings = [...(opts.extraWarnings ?? [])];
 
     const existing = await this.gitFlowManager.findBranchesOfType(branchType);
