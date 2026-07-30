@@ -1,301 +1,228 @@
-# Versioner (Node.js)
+# @officespacesoftware/versioner
 
-A Node.js/JavaScript implementation of the versioner tool for Git-integrated semantic version management.
+Version-numbering tasks that create the appropriate Git objects.
 
-## Overview
+This package owns the `VERSION` file. Every version change it makes is followed by a git
+commit and an annotated git tag. It is the JavaScript counterpart of the `versioner` Ruby
+gem in the same repository, and the two share the `VERSION` file format and the git object
+formats.
 
-This is a pure JavaScript implementation that provides the same functionality as the Ruby version, maintaining full Node.js compatibility.
+Pure ESM JavaScript, no build step, no runtime dependencies — only Node built-ins (`fs`,
+`path`, `child_process`). Node 14 or newer.
 
-## Installation & Quick Start
+## Install
 
-### 🚀 One-Time Use (Recommended)
+The package publishes to GitHub Packages, so the scope needs to be pointed there. In your
+project's `.npmrc`:
 
-Execute directly without installing using any package manager:
-
-```bash
-# npm (Node.js 14+)
-npx @officespacesoftware/versioner init
-
-# pnpm
-pnpm dlx @officespacesoftware/versioner init
-
-# Yarn
-yarn dlx @officespacesoftware/versioner init
+```
+@officespacesoftware:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-### 📦 Global Installation
+Then:
 
-Install globally for repeated use:
-
-```bash
-# npm
+```sh
 npm install -g @officespacesoftware/versioner
-
-# pnpm
-pnpm add -g @officespacesoftware/versioner
-
-# Yarn
-yarn global add @officespacesoftware/versioner
-```
-
-### 🏗️ Development Setup
-
-For contributing or local development:
-
-```bash
-# Clone repository
-git clone git@github.com:officespacesoftware/versioner.git
-cd versioner/versioner
-
-# Install dependencies
-npm install
-```
-
-### 🔐 Private Registry Setup
-
-If your organization uses a private registry (GCP Artifact Registry):
-
-```bash
-# Configure npm for private registry
-npm config set @officespacesoftware:registry https://npm.pkg.dev/YOUR_PROJECT_ID/npm-packages
-
-# Authenticate with GCP
-gcloud auth print-access-token | npm login --registry=https://npm.pkg.dev/YOUR_PROJECT_ID/npm-packages
-
-# Then use any of the above installation methods
-pnpm dlx @officespacesoftware/versioner init
-```
-
-## Usage
-
-### Command Line Interface
-
-Use the `versioner` command (after installation or directly with `npx`/`pnpm dlx`/etc):
-
-```bash
-# Quick start - initialize project
-pnpm dlx @officespacesoftware/versioner init
-
-# Version increment commands
-versioner patch                  # Create patch-level release (n.n.X)
-versioner minor                  # Create minor-level release (n.X.n)
-versioner major                  # Create major-level release (X.n.n)
-
-# Release candidate commands
-versioner patch-rc               # Create patch-level RC (n.n.X-RC.0)
-versioner minor-rc               # Create minor-level RC (n.X.n-RC.0)
-versioner major-rc               # Create major-level RC (X.n.n-RC.0)
-versioner increment-rc           # Increment RC number (n.n.n-RC.X)
-versioner release                # Release current RC (remove RC suffix)
-
-# Utility commands
-versioner show                   # Display current version
-versioner help                  # Show help information
-```
-
-### ⚡ Quick Examples
-
-```bash
-# Initialize a new project with versioning
-pnpm dlx @officespacesoftware/versioner init
-
-# Create your first patch release
-pnpm dlx @officespacesoftware/versioner patch
-
-# Check current version
+# or run it without installing
+npx @officespacesoftware/versioner show
 pnpm dlx @officespacesoftware/versioner show
 ```
 
-### Programmatic API
+## CLI
 
-```javascript
-import { VersionFile, tasks } from 'versioner';
-
-// Using VersionFile class directly
-const vf = new VersionFile('./VERSION');
-console.log(vf.version());        // "1.2.3"
-vf.patch();                       // Increment to "1.2.4"
-
-// Using task functions
-import { patch, minor, show } from 'versioner';
-
-const newVersion = patch();       // Increment patch and commit/tag
-console.log(show());              // Display current version
+```sh
+versioner init [VERSION]   # create VERSION (default 0.1.0-RC.0)
+versioner patch            # new patch-level (n.n.X) release
+versioner minor            # new minor-level (n.X.n) release
+versioner major            # new major-level (X.n.n) release
+versioner patch-rc         # new patch-level (n.n.X-RC.0) release candidate
+versioner minor-rc         # new minor-level (n.X.n-RC.0) release candidate
+versioner major-rc         # new major-level (X.n.n-RC.0) release candidate
+versioner increment-rc     # increment the current release candidate (n.n.n-RC.X)
+versioner release          # release the current release candidate (n.n.n)
+versioner show             # print the current version from the VERSION file
+versioner help             # show help
 ```
 
-### Environment Variables
+`patch-rc`, `minor-rc`, `major-rc`, and `increment-rc` also answer to their underscored
+long forms (`patch_release_candidate`, `minor_release_candidate`,
+`major_release_candidate`, `increment_release_candidate`). `help` also answers to `--help`
+and `-h`; running the CLI with no arguments prints help. Each command prints the resulting
+version.
 
-- `VERSION`: Default version for `init` command
+`init` takes its version from the argument, then the `VERSION` environment variable, then
+the `0.1.0-RC.0` default:
 
-```bash
-VERSION=2.0.0-RC.1 versioner init
+```sh
+versioner init                    # 0.1.0-RC.0
+versioner init 1.0.0              # 1.0.0
+VERSION=2.0.0-RC.0 versioner init # 2.0.0-RC.0
 ```
 
-## Development
+### What each command creates
 
-This project uses Node.js built-in test runner for testing.
+Every command except `show` rewrites `VERSION` and then runs, in order:
 
-### Development Setup
-
-```bash
-# Clone and setup
-git clone git@github.com:officespacesoftware/versioner.git
-cd versioner/versioner
-npm install
+```sh
+git add "VERSION"
+git commit -m "To version <version>"
+git tag "<version>" -a -m "Release version <version>"
 ```
 
-### Running Tests
+Tags are annotated, named for the version with no prefix, and carry the message
+`Release version <version>`. Nothing is pushed.
 
-```bash
-# Run all tests
-npm test
+### Guard rails
 
-# Run tests in watch mode
-npm run dev:test
+- `patch`, `minor`, `major`, `patch-rc`, `minor-rc`, and `major-rc` refuse to run while a
+  release candidate is active; the error names the current version and the two ways
+  forward.
+- `increment-rc` and `release` refuse to run when the current version is not a release
+  candidate.
+- `init` refuses when a `VERSION` file already exists, and requires a repository with at
+  least one commit.
 
-# Run specific test file
-node --test test/version-file.test.js
-```
+## Programmatic API
 
-### Project Structure
-
-```
-versioner/
-├── lib/
-│   ├── index.js           # Main entry point
-│   ├── version-file.js    # Core VersionFile class
-│   ├── tasks.js          # Task functions (patch, minor, etc.)
-│   ├── options.js        # Configuration management
-│   ├── file-utils.js     # File I/O utilities
-│   ├── git-utils.js      # Git integration
-│   └── version-parser.js # Semantic version parsing
-├── bin/
-│   └── versioner         # CLI script
-├── test/
-│   ├── version-file.test.js # Core functionality tests
-│   ├── cli.test.js       # CLI integration tests
-│   └── fixtures/         # Test fixtures
-└── package.json
-```
-
-## VERSION File Format
-
-Both Ruby and Node.js implementations use the same file format:
-
-```
-1.2.3
-abc123
-```
-
-- Line 1: Version string (e.g., "1.2.3" or "1.2.3-RC.1")
-- Line 2: Git commit hash (short format)
-
-This ensures full compatibility between implementations.
-
-## Compatibility
-
-### Runtime Compatibility
-
-- **Node.js**: 14+ required
-- **Library Code**: Uses only Node.js built-ins (fs, child_process, path)
-- **Test Runner**: Node.js built-in test runner (node:test)
-
-### Feature Compatibility
-
-This Node.js implementation provides identical functionality to the Ruby version:
-
-- ✅ Semantic versioning (major.minor.patch)
-- ✅ Release candidate workflow
-- ✅ Git integration (commits and tags)
-- ✅ Same VERSION file format
-- ✅ Same CLI commands and behavior
-- ✅ Same error handling and validation
-
-### Migration from Ruby Version
-
-No migration required! Both versions:
-- Use the same VERSION file format
-- Create identical Git commits and tags
-- Follow the same versioning rules
-- Share the same project configuration
-
-You can switch between Ruby and Node.js versions seamlessly.
-
-## API Reference
-
-### VersionFile Class
-
-```javascript
-import { VersionFile } from 'versioner';
-
-// Constructor
-const vf = new VersionFile(filePath);     // Use specific file
-const vf = new VersionFile();             // Use default 'VERSION'
-
-// Static methods
-VersionFile.create({ version, path });    // Create new VERSION file
-
-// Instance methods
-vf.version()                              // Get current version
-vf.shortVersion()                         // Get version without RC suffix
-vf.isReleaseCandidate()                   // Check if RC
-vf.patch()                                // Increment patch
-vf.minor()                                // Increment minor
-vf.major()                                // Increment major
-vf.patchReleaseCandidate()                // Create patch RC
-vf.minorReleaseCandidate()                // Create minor RC
-vf.majorReleaseCandidate()                // Create major RC
-vf.incrementReleaseCandidate()            // Increment RC number
-vf.release()                              // Release RC
-```
-
-### Task Functions
-
-```javascript
+```js
 import {
+  VersionFile,
   init, patch, minor, major,
   patchReleaseCandidate, minorReleaseCandidate, majorReleaseCandidate,
-  incrementReleaseCandidate, release, show
-} from 'versioner';
-
-// All functions return the new version string
-// All functions (except init and show) require existing VERSION file
+  incrementReleaseCandidate, release, showVersion,
+  options, fileUtils, gitUtils, versionParser,
+} from '@officespacesoftware/versioner';
 ```
 
-### Utility Modules
+### Task functions
 
-```javascript
-import { options, fileUtils, gitUtils, versionParser } from 'versioner';
+Each mirrors one CLI command, returns the new version string, and performs the same
+add/commit/tag sequence. `showVersion()` returns the current version and creates nothing.
 
-// Configuration
+```js
+const version = patch();      // rewrites VERSION, commits, tags; returns "1.2.4"
+console.log(showVersion());   // "1.2.4"
+```
+
+### `VersionFile`
+
+```js
+const vf = new VersionFile();            // uses the configured path, default 'VERSION'
+const vf2 = new VersionFile('./VERSION'); // explicit path
+VersionFile.create({ version, path });    // create a new VERSION file
+
+vf.version();                    // "1.2.3-RC.4"
+vf.shortVersion();               // "1.2.3"
+vf.isReleaseCandidate();         // true
+vf.currentMajorVersion();        // "1"
+vf.currentMinorVersion();        // "2"
+vf.currentPatchVersion();        // "3"
+vf.releaseCandidateIteration();  // "4"
+
+vf.patch();                      // these rewrite VERSION and return the new version
+vf.minor();
+vf.major();
+vf.patchReleaseCandidate();
+vf.minorReleaseCandidate();
+vf.majorReleaseCandidate();
+vf.incrementReleaseCandidate();
+vf.release();
+```
+
+The `VersionFile` methods write the file; they do not commit or tag. The task functions
+add the git operations on top. Constructing a `VersionFile` for a path that does not exist
+throws.
+
+### Utility modules
+
+```js
+options.getOptions();
 options.setOption('version_file_path', 'custom/VERSION');
 options.getVersionFilePath();
+options.updateOptions({ version_file_path: 'VERSION' });
+options.resetOptions();
 
-// File operations
-fileUtils.readVersionFile(path);
-fileUtils.writeVersionFile(path, version, hash);
+fileUtils.fileExists(path);
+fileUtils.readVersionFile(path);            // { version, gitHash }
+fileUtils.writeVersionFile(path, version, gitHash);
+fileUtils.createVersionFile(path, version, gitHash);
 
-// Git operations
+gitUtils.isGitRepository();
 gitUtils.getShortCommitHash();
 gitUtils.gitAdd(file);
 gitUtils.gitCommit(message);
 gitUtils.gitTag(tag, message);
+gitUtils.hasUncommittedChanges();
+gitUtils.getCurrentBranch();
 
-// Version parsing
-versionParser.parseVersion('1.2.3-RC.1');
+versionParser.parseVersion('1.2.3-RC.1');   // { major, minor, patch, isRC, rcNumber }
 versionParser.formatVersion(versionObj);
+versionParser.incrementMajor(versionObj);
+versionParser.incrementMinor(versionObj);
+versionParser.incrementPatch(versionObj);
+versionParser.makeReleaseCandidate(versionObj, rcNumber);
+versionParser.removeReleaseCandidate(versionObj);
+versionParser.incrementReleaseCandidate(versionObj);
+versionParser.getShortVersion(versionObj);
+versionParser.isReleaseCandidate('1.2.3-RC.1');
 ```
 
-## Contributing
+The default export bundles the same surface: `{ VersionFile, tasks, options, fileUtils,
+gitUtils, versionParser }`.
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests: `npm test`
-5. Commit your changes (`git commit -am 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+## The VERSION file
+
+```
+1.2.3-RC.4
+36780700aa00
+```
+
+1. the semantic version, `X.Y.Z` or `X.Y.Z-RC.N`
+2. the short git commit hash captured at write time
+
+Readers trim and take the first line, so the file is interchangeable with the one the Ruby
+gem writes. The path defaults to `VERSION` and is configurable through
+`options.setOption('version_file_path', …)`.
+
+## Development
+
+From this directory:
+
+```sh
+npm test                                # node --test test/*.test.js
+npm run dev:test                        # the same, in watch mode
+node --test test/version-file.test.js   # one file
+```
+
+`npm run build` is a placeholder echo — there is nothing to compile. `npm test` also runs
+as `prepublishOnly`. From the workspace root (`js/`), `pnpm test` runs this suite along with
+the core package's.
+
+```
+packages/versioner/
+├── lib/
+│   ├── index.js          # public entry point
+│   ├── version-file.js   # VersionFile class
+│   ├── tasks.js          # task functions + performGitOperations
+│   ├── options.js        # configuration
+│   ├── file-utils.js     # VERSION file I/O
+│   ├── git-utils.js      # git add / commit / tag
+│   └── version-parser.js # semantic version arithmetic
+├── bin/
+│   └── versioner         # CLI
+└── test/
+    ├── version-file.test.js
+    └── cli.test.js
+```
+
+## Related documentation
+
+- [../../../docs/architecture.md](../../../docs/architecture.md) — where this package sits
+  in the wider system
+- [../../../docs/actions.md](../../../docs/actions.md) — the release workflows that call
+  into it
 
 ## License
 
-MIT License - see the LICENSE file for details.
+MIT License — see the LICENSE file for details.

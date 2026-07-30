@@ -1,124 +1,154 @@
 # Versioner
 
-Version-numbering tasks that create the appropriate Git objects. Available in both Ruby (gem) and Node.js (npm packages) implementations.
+Version-numbering tasks that create the appropriate Git objects, plus a Git Flow release
+management stack built on top of them.
 
-## Ruby Gem
+The repository holds two implementations of the same versioning contract — a Ruby gem and
+a set of JavaScript packages — and, on the JavaScript side, an orchestration layer with a
+CLI and an MCP server.
 
-The Ruby implementation provides Rake tasks for version management in Ruby and Rails projects.
+| Documentation | |
+| --- | --- |
+| [docs/architecture.md](docs/architecture.md) | Components, dependency direction, layers, `VERSION` contract, GitHub token resolution |
+| [docs/actions.md](docs/actions.md) | Every action, its ordered steps, and the exact git objects it creates |
+| [js/README.md](js/README.md) | The JavaScript workspace: packages, install, workflows |
+| [js/packages/versioner/README.md](js/packages/versioner/README.md) | The `@officespacesoftware/versioner` CLI and library |
+
+## Layout
+
+```
+VERSION                                  version + short commit hash (two lines)
+versioner.gemspec                        gem spec; sources live in ruby/
+ruby/                                    Ruby gem: version:* rake tasks
+js/                                      pnpm workspace
+  packages/versioner                     @officespacesoftware/versioner
+  packages/release-management-core       @officespacesoftware/release-management-core
+  packages/release-management-cli        @officespacesoftware/release-management-cli
+  packages/release-management-mcp        @officespacesoftware/release-management-mcp
+docs/                                    architecture.md, actions.md
+```
+
+## The VERSION file
+
+Two lines, shared by every implementation:
+
+```
+1.2.3-RC.4
+36780700aa00
+```
+
+1. the semantic version, `X.Y.Z` or `X.Y.Z-RC.N`
+2. the short git commit hash captured when the line was written
+
+Every reader trims, so the two implementations' differing trailing newline is immaterial.
+Details are in [docs/architecture.md](docs/architecture.md#the-version-file-contract).
+
+## Ruby gem
+
+The gem provides Rake tasks for version management in Ruby and Rails projects. The gemspec
+lives at the repository root; the sources live under `ruby/`.
 
 ### Installation
 
-Add this line to your application's Gemfile:
+Add to your application's Gemfile:
 
 ```ruby
 gem 'versioner', git: 'git@github.com:officespacesoftware/versioner.git'
 ```
 
-And then execute:
+Then `bundle`. To build and install from a clone:
 
-    $ bundle
-
-Or install it yourself as:
-
-    $ git clone git@github.com:officespacesoftware/versioner.git
-    $ cd versioner
-    $ gem build versioner.gemspec
-    $ gem install versioner-VERSION.gem
+```sh
+git clone git@github.com:officespacesoftware/versioner.git
+cd versioner
+gem build versioner.gemspec
+gem install versioner-1.2.0.gem
+```
 
 ### Usage
 
-The tasks are automatically loaded on Rails projects. On non-Rails projects you can add this to your Rakefile:
+Rails projects load the tasks automatically through the railtie. On non-Rails projects, add
+to your Rakefile:
 
 ```ruby
 require 'versioner/rake'
 ```
 
-Then you can run:
+Then:
 
 ```sh
-rake version:init                         # initializes the project with the version file (optional VERSION=0.1.0-RC1)
-rake version:increment_release_candidate  # increments the current release candidate (n.n.n-RCX)
-rake version:major                        # create a new major-level (X.n.n) release
-rake version:major_release_candidate      # create a new major-level (X.n.n-RC.0) release candidate
-rake version:minor                        # create a new minor-level (n.X.n) release
-rake version:minor_release_candidate      # create a new minor-level (n.X.n-RC.0) release candidate
+rake version:init                         # initializes the project with the version file (optional VERSION=0.1.0-RC.0)
 rake version:patch                        # create a new patch-level (n.n.X) release
+rake version:minor                        # create a new minor-level (n.X.n) release
+rake version:major                        # create a new major-level (X.n.n) release
 rake version:patch_release_candidate      # create a new patch-level (n.n.X-RC.0) release candidate
+rake version:minor_release_candidate      # create a new minor-level (n.X.n-RC.0) release candidate
+rake version:major_release_candidate      # create a new major-level (X.n.n-RC.0) release candidate
+rake version:increment_release_candidate  # increments the current release candidate (n.n.n-RCX)
 rake version:release                      # releases the current release candidate (n.n.n)
 rake version:show                         # print the current version level from the VERSION file
 ```
 
+Each task except `show` rewrites `VERSION`, runs `git add VERSION`,
+`git commit -m 'To version <version>'`, and
+`git tag <version> -a -m "Release version <version>"`.
+
 ### Configuration
 
-You can customize the VERSION file location by adding this to an initializer:
+The `VERSION` file location is configurable:
 
 ```ruby
 require 'versioner/options'
 Versioner.options[:version_file_path] = '/some/other/path/VERSION_FILE'
 ```
 
-## Node.js Packages
+### Development
 
-The Node.js implementation provides three npm packages for different use cases:
-
-### 1. [@officespacesoftware/versioner](./versioner/README.md)
-
-Core version management CLI tool and library for Node.js projects.
-
-**Quick Start:**
-```bash
-npx @officespacesoftware/versioner init
-npx @officespacesoftware/versioner patch
+```sh
+cd ruby
+bundle install
+bundle exec rspec        # or: bundle exec rake, the default task
+bundle exec rubocop
 ```
 
-**Use Cases:**
-- Command-line version management
-- Programmatic API for version operations
-- Drop-in replacement for Ruby gem in Node.js projects
+`.tool-versions` pins Ruby `4.0.5`.
 
-**[📚 Full Documentation →](./versioner/README.md)**
+## JavaScript packages
 
-### 2. [@officespacesoftware/versioner-mcp](./versioner-mcp/README.md)
+Four packages, published to GitHub Packages under the `@officespacesoftware` scope.
 
-Model Context Protocol (MCP) server that exposes versioner commands as tools for AI assistants.
+| Package | Purpose |
+| --- | --- |
+| [`@officespacesoftware/versioner`](js/packages/versioner/README.md) | `versioner` CLI and library: reads and writes `VERSION`, creates commits and annotated tags |
+| `@officespacesoftware/release-management-core` | Shared Git Flow primitives and workflow orchestration; consumed by the two front-ends |
+| `@officespacesoftware/release-management-cli` | `release-management` CLI for shells and GitHub Actions |
+| `@officespacesoftware/release-management-mcp` | `release-management-mcp` MCP stdio server for AI assistants |
 
-**Quick Start:**
-```bash
-npx @officespacesoftware/versioner-mcp
+See [js/README.md](js/README.md) for install, configuration, and workspace commands, and
+[docs/actions.md](docs/actions.md) for what each action does.
+
+## Registry
+
+`.npmrc` points the scope at GitHub Packages:
+
+```
+@officespacesoftware:registry=https://npm.pkg.github.com
 ```
 
-**Use Cases:**
-- AI-assisted version management with Claude Desktop
-- Integration with MCP-compatible AI tools
-- Automated versioning workflows
+Installing the packages requires a token with `read:packages` for the
+`officespacesoftware` organization.
 
-**[📚 Full Documentation →](./versioner-mcp/README.md)**
+## Continuous integration
 
-### 3. [@officespacesoftware/release-management-mcp](./release-management-mcp/README.md)
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `master`: the JS
+workspace typechecks and tests on Node 20 with pnpm 10, and the Ruby gem runs RSpec and
+RuboCop on Ruby 4.0.5.
 
-Git Flow Release Management MCP Server with AI-powered workflow orchestration.
-
-**Quick Start:**
-```bash
-npx @officespacesoftware/release-management-mcp
-```
-
-**Use Cases:**
-- Git Flow release workflows
-- Complex multi-step release orchestration
-- AI-assisted release management
-
-**[📚 Full Documentation →](./release-management-mcp/README.md)**
-
-## VERSION File Format
-
-Both Ruby and Node.js implementations use the same VERSION file format, ensuring full compatibility:
-
-- **Line 1:** Version string (e.g., "1.2.3" or "1.2.3-RC.1")
-- **Line 2:** Git commit hash (short format)
-
-This allows you to switch between Ruby and Node.js implementations seamlessly without any migration needed.
+`.github/workflows/publish-js.yml` publishes one JS package when a tag of the form
+`@officespacesoftware/<package>@<version>` is pushed. It refuses to publish a commit that
+is not reachable from `origin/master`, and refuses when the tag version and the package's
+`package.json` version disagree.
 
 ## License
 
-MIT License - see the LICENSE file for details.
+MIT License — see the LICENSE file for details.
