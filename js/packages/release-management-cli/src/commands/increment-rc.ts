@@ -1,17 +1,8 @@
 import { Command } from "commander";
-import {
-  ensureGitRepository,
-  ensureNoStagedChanges,
-  ensureVersionerAvailable,
-  type IncrementRCWorkflowContext,
-} from "@officespacesoftware/release-management-core";
+import type { IncrementRCWorkflowContext } from "@officespacesoftware/release-management-core";
 import { emit, writeGithubOutput } from "../output.js";
-import {
-  createGitFlowManager,
-  createReleaseAgent,
-  resolveBaseOptions,
-  runCommand,
-} from "../run.js";
+import { runPlanAwareCommand } from "../plan.js";
+import { resolveBaseOptions } from "../run.js";
 
 export function registerIncrementRC(parent: Command): void {
   parent
@@ -19,23 +10,27 @@ export function registerIncrementRC(parent: Command): void {
     .description("Increment the RC suffix on the active release or hotfix branch")
     .option("--version <version>", "Target version (e.g. 1.2.0); auto-detect newest if omitted")
     .option("--working-directory <path>", "Repo root (defaults to cwd)")
-    .option("--dry-run", "Validate without making changes")
+    .option("--plan", "Describe the change and exit; touches nothing (the default when no apply flag is given)")
+    .option("--confirm <digest>", "Apply the plan carrying this digest, as printed by --plan")
+    .option("--yes", "Apply without a digest, printing the plan for the record (for automation)")
+    .option(
+      "--dry-run",
+      "Validate without making changes; prefer --plan, which is guaranteed not to mutate"
+    )
     .action(async (cmdOpts) => {
       const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
-      await runCommand(
-        async () => {
-          const gfm = createGitFlowManager(opts);
-          await ensureGitRepository(gfm, opts.workingDirectory);
-          await ensureNoStagedChanges(gfm);
-          const agent = await createReleaseAgent(gfm, opts);
-          ensureVersionerAvailable(agent);
-          return agent.executeIncrementRCWorkflow(
+      await runPlanAwareCommand({
+        commandName: "increment-rc",
+        opts,
+        flags: cmdOpts,
+        buildPlan: (agent) => agent.planIncrementRC(cmdOpts.version),
+        execute: (agent) =>
+          agent.executeIncrementRCWorkflow(
             opts.workingDirectory,
             cmdOpts.version,
             opts.dryRun
-          );
-        },
-        (result) => {
+          ),
+        onExecuted: (result) => {
           writeGithubOutput({
             branch: result.branchInfo?.name,
             version: result.targetVersion?.version,
@@ -44,8 +39,8 @@ export function registerIncrementRC(parent: Command): void {
             pull_request_error: result.pullRequestError,
           });
           emit(result, opts, renderIncrementRC);
-        }
-      );
+        },
+      });
     });
 }
 

@@ -2,7 +2,9 @@ import {
   GitFlowManager,
   ReleaseAgent,
   BranchSelectionError,
+  StalePlanError,
 } from "@officespacesoftware/release-management-core";
+import { UsageError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 
 export interface BaseOptions {
@@ -55,10 +57,14 @@ export async function createReleaseAgent(
 /**
  * Standard wrapper: run an async command, render its result, translate
  * thrown errors into process exit codes + stderr messages.
+ *
+ * `renderError` lets a command replace the default one-line stderr message for
+ * errors it can report more usefully; returning undefined keeps the default.
  */
 export async function runCommand<T>(
   fn: () => Promise<T>,
-  onSuccess: (result: T) => void
+  onSuccess: (result: T) => void,
+  renderError?: (error: unknown) => string | undefined
 ): Promise<never> {
   try {
     const result = await fn();
@@ -66,7 +72,7 @@ export async function runCommand<T>(
     process.exit(ExitCode.Success);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`Error: ${message}\n`);
+    process.stderr.write(`${renderError?.(error) ?? `Error: ${message}`}\n`);
     process.exit(classifyError(error, message));
   }
 }
@@ -74,6 +80,11 @@ export async function runCommand<T>(
 export function classifyError(error: unknown, message: string): ExitCode {
   // A refused branch selection is the operator's to resolve, not an environment fault.
   if (error instanceof BranchSelectionError) {
+    return ExitCode.UserError;
+  }
+  // Contradictory flags, and a plan the repository has moved past, are both the
+  // operator's to resolve: re-run with different arguments.
+  if (error instanceof UsageError || error instanceof StalePlanError) {
     return ExitCode.UserError;
   }
   const lower = message.toLowerCase();
