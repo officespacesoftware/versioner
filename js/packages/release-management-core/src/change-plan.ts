@@ -29,8 +29,13 @@ export interface ChangePlan {
   targetBranch: string;
   /** HEAD of the target branch when the plan was computed. */
   targetBranchHead: string;
-  currentVersion: string;
-  resultingVersion: string;
+  /**
+   * The version transition, set together or not at all. An action that creates no
+   * version commit — a downmerge — leaves both unset rather than claiming a
+   * transition it does not make.
+   */
+  currentVersion?: string;
+  resultingVersion?: string;
   mutations: PlannedMutation[];
   /** Conditions that do not block planning but change the outcome. */
   warnings: string[];
@@ -56,8 +61,12 @@ function canonicalForm(plan: Omit<ChangePlan, "digest">): string {
     `action:${plan.action}`,
     `branch:${plan.targetBranch}`,
     `head:${plan.targetBranchHead}`,
-    `from:${plan.currentVersion}`,
-    `to:${plan.resultingVersion}`,
+    ...(plan.currentVersion === undefined
+      ? []
+      : [`from:${plan.currentVersion}`]),
+    ...(plan.resultingVersion === undefined
+      ? []
+      : [`to:${plan.resultingVersion}`]),
     ...plan.mutations.map((m) => `mutation:${m.kind}:${m.summary}`),
     ...plan.warnings.map((w) => `warning:${w}`),
   ].join("\n");
@@ -114,9 +123,13 @@ export function renderChangePlan(plan: ChangePlan): string {
   const lines = [
     `Action:  ${plan.action}`,
     `Branch:  ${plan.targetBranch} (at ${plan.targetBranchHead.slice(0, 11)})`,
-    `Version: ${plan.currentVersion} → ${plan.resultingVersion}`,
-    "",
   ];
+
+  if (plan.currentVersion !== undefined && plan.resultingVersion !== undefined) {
+    lines.push(`Version: ${plan.currentVersion} → ${plan.resultingVersion}`);
+  }
+
+  lines.push("");
 
   if (plan.mutations.length === 0) {
     lines.push("Would change nothing.");

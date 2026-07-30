@@ -136,6 +136,31 @@ test("an empty plan says so rather than listing nothing", () => {
   assert.match(text, /Would change nothing/);
 });
 
+test("a plan with no version transition renders no version line", () => {
+  const { currentVersion, resultingVersion, ...noVersion } = base();
+  const plan = buildChangePlan({
+    ...noVersion,
+    action: "downmerge_release_to_main",
+  });
+
+  const text = renderChangePlan(plan);
+
+  assert.doesNotMatch(text, /Version:/);
+  assert.match(text, /Branch:\s+hotfix\/4\.124\.1/);
+  assert.equal(plan.digest, buildChangePlan({ ...noVersion, action: "downmerge_release_to_main" }).digest);
+});
+
+test("dropping the version transition changes the digest", () => {
+  // Otherwise a plan that bumps a version and one that does not could share a
+  // digest, and either could be confirmed with the other's token.
+  const { currentVersion, resultingVersion, ...noVersion } = base();
+
+  assert.notEqual(
+    buildChangePlan(base()).digest,
+    buildChangePlan(noVersion).digest
+  );
+});
+
 test("warnings are rendered when present", () => {
   const text = renderChangePlan(
     buildChangePlan({ ...base(), warnings: ["Already merged into main"] })
