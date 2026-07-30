@@ -8,6 +8,7 @@
  * digest they describe the git objects they would create and change nothing.
  */
 
+import { createRequire } from "node:module";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -25,6 +26,11 @@ import {
   type ChangePlan,
   type DownmergeResult,
 } from "@officespacesoftware/release-management-core";
+
+/** Reported over the MCP handshake and by health_check; taken from the package itself. */
+const SERVER_VERSION: string = (
+  createRequire(import.meta.url)("../package.json") as { version: string }
+).version;
 
 /**
  * Present a plan for a human to approve, making it unambiguous that nothing has
@@ -102,7 +108,7 @@ class ReleaseManagementMCPServer {
     this.server = new Server(
       {
         name: "release-management-mcp",
-        version: "0.1.0",
+        version: SERVER_VERSION,
       },
       {
         capabilities: {
@@ -277,12 +283,25 @@ Promotes a release candidate to a final version (e.g. 1.2.0-RC.3 → 1.2.0).
   3. otherwise the newest RC across all branches.
 - If a release/hotfix branch IS checked out but does not hold an RC, this ABORTS
   rather than promoting a different release train. Use list_versions first.
-- Updates VERSION, pushes branch and tag, opens a PR to main, and creates a
-  GitHub Release
-- 9-step Git Flow release`,
+
+Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+commit, tag, pushes, pull request and GitHub release it would create, plus a
+digest. Pass that digest back as 'confirm' to apply. If the repository changed in
+between, the digest no longer matches and it refuses, returning a fresh plan.
+
+Applying creates: a commit "To version X.Y.Z" touching only VERSION, an annotated
+tag of the same name, pushes of the branch and the tag, a pull request to main
+carrying a warning not to merge before the deployment, and a GitHub release whose
+target is the release branch.`,
             inputSchema: {
               type: "object",
               properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
                 version: {
                   type: "string",
                   description:
@@ -1035,7 +1054,7 @@ Common issues:
   private async handleHealthCheck(): Promise<string> {
     const status = {
       server: "Release Management MCP Server",
-      version: "0.1.0",
+      version: SERVER_VERSION,
       status: "healthy",
       timestamp: new Date().toISOString(),
       capabilities: [
@@ -1378,6 +1397,7 @@ Please review the error and fix any issues before retrying the workflow.`;
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
+    const confirm: string | undefined = args?.confirm;
 
     try {
       await this.bindWorkingDirectory(workingDirectory, {
@@ -1398,9 +1418,16 @@ Please review the error and fix any issues before retrying the workflow.`;
       // Check if versioner is available
       if (!this.releaseAgent!.isVersionerAvailable()) {
         throw new Error(
-          "Versioner MCP is not available. Please ensure versioner-mcp is running."
+          "Versioner is not available; the version management library failed to load."
         );
       }
+
+      // Without a confirmation digest, describe the change and stop.
+      const plan = await this.releaseAgent!.planReleaseVersion(version);
+      if (!confirm) {
+        return renderPlanForApproval(plan, "release_version");
+      }
+      assertPlanIsCurrent(plan, confirm);
 
       // Execute the release workflow
       const workflowResult = await this.releaseAgent!.executeReleaseWorkflow(
@@ -1460,6 +1487,9 @@ ${
           : "production hotfix deployment"
       }.`;
     } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "release_version");
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error("Release version workflow failed:", error);

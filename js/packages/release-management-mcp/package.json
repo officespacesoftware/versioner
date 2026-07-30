@@ -51,7 +51,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",
-    "@officespacesoftware/release-management-core": "workspace:^",
-    "zod": "^3.25.76"
+    "@officespacesoftware/release-management-core": "workspace:^"
   }
 }
