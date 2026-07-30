@@ -92,15 +92,26 @@ test("major and patch follow the same arithmetic as the workflow", async () => {
   );
 });
 
-test("a release candidate already on develop does not carry into the next version", async () => {
-  // develop holds an RC whenever an integration PR has merged. The next release
-  // branch follows from the base version, not from the candidate suffix.
+test("planning refuses while the base branch still holds an active candidate", async () => {
+  // The versioner refuses to open a candidate while one is active, so a plan that
+  // described the transition would promise a change the apply cannot make.
   const agent = makeAgent({ [DEVELOP_HEAD]: "4.124.0-RC.7" });
 
-  const plan = await agent.planCreateReleaseCandidate("minor");
+  await assert.rejects(
+    () => agent.planCreateReleaseCandidate("minor"),
+    (error) => {
+      assert.ok(error instanceof BranchSelectionError);
+      assert.match(error.message, /still an active release candidate/);
+      assert.match(error.message, /4\.124\.0-RC\.7/);
+      return true;
+    }
+  );
 
-  assert.equal(plan.currentVersion, "4.124.0-RC.7");
-  assert.equal(plan.resultingVersion, "4.125.0-RC.0");
+  const hotfixAgent = makeAgent({ [MAIN_HEAD]: "4.124.0-RC.7" });
+  await assert.rejects(
+    () => hotfixAgent.planCreateHotfix(),
+    /still an active release candidate/
+  );
 });
 
 test("a hotfix is cut off main at the next patch", async () => {

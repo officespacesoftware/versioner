@@ -1574,6 +1574,18 @@ This PR increments the release candidate version for \`${branchName}\`.
       );
     }
 
+    // The versioner refuses to open a new release candidate while one is still
+    // active, so a plan that promised the transition would be describing a change
+    // the apply cannot make.
+    if (currentVersion.includes("-RC.")) {
+      throw new BranchSelectionError(
+        `${baseBranch} is at ${currentVersion}, which is still an active release ` +
+          `candidate, so ${action} cannot be planned. Promote or retire that candidate ` +
+          `first — release_version on its branch, then downmerge it into ${baseBranch} — ` +
+          `so ${baseBranch} holds a final version.`
+      );
+    }
+
     const parts = parseVersionParts(currentVersion);
     if (!parts) {
       throw new BranchSelectionError(
