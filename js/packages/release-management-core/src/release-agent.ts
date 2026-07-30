@@ -90,7 +90,7 @@ export interface ReleaseVersionWorkflowContext {
 export interface WorkflowStep {
   step: number;
   name: string;
-  status: "pending" | "in_progress" | "completed" | "failed";
+  status: "pending" | "in_progress" | "completed" | "failed" | "skipped";
   message?: string;
   error?: string;
 }
@@ -501,15 +501,14 @@ export class ReleaseAgent {
         console.log(`   🔄 ${verb} pull request: ${prResult.url}`);
         step.message = `${verb} pull request: ${prResult.url}`;
       } else {
-        const version = this.context!.targetVersion?.version || "mock-version";
-        const releaseBranch = `release/${version.split("-")[0]}`;
-        const mockPrUrl = `https://github.com/example/repo/pull/123`;
-
-        this.context!.pullRequestUrl = mockPrUrl;
-        step.message = `[DRY RUN] Would create PR: ${releaseBranch} → develop`;
-        console.log(
-          `   🔄 [DRY RUN] Would create pull request from ${releaseBranch} to develop`
-        );
+        // No pull request URL is invented here: a fabricated link is worse than none,
+        // because callers cannot tell it from a real one.
+        const releaseBranch = this.context!.currentBranch;
+        step.message = `Dry run: would open or update PR ${releaseBranch} → develop`;
+        console.log(`   ⏭️  ${step.message}`);
+        this.updateStepStatus(6, "skipped");
+        console.log(`   ✅ ${step.message}`);
+        return;
       }
 
       this.updateStepStatus(6, "completed");
@@ -717,15 +716,14 @@ export class ReleaseAgent {
         console.log(`   🔄 ${verb} pull request: ${prResult.url}`);
         step.message = `${verb} pull request: ${prResult.url}`;
       } else {
-        const version = this.context!.targetVersion?.version || "mock-version";
-        const hotfixBranch = `hotfix/${version.split("-")[0]}`;
-        const mockPrUrl = `https://github.com/example/repo/pull/456`;
-
-        this.context!.pullRequestUrl = mockPrUrl;
-        step.message = `[DRY RUN] Would create PR: ${hotfixBranch} → develop`;
-        console.log(
-          `   🔄 [DRY RUN] Would create pull request from ${hotfixBranch} to develop`
-        );
+        // No pull request URL is invented here: a fabricated link is worse than none,
+        // because callers cannot tell it from a real one.
+        const hotfixBranch = this.context!.currentBranch;
+        step.message = `Dry run: would open or update PR ${hotfixBranch} → develop`;
+        console.log(`   ⏭️  ${step.message}`);
+        this.updateStepStatus(6, "skipped");
+        console.log(`   ✅ ${step.message}`);
+        return;
       }
 
       this.updateStepStatus(6, "completed");
@@ -817,6 +815,11 @@ This pull request contains the release branch for **${version}**.
   /**
    * Helper method to update step status
    */
+  /** Every workflow context carries dryRun; read it without narrowing the union. */
+  private isDryRun(): boolean {
+    return this.context?.dryRun === true;
+  }
+
   private updateStepStatus(
     stepNumber: number,
     status: WorkflowStep["status"]
@@ -859,9 +862,11 @@ This pull request contains the release branch for **${version}**.
           in_progress: "🔄",
           completed: "✅",
           failed: "❌",
+          skipped: "⏭️",
         }[step.status];
 
-        return `${statusIcon} Step ${step.step}: ${step.name}`;
+        const suffix = step.status === "skipped" ? " (skipped)" : "";
+        return `${statusIcon} Step ${step.step}: ${step.name}${suffix}`;
       })
       .join("\n");
 
@@ -970,6 +975,15 @@ This pull request contains the release branch for **${version}**.
       // Clean branch name (remove remotes/origin/ prefix if present)
       const cleanBranchName = branchInfo.name.replace(/^remotes\/origin\//, "");
 
+      if (this.isDryRun()) {
+        const step = this.updateStepStatus(2, "skipped");
+        step.message = `Dry run: would check out ${cleanBranchName}`;
+        console.log(
+          `⏭️  Step 2: skipped (dry run) — would check out '${cleanBranchName}'`
+        );
+        return;
+      }
+
       console.log(`🔄 Step 2: Checking out branch '${cleanBranchName}'`);
       await this.gitFlowManager.checkoutAndPull(cleanBranchName);
 
@@ -998,6 +1012,13 @@ This pull request contains the release branch for **${version}**.
       const branchName = (
         this.context as IncrementRCWorkflowContext
       ).branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      if (this.isDryRun()) {
+        const step = this.updateStepStatus(3, "skipped");
+        step.message = `Dry run: would pull ${branchName}`;
+        console.log(`⏭️  Step 3: skipped (dry run) — would pull ${branchName}`);
+        return;
+      }
 
       console.log(`🔄 Step 3: Pulling latest changes from ${branchName}`);
       await this.gitFlowManager.pullBranch(branchName);
@@ -1706,6 +1727,15 @@ This PR increments the release candidate version for \`${branchName}\`.
     try {
       const cleanBranchName = branchInfo.name.replace(/^remotes\/origin\//, "");
 
+      if (this.isDryRun()) {
+        const step = this.updateStepStatus(2, "skipped");
+        step.message = `Dry run: would check out ${cleanBranchName}`;
+        console.log(
+          `⏭️  Step 2: skipped (dry run) — would check out '${cleanBranchName}'`
+        );
+        return;
+      }
+
       console.log(`🔄 Step 2: Checking out branch '${cleanBranchName}'`);
       await this.gitFlowManager.checkoutAndPull(cleanBranchName);
 
@@ -1730,6 +1760,13 @@ This PR increments the release candidate version for \`${branchName}\`.
       const branchName = (
         this.context as ReleaseVersionWorkflowContext
       ).branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      if (this.isDryRun()) {
+        const step = this.updateStepStatus(3, "skipped");
+        step.message = `Dry run: would pull ${branchName}`;
+        console.log(`⏭️  Step 3: skipped (dry run) — would pull ${branchName}`);
+        return;
+      }
 
       console.log(`🔄 Step 3: Pulling latest changes from ${branchName}`);
       await this.gitFlowManager.pullBranch(branchName);
@@ -1960,32 +1997,36 @@ This PR contains the final release version for ${branchName}.
       console.log(`🔄 Step 9: Creating GitHub Release`);
 
       const context = this.context as ReleaseVersionWorkflowContext;
+      const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
+
+      // A dry run never promotes, so targetVersion is unset; derive what the release
+      // would be named instead of treating its absence as a failure.
+      if (context.dryRun) {
+        const predicted = predictPromotedVersion(branchInfo.version.full);
+        const step = this.updateStepStatus(9, "skipped");
+        step.message = `Dry run: would create GitHub release ${predicted} targeting ${branchName}`;
+        console.log(`⏭️  Step 9: skipped (dry run) — ${step.message}`);
+        return;
+      }
 
       if (!context.targetVersion) {
         throw new Error("Target version not available in context");
       }
 
       const version = context.targetVersion.version;
-      const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
 
-      if (!context.dryRun) {
-        const { url: releaseUrl, notesWarning } =
-          await this.gitFlowManager.createGitHubRelease(version, branchName);
+      const { url: releaseUrl, notesWarning } =
+        await this.gitFlowManager.createGitHubRelease(version, branchName);
 
-        context.releaseUrl = releaseUrl;
-        if (notesWarning) {
-          context.releaseNotesWarning = notesWarning;
-          console.warn(`⚠️  Release notes warning: ${notesWarning}`);
-        }
-
-        console.log(`🎯 GitHub Release created: ${releaseUrl}`);
-        console.log(`📋 Version: ${version}`);
-        console.log(`🌿 Target branch: ${branchName}`);
-      } else {
-        console.log(
-          `🔧 Dry run: Would create GitHub release for version ${version} targeting branch ${branchName}`
-        );
+      context.releaseUrl = releaseUrl;
+      if (notesWarning) {
+        context.releaseNotesWarning = notesWarning;
+        console.warn(`⚠️  Release notes warning: ${notesWarning}`);
       }
+
+      console.log(`🎯 GitHub Release created: ${releaseUrl}`);
+      console.log(`📋 Version: ${version}`);
+      console.log(`🌿 Target branch: ${branchName}`);
 
       this.updateStepStatus(9, "completed");
     } catch (error) {

@@ -1530,71 +1530,59 @@ This PR contains the release branch for ${branchName}.
   /**
    * Validate branch version against its base branch
    */
+  /**
+   * Check that a branch's version is not behind its base branch.
+   *
+   * Reads both versions straight out of the branches with `git show`, so this
+   * performs no checkout and is safe to call while planning. The comparison is on
+   * major/minor/patch only; the RC suffix is deliberately ignored, since an RC of
+   * the same patch level as the base is valid.
+   */
   async validateBranchVersion(
     branchInfo: BranchTypeInfo
   ): Promise<{ valid: boolean; message: string }> {
     try {
-      // Checkout the base branch and get its VERSION file content
-      const currentStatus = await this.getStatus();
-      const originalBranch = currentStatus.currentBranch;
+      const baseBranchVersion = await this.readBranchVersion(
+        branchInfo.baseBranch
+      );
 
-      try {
-        await this.checkoutAndPull(branchInfo.baseBranch);
+      if (!baseBranchVersion) {
+        return {
+          valid: false,
+          message: `Could not read version from ${branchInfo.baseBranch} branch VERSION file`,
+        };
+      }
 
-        // Read VERSION file from base branch
-        const versionContent = await this.execGit("show HEAD:VERSION");
-        const baseBranchVersion = versionContent.split("\n")[0]?.trim();
+      const baseVersionMatch = baseBranchVersion.match(/^(\d+)\.(\d+)\.(\d+)/);
+      if (!baseVersionMatch) {
+        return {
+          valid: false,
+          message: `Invalid version format in ${branchInfo.baseBranch} branch: ${baseBranchVersion}`,
+        };
+      }
 
-        if (!baseBranchVersion) {
-          return {
-            valid: false,
-            message: `Could not read version from ${branchInfo.baseBranch} branch VERSION file`,
-          };
-        }
+      const [, baseMajorStr, baseMinorStr, basePatchStr] = baseVersionMatch;
+      const baseMajor = parseInt(baseMajorStr || "0", 10);
+      const baseMinor = parseInt(baseMinorStr || "0", 10);
+      const basePatch = parseInt(basePatchStr || "0", 10);
 
-        // Parse base branch version
-        const baseVersionMatch =
-          baseBranchVersion.match(/^(\d+)\.(\d+)\.(\d+)/);
-        if (!baseVersionMatch) {
-          return {
-            valid: false,
-            message: `Invalid version format in ${branchInfo.baseBranch} branch: ${baseBranchVersion}`,
-          };
-        }
+      const branchVersion = branchInfo.version;
+      const atOrAhead =
+        branchVersion.major > baseMajor ||
+        (branchVersion.major === baseMajor && branchVersion.minor > baseMinor) ||
+        (branchVersion.major === baseMajor &&
+          branchVersion.minor === baseMinor &&
+          branchVersion.patch >= basePatch);
 
-        const [, baseMajorStr, baseMinorStr, basePatchStr] = baseVersionMatch;
-        const baseMajor = parseInt(baseMajorStr || "0", 10);
-        const baseMinor = parseInt(baseMinorStr || "0", 10);
-        const basePatch = parseInt(basePatchStr || "0", 10);
-
-        // Compare versions
-        const branchVersion = branchInfo.version;
-
-        // Branch version should be >= base branch version
-        if (
-          branchVersion.major > baseMajor ||
-          (branchVersion.major === baseMajor &&
-            branchVersion.minor > baseMinor) ||
-          (branchVersion.major === baseMajor &&
-            branchVersion.minor === baseMinor &&
-            branchVersion.patch >= basePatch)
-        ) {
-          return {
+      return atOrAhead
+        ? {
             valid: true,
             message: `${branchInfo.name} version ${branchVersion.full} is valid against ${branchInfo.baseBranch} version ${baseBranchVersion}`,
-          };
-        } else {
-          return {
+          }
+        : {
             valid: false,
             message: `${branchInfo.name} version ${branchVersion.full} is behind ${branchInfo.baseBranch} version ${baseBranchVersion}. Cannot proceed with increment.`,
           };
-        }
-      } finally {
-        // Always return to original branch
-        if (originalBranch !== branchInfo.baseBranch) {
-          await this.execGit(`checkout ${originalBranch}`);
-        }
-      }
     } catch (error) {
       return {
         valid: false,
