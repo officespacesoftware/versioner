@@ -528,7 +528,7 @@ the draft pull request and the build-trigger pull request when it is not.
 | Kind | Exact form |
 | --- | --- |
 | Branch | `release-X.Y.Z-into-develop-<unix-timestamp>` off `develop` |
-| Commit | `Merge release/X.Y.Z into develop (conflicts unresolved — needs manual resolution)`, staging only the conflicted paths |
+| Commit | `Merge release/X.Y.Z into develop (conflicts unresolved — needs manual resolution)`; git has already staged the cleanly-merged paths, and only the conflicted ones are added on top, markers intact, so untracked files are never swept in |
 | Push | `git push -u origin release-X.Y.Z-into-develop-<unix-timestamp>` (not forced) |
 | Pull request | draft; head `release-X.Y.Z-into-develop-<unix-timestamp>` → base `develop`, title `Release X.Y.Z to develop (conflict resolution)` |
 | Pull request | head `release/X.Y.Z` → base `develop`, title `[Build trigger] Release X.Y.Z → develop`; closed again by this action, with a closing comment |

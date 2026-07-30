@@ -47,9 +47,10 @@ before(() => {
   commit("VERSION", version("4.124.0"), "To version 4.124.0");
 
   // develop and release/4.125.0 both rewrite VERSION off the same base, so
-  // release → develop takes the conflicting path.
+  // release → develop takes the conflicting path. develop holds a final version,
+  // which is what lets a new release candidate be cut from it.
   git("checkout", "-q", "-b", "develop");
-  commit("VERSION", version("4.124.0-RC.9"), "To version 4.124.0-RC.9");
+  commit("VERSION", version("4.124.1"), "To version 4.124.1");
 
   git("checkout", "-q", "-b", "release/4.125.0", "main");
   commit("VERSION", version("4.125.0-RC.1"), "To version 4.125.0-RC.1");
