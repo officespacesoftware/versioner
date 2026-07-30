@@ -1,0 +1,78 @@
+name: CI
+
+# Runs on every pull request and on pushes to the default branch (`master`),
+# so the JS and Ruby suites gate merges instead of only running at publish time.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: JS (Node 20)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: js/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: js
+        run: pnpm install --frozen-lockfile
+
+      # `typecheck` is `pnpm -r build`, i.e. `tsc` in every package that has one.
+      - name: Typecheck
+        working-directory: js
+        run: pnpm typecheck
+
+      - name: Test
+        working-directory: js
+        run: pnpm test
+
+  ruby:
+    name: Ruby (4.0.5)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Version is pinned to the repo-root `.tool-versions` (ruby 4.0.5). It is
+      # spelled out here rather than read from a file because setup-ruby resolves
+      # version files relative to `working-directory`, and there is no
+      # `ruby/.tool-versions`.
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "4.0.5"
+          bundler-cache: true
+          working-directory: ruby
+
+      - name: RSpec
+        working-directory: ruby
+        run: bundle exec rspec
+
+      - name: RuboCop
+        working-directory: ruby
+        run: bundle exec rubocop

@@ -4,11 +4,8 @@ name: Publish JS package
 # (e.g. `@officespacesoftware/release-management-core@1.1.0`). Push the tag and
 # the matching package publishes to GitHub Packages.
 #
-# TODO: restrict to tags whose commit is reachable from `master`, so feature
-# branches can't accidentally publish. Easiest implementation is a guard step
-# that runs `git merge-base --is-ancestor "$GITHUB_SHA" origin/master` and
-# fails the job otherwise. Holding off until the first master-merged release
-# proves the rest of the pipeline works.
+# Only tags whose commit is reachable from `master` may publish; see the
+# "Verify commit is reachable from master" guard below.
 
 on:
   push:
@@ -29,6 +26,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history so `git merge-base --is-ancestor` below has the commits
+          # it needs; the default shallow clone does not.
+          fetch-depth: 0
+
+      - name: Verify commit is reachable from master
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin master
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::Refusing to publish: commit $GITHUB_SHA is not reachable from origin/master. Merge to master and re-tag the merged commit."
+            exit 1
+          fi
+          echo "Commit $GITHUB_SHA is reachable from origin/master."
 
       - name: Resolve tag and target package
         id: parse
