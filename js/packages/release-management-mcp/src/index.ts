@@ -238,8 +238,9 @@ digest back as 'confirm' to apply. If the repository changed in between, the
 digest no longer matches and it refuses, returning a fresh plan.
 
 Applying creates: a commit "To version X.Y.Z-RC.<n+1>" touching only VERSION, an
-annotated tag of the same name, a push of both to origin, and a pull request to
-develop (opened, or updated if one is already open).`,
+annotated tag of the same name, a push of both to origin, and a pull request to the
+branch's own base — develop for release/X.Y.Z, main for hotfix/X.Y.Z — opened, or
+updated if one is already open.`,
             inputSchema: {
               type: "object",
               properties: {

@@ -1163,7 +1163,9 @@ This pull request contains the release branch for **${version}**.
       }
 
       const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
-      const targetBranch = "develop"; // All RC PRs target develop
+      // A release candidate integrates back into its own base: a release branch
+      // into develop, a hotfix into main.
+      const targetBranch = branchInfo.targetBranch;
       const targetVersion = (this.context as IncrementRCWorkflowContext)
         .targetVersion;
 
@@ -1174,12 +1176,17 @@ This pull request contains the release branch for **${version}**.
       if (!(this.context as IncrementRCWorkflowContext).dryRun) {
         const prTitle = `RC ${
           targetVersion?.version || "new version"
-        } to develop`;
+        } to ${targetBranch}`;
+
+        const warning =
+          targetBranch === "main"
+            ? `\n${productionMergeWarning(branchInfo.type)}\n`
+            : "";
 
         const prBody = `## ${
           branchInfo.type === "release" ? "Release" : "Hotfix"
         } Candidate Increment
-
+${warning}
 This PR increments the release candidate version for \`${branchName}\`.
 
 ### 📋 ${branchInfo.type === "release" ? "Release" : "Hotfix"} RC Information
@@ -1356,7 +1363,7 @@ This PR increments the release candidate version for \`${branchName}\`.
       branch,
       currentVersion,
       resultingVersion,
-      prBase: "develop",
+      prBase: branchInfo.targetBranch,
       createsGitHubRelease: false,
     });
   }

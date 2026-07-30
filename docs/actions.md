@@ -19,7 +19,7 @@ Each action is reachable two ways with the same underlying implementation in
 | List versions | `list_versions` | `list-versions` | No | Nothing |
 | Create release candidate | `create_release_candidate` | `create-rc` | Yes | Branch, commit, annotated tag, 2 pushes, PR → `develop` |
 | Create hotfix | `create_hotfix` | `create-hotfix` | Yes | Branch, commit, annotated tag, 2 pushes, PR → `develop` |
-| Increment release candidate | `increment_release_candidate` | `increment-rc` | Yes | Commit, annotated tag, 2 pushes, PR → `develop` |
+| Increment release candidate | `increment_release_candidate` | `increment-rc` | Yes | Commit, annotated tag, 2 pushes, PR → the branch's own base |
 | Release version | `release_version` | `release-version` | Yes | Commit, annotated tag, 2 pushes, PR → `main`, GitHub release |
 | Initialize versioner | `initialize_versioner` | `initialize-versioner` | Yes (local only) | `VERSION` file, commit, annotated tag |
 | Downmerge main → develop | `downmerge_main_to_develop` | `downmerge main-to-develop` | Yes | Merge branch, merge commit, 1 push, PR → `develop` |
@@ -304,7 +304,8 @@ selecting a different branch.
    This validation also runs under `dryRun`.
 5. Increment the RC through the versioner package, which commits and tags.
 6. Push the branch and the tag.
-7. Open or update the pull request to `develop`.
+7. Open or update the pull request to the branch's own base — `develop` for a release
+   branch, `main` for a hotfix branch.
 
 **Objects and remote effects.**
 
@@ -314,7 +315,11 @@ selecting a different branch.
 | Tag | annotated `X.Y.Z-RC.N`, message `Release version X.Y.Z-RC.N` |
 | Push | `git push -u origin <target branch>` (not forced) |
 | Push | `git push origin X.Y.Z-RC.N` (not forced) |
-| Pull request | head `<target branch>` → base `develop`, title `RC X.Y.Z-RC.N to develop` |
+| Pull request | head `<target branch>` → base `develop` (release) or `main` (hotfix), title `RC X.Y.Z-RC.N to <base>`; a `main` base carries the `> [!WARNING]` production-merge block |
+
+A hotfix therefore carries two pull requests: the `→ develop` one opened by
+`create_hotfix`, and the `→ main` one opened here and later updated by `release_version`,
+which shares that head/base pair.
 
 Step 4 checks out the base branch to read its `VERSION`, then returns to the branch it
 started on. A failure in step 7 does not fail the action: the version bump has already

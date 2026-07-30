@@ -134,8 +134,7 @@ function isTimeoutError(error: unknown): boolean {
 /**
  * Warning banner for any PR that merges into the production branch.
  *
- * Shared so every → production PR carries it. Previously only the final-release PR
- * did, and the hotfix → main PR — the most production-critical of the three — did not.
+ * Shared so that every pull request targeting the production branch carries it.
  */
 export function productionMergeWarning(kind: string): string {
   return [
