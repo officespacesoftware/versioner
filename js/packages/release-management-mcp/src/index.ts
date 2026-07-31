@@ -33,6 +33,21 @@ const SERVER_VERSION: string = (
 ).version;
 
 /**
+ * Over stdio, stdout is the JSON-RPC channel: anything written to it that is not
+ * a protocol message corrupts the stream. The core library logs workflow progress
+ * with console.log because its other front-end is a CLI, where that is correct, so
+ * this front-end sends those writes to stderr instead. Applied before the transport
+ * connects, and kept as a standing guard rather than a fix for any one caller.
+ */
+function redirectConsoleToStderr(): void {
+  for (const method of ["log", "info", "debug"] as const) {
+    console[method] = (...args: unknown[]): void => {
+      console.error(...args);
+    };
+  }
+}
+
+/**
  * Present a plan for a human to approve, making it unambiguous that nothing has
  * happened yet and stating exactly how to proceed.
  */
@@ -1811,6 +1826,7 @@ Common issues:
   }
 
   async run(): Promise<void> {
+    redirectConsoleToStderr();
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error("Release Management MCP server running on stdio");
