@@ -6,6 +6,7 @@ import { registerReleaseVersion } from "./commands/release-version.js";
 import { registerInitializeVersioner } from "./commands/initialize-versioner.js";
 import { registerDownmerge } from "./commands/downmerge.js";
 import { registerListVersions } from "./commands/list-versions.js";
+import { registerRevertVersion } from "./commands/revert-version.js";
 
 const program = new Command();
 
@@ -23,6 +24,7 @@ registerCreateRC(program);
 registerCreateHotfix(program);
 registerIncrementRC(program);
 registerReleaseVersion(program);
+registerRevertVersion(program);
 registerInitializeVersioner(program);
 registerDownmerge(program);
 

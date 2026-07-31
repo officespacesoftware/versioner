@@ -2,6 +2,7 @@ import {
   GitFlowManager,
   ReleaseAgent,
   BranchSelectionError,
+  MergeConflictError,
   StalePlanError,
 } from "@officespacesoftware/release-management-core";
 import { UsageError } from "./errors.js";
@@ -93,6 +94,12 @@ export function classifyError(error: unknown, message: string): ExitCode {
   // Contradictory flags, and a plan the repository has moved past, are both the
   // operator's to resolve: re-run with different arguments.
   if (error instanceof UsageError || error instanceof StalePlanError) {
+    return ExitCode.UserError;
+  }
+  // A conflict needs a human to resolve it; it is not an environment fault. The
+  // downmerges reshape theirs into a plain Error before this point, so this
+  // reaches only callers that let it through.
+  if (error instanceof MergeConflictError) {
     return ExitCode.UserError;
   }
   const lower = message.toLowerCase();

@@ -21,6 +21,7 @@ Each action is reachable two ways with the same underlying implementation in
 | Create hotfix | `create_hotfix` | `create-hotfix` | Yes | Branch, commit, annotated tag, 2 pushes, PR → `main` |
 | Increment release candidate | `increment_release_candidate` | `increment-rc` | Yes | Commit, annotated tag, 2 pushes, PR → the branch's own base |
 | Release version | `release_version` | `release-version` | Yes | Commit, annotated tag, 2 pushes, PR → `main`, GitHub release |
+| Revert version | `revert_version` | `revert-version` | Yes | Revert commit, 1 push, PR update — **deletes** the tag locally and on origin, the GitHub release for a final version, and the branch when abandoning |
 | Initialize versioner | `initialize_versioner` | `initialize-versioner` | Yes (local only) | `VERSION` file, commit, annotated tag |
 | Downmerge main → develop | `downmerge_main_to_develop` | `downmerge main-to-develop` | Yes | Merge branch, merge commit, 1 push, PR → `develop` |
 | Downmerge release → develop | `downmerge_release_to_develop` | `downmerge release-to-develop` | Yes | Clean merge: PR → `develop`. Conflicting merge: merge branch, commit, 1 push, draft PR → `develop`, plus a transient build-trigger PR |
@@ -60,10 +61,11 @@ new content is appended.
 
 **Preconditions.** Every mutating action first checks that the working directory is a git
 repository and that nothing is staged; a staged file aborts the action. The four version
-workflows additionally require the versioner library to have loaded. `list_versions`
+workflows additionally require the versioner library to have loaded (`revert_version` uses
+git alone, so it does not). `list_versions`
 checks only that the directory is a git repository, because it never mutates.
 
-**`dryRun`.** The four version workflows accept a dry-run flag: read-only validation still
+**`dryRun`.** The five version workflows, `revert_version` included, accept a dry-run flag: read-only validation still
 runs and the mutating steps are skipped. The five downmerge actions have no such flag —
 calling one without a confirmation digest returns a plan and is guaranteed not to mutate.
 `initialize_versioner` has neither, because everything it creates is local.
@@ -88,7 +90,7 @@ Every mutating action except `initialize_versioner` is two-phase.
 | `targetBranch` | the branch the plan is anchored to: the one being modified, or the base a new branch is cut from |
 | `targetBranchHead` | that branch's HEAD commit when the plan was computed |
 | `currentVersion` → `resultingVersion` | the version transition, absent for the downmerges, which create no version commit |
-| `mutations` | the ordered list of objects that would be created, each with a kind (`branch`, `commit`, `tag`, `push`, `pull-request`, `github-release`) and a one-line summary |
+| `mutations` | the ordered list of objects the action would touch, each with a kind (`branch`, `commit`, `tag`, `push`, `pull-request`, `github-release`), an `operation` of `create` or `delete` (absent means `create`), and a one-line summary. `renderChangePlan` groups them under "Would create:" and "Would delete:" |
 | `warnings` | conditions that do not block planning but change the outcome |
 | `digest` | the confirmation token |
 
@@ -401,6 +403,101 @@ error is reported alongside the result.
 
 CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
 `pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`.
+
+---
+
+## `revert_version`
+
+**Purpose.** Undo the most recent version bump on a release or hotfix branch, and remove
+the tag it created. This is the only action that deletes anything.
+
+**Inputs.**
+
+| Input | Default |
+| --- | --- |
+| `version` / `--version` (base version such as `1.2.0`) | the checked-out branch |
+| `workingDirectory` / `--working-directory` | current directory |
+| `dryRun` / `--dry-run` | `false` |
+
+**Target selection**, in order:
+
+1. the version passed explicitly — matched against `release/<version>` and
+   `hotfix/<version>`; both existing at once is an error;
+2. the checked-out release or hotfix branch.
+
+There is deliberately **no third tier**. The other version workflows fall back to the
+newest release candidate across all branches; reverting does not, because guessing which
+branch to delete tags and branches from is not a risk worth taking to save typing a
+version.
+
+**Two shapes.** Which one applies is decided by whether the bump commit's parent is
+already in the branch's base:
+
+- **Revert** — the branch has earlier history of its own, so `VERSION` goes back one step
+  (`RC.2` → `RC.1`, or a final back to the RC it was promoted from) and the branch
+  survives. A revert commit is used, never a reset, because protected branches commonly
+  forbid the force-push a reset would need.
+- **Abandon** — the bump sits directly on the base branch, so it is the branch's first
+  version and there is nothing to rewind to; reverting would leave the branch
+  indistinguishable from its base. The branch is deleted instead. Note this is *not* the
+  same as "the parent has no `VERSION`": a release branch is cut from `develop`, so the
+  parent carries `develop`'s version.
+
+**Refusals.** Each of these aborts rather than warning:
+
+1. the version is already merged into the production branch — it shipped, so it can only
+   be superseded by a new version, never revoked;
+2. the branch head is not the bump commit, i.e. its subject is not
+   `To version <current version>`; there is nothing to revert and an earlier commit will
+   not be guessed at;
+3. the branch has no readable `VERSION`;
+4. abandoning would delete a branch holding commits that are not in its base — those may
+   exist nowhere else, so they are listed and the action stops.
+
+**Steps** (revert shape).
+
+1. Check out and pull the branch.
+2. `git revert --no-edit <bump commit>`. A conflicting revert is aborted, leaving nothing.
+3. Delete the tag on origin, then locally.
+4. Delete the GitHub release for the tag, if the version is final and one exists.
+5. Push the branch.
+6. Update the open pull request, if there is one, to the version now held.
+
+**Steps** (abandon shape).
+
+1. Delete the tag on origin, then locally.
+2. Comment on the open pull request explaining the abandonment, then close it.
+3. Delete the branch on origin, then locally.
+
+The ordering is chosen for what a partial failure leaves behind: tags go first, while the
+commit they point at is still reachable; the pull-request record is written before the
+branch disappears, so the explanation precedes the closure; the branch goes last, being
+the least recoverable step. The plan states the branch head so a mistaken abandon can be
+undone with `git branch <name> <sha>` until it is garbage collected.
+
+**Objects and remote effects.**
+
+| Kind | Exact form |
+| --- | --- |
+| Commit (revert shape) | `Revert "To version X.Y.Z"` on the target branch, staging `VERSION` |
+| Tag deletion | `X.Y.Z` removed locally (`git tag -d`) and on origin (`git push origin :refs/tags/X.Y.Z`) |
+| GitHub release deletion | the release for tag `X.Y.Z`, when the version is final; this moves the `Latest` marker to the previous release and destroys that release's notes, including any hand edits |
+| Push (revert shape) | `git push -u origin <target branch>` (not forced) |
+| Pull request (revert shape) | the open PR on the branch's own base, retitled `RC X.Y.Z to <base>` |
+| Pull request (abandon shape) | the open PR closed, with a comment naming the version, the deleted tag and the recovery command |
+| Branch deletion (abandon shape) | `<target branch>` removed on origin and locally |
+
+A missing tag is reported as a warning rather than treated as a failure — a revert should
+not abort because the thing it wanted gone was already gone. A failure in the pull-request
+step does not fail the action: the git side has already happened, so the error is reported
+alongside the result.
+
+**Deleting a tag does not undo a build or deployment that tag already triggered**, and
+pushing the revert commit may itself trigger a new one. Every plan says so.
+
+CLI `$GITHUB_OUTPUT` keys: `branch`, `shape`, `reverted_version`, `resulting_version`,
+`tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`,
+`pull_request_error`.
 
 ---
 

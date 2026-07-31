@@ -97,6 +97,10 @@ const buildEveryPlan = async (agent) => [
   await agent.planDownmergeReleaseToMain(),
   await agent.planDownmergeHotfixToDevelop(),
   await agent.planDownmergeHotfixToMain(),
+  // Reverting is the one plan whose apply deletes refs, so its read-only
+  // guarantee is the one most worth pinning. Named explicitly because revert
+  // refuses to auto-select a branch.
+  await agent.planRevertVersion("4.125.0"),
 ];
 
 test("building every plan leaves the repository untouched", async () => {

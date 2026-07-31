@@ -6,9 +6,9 @@ A pnpm workspace (`versioner-js-workspace`, private) holding the four
 | Package | Directory | Version | Entry points |
 | --- | --- | --- | --- |
 | `@officespacesoftware/versioner` | `packages/versioner` | `1.0.1` | `lib/index.js`, bin `versioner` |
-| `@officespacesoftware/release-management-core` | `packages/release-management-core` | `1.2.0` | `lib/index.js` + `lib/index.d.ts` |
-| `@officespacesoftware/release-management-cli` | `packages/release-management-cli` | `0.2.0` | `lib/cli.js`, bin `release-management` |
-| `@officespacesoftware/release-management-mcp` | `packages/release-management-mcp` | `0.4.0` | `lib/index.js`, bin `release-management-mcp` |
+| `@officespacesoftware/release-management-core` | `packages/release-management-core` | `0.5.0-RC.0` | `lib/index.js` + `lib/index.d.ts` |
+| `@officespacesoftware/release-management-cli` | `packages/release-management-cli` | `0.3.0-RC.0` | `lib/cli.js`, bin `release-management` |
+| `@officespacesoftware/release-management-mcp` | `packages/release-management-mcp` | `0.5.0-RC.0` | `lib/index.js`, bin `release-management-mcp` |
 
 The core depends on the versioner package; the CLI and MCP depend on the core. Nothing
 depends on the CLI or the MCP. See
@@ -128,6 +128,7 @@ release-management create-rc                [--release-type major|minor|patch]
 release-management create-hotfix
 release-management increment-rc             [--version <version>]
 release-management release-version          [--version <version>]
+release-management revert-version           [--version <version>]
 release-management initialize-versioner     [--version <version>]
 release-management downmerge main-to-develop
 release-management downmerge release-to-develop  [--version <version>]
@@ -137,8 +138,8 @@ release-management downmerge hotfix-to-main      [--version <version>]
 ```
 
 Every command accepts `--working-directory <path>`, defaulting to the current directory.
-The four version workflows — `create-rc`, `create-hotfix`, `increment-rc` and
-`release-version` — also accept `--dry-run`.
+The five version workflows — `create-rc`, `create-hotfix`, `increment-rc`,
+`release-version` and `revert-version` — also accept `--dry-run`.
 
 How mutating commands describe a change before applying it — and the digest that has to be
 handed back to apply it — is documented in
@@ -156,10 +157,10 @@ is defined for partial success. A fatal parse-time error also exits `2`.
 
 ## `@officespacesoftware/release-management-mcp`
 
-A Model Context Protocol stdio server exposing twelve tools: `health_check`,
+A Model Context Protocol stdio server exposing thirteen tools: `health_check`,
 `list_versions`, `create_release_candidate`, `create_hotfix`,
-`increment_release_candidate`, `release_version`, `initialize_versioner`,
-`downmerge_main_to_develop`, `downmerge_release_to_develop`,
+`increment_release_candidate`, `release_version`, `revert_version`,
+`initialize_versioner`, `downmerge_main_to_develop`, `downmerge_release_to_develop`,
 `downmerge_release_to_main`, `downmerge_hotfix_to_develop`, and
 `downmerge_hotfix_to_main`. Each is documented in
 [../docs/actions.md](../docs/actions.md).

@@ -688,6 +688,74 @@ certain which branch should be acted on, then pass that version explicitly.`,
               },
             },
           },
+          {
+            name: "revert_version",
+            title: "Revert Version",
+            description: `⏪  Revert Version
+
+Undoes the most recent version bump on a release or hotfix branch.
+
+- Input: optional version (e.g., 1.2.0) identifying the branch
+- Target selection, in order:
+  1. the version you pass explicitly;
+  2. the currently checked-out release/hotfix branch.
+  There is deliberately NO automatic fallback: this deletes tags and can delete a
+  branch, so it will not guess. Use list_versions, then check out the branch or
+  pass its version.
+
+Takes one of two shapes, decided by whether the version has a predecessor:
+
+- REVERT — the branch's VERSION goes back one step (RC.2 → RC.1, or a final back
+  to the RC it was promoted from). The branch survives. A revert commit is used,
+  never a reset, because protected branches commonly forbid force-push.
+- ABANDON — when the version is the branch's FIRST (an RC.0 cut straight off
+  develop) there is no earlier version to return to, so the branch itself is
+  deleted along with its tag, and its pull request is closed with a comment saying
+  why. Refused if the branch holds any commit that is not already in its base,
+  since deleting it would destroy work.
+
+Refuses outright when: the version is already merged into the production branch
+(it shipped, so it can only be superseded); the branch head is not the version
+bump commit; or the branch has no readable VERSION.
+
+Called WITHOUT 'confirm', this changes nothing: it returns a plan listing what it
+would revert and delete, plus a digest. Pass that digest back as 'confirm' to
+apply. If the repository changed in between, the digest no longer matches and it
+refuses, returning a fresh plan.
+
+Applying deletes the tag locally and on origin, and for a final version deletes
+its GitHub Release, which moves the Latest marker back to the previous release and
+destroys that release's notes. Deleting a tag does NOT undo a build or deployment
+the tag already triggered.`,
+            inputSchema: {
+              type: "object",
+              properties: {
+                confirm: {
+                  type: "string",
+                  description:
+                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
+                    "Omit to receive a plan without changing anything.",
+                },
+                version: {
+                  type: "string",
+                  description:
+                    "Optional version identifying the branch to revert (e.g., '1.2.0'). " +
+                    "When not provided, the currently checked-out release or hotfix branch is used. " +
+                    "If provided, this parameter must be entered by a human user.",
+                },
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The working directory path for the project (optional, defaults to current directory)",
+                },
+                dryRun: {
+                  type: "boolean",
+                  description:
+                    "Optional: if true, performs validation checks without making any changes (default: false)",
+                },
+              },
+            },
+          },
         ],
       };
     });
@@ -746,6 +814,10 @@ certain which branch should be acted on, then pass that version explicitly.`,
 
           case "list_versions":
             result = await this.handleListVersions(args);
+            break;
+
+          case "revert_version":
+            result = await this.handleRevertVersion(args);
             break;
 
           default:
@@ -1713,6 +1785,103 @@ ${progressSummary}
 💥 Error: ${errorMessage}
 
 Please review the error and fix any issues before retrying the workflow.`;
+    }
+  }
+
+  private async handleRevertVersion(args: any): Promise<string> {
+    const version = args?.version;
+    const workingDirectory = args?.workingDirectory || process.cwd();
+    const dryRun = args?.dryRun || false;
+    const confirm: string | undefined = args?.confirm;
+
+    try {
+      await this.bindWorkingDirectory(workingDirectory, {
+        initializeReleaseAgent: true,
+      });
+
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(
+          `Directory '${workingDirectory}' is not a Git repository`
+        );
+      }
+
+      await this.gitFlowManager!.validateNoStagedChanges();
+
+      const plan = await this.releaseAgent!.planRevertVersion(version);
+      if (!confirm) {
+        return renderPlanForApproval(plan, "revert_version");
+      }
+      assertPlanIsCurrent(plan, confirm);
+
+      const result = await this.releaseAgent!.executeRevertVersionWorkflow(
+        workingDirectory,
+        version,
+        dryRun
+      );
+
+      const lines = [
+        `⏪ Revert Version Workflow ${dryRun ? "(Dry Run) " : ""}Completed Successfully!`,
+        ``,
+        `📁 Working Directory: ${workingDirectory}`,
+        `🎯 Branch: ${result.currentBranch}`,
+        result.shape === "abandon"
+          ? `🗑️  Abandoned the branch: ${result.revertedVersion} was its first version`
+          : `📊 Version: ${result.revertedVersion} → ${result.resultingVersion}`,
+        ``,
+        `📋 Workflow Progress:`,
+        this.releaseAgent!.getProgressSummary(),
+        ``,
+        `🏷️  Tag ${result.revertedVersion}: ` +
+          `${result.tagDeletedRemotely ? "deleted on origin" : "not on origin"}, ` +
+          `${result.tagDeletedLocally ? "deleted locally" : "not local"}`,
+      ];
+
+      if (result.releaseDeletedUrl) {
+        lines.push(
+          `📦 Deleted the GitHub release; Latest now points at the previous release`
+        );
+      }
+      if (result.branchDeleted) {
+        lines.push(`🌿 Deleted ${result.currentBranch} on origin and locally`);
+      }
+      if (result.pullRequestUrl) {
+        lines.push(
+          `🔗 ${result.pullRequestAction === "closed" ? "Closed" : "Updated"} PR: ${result.pullRequestUrl}`
+        );
+      }
+      if (result.pullRequestError) {
+        lines.push(`⚠️  Pull request step failed: ${result.pullRequestError}`);
+      }
+
+      lines.push(
+        ``,
+        `Deleting a tag does not undo a build or deployment it already triggered.`,
+        ``,
+        `✅ All steps completed successfully.`
+      );
+
+      return lines.join("\n");
+    } catch (error) {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, "revert_version");
+      }
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error("Revert version workflow failed:", error);
+
+      const progressSummary =
+        this.releaseAgent?.getProgressSummary() || "Workflow not started";
+
+      return `❌ Revert Version Workflow Failed
+
+📁 Working Directory: ${workingDirectory}
+${version ? `📋 Target Version: ${version}` : "📋 Version Selection: checked-out branch"}
+
+📋 Workflow Progress:
+${progressSummary}
+
+💥 Error: ${errorMessage}`;
     }
   }
 
