@@ -546,20 +546,27 @@ Reconciles develop with a fix that reached production through main.
 - Input: optional version to merge (e.g. 1.2.1); auto-detects the newest hotfix
   branch when omitted
 - The pull request head is always the merge branch, never hotfix/* — the latter
-  would re-trigger CI workflows that build an already-deployed hotfix
-- On conflict the merge is aborted, the local merge branch is deleted, and nothing
-  is pushed; the error lists the conflicted files
+  would re-trigger CI workflows that build an already-deployed hotfix. For the
+  same reason there is no build-trigger PR: the hotfix has already shipped.
+- A conflict is an outcome, not a failure. A hotfix and develop have both moved
+  VERSION on by the time this runs, so conflicting is the ordinary case.
 - Run this after the fix is written; at creation the hotfix branch holds only a
   version bump
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
-branch, merge commit, push and pull request it would create, plus a digest. Pass
-that digest back as 'confirm' to apply. If either branch moved in between, the
-digest no longer matches and it refuses, returning a fresh plan.
+Called WITHOUT 'confirm', this changes nothing: it previews the merge with
+git merge-tree and returns a plan for the outcome that would actually occur, plus
+a digest. Pass that digest back as 'confirm' to apply. If either branch moved in
+between, the digest no longer matches and it refuses, returning a fresh plan.
 
-Applying creates: the branch hotfix-X.Y.Z-into-develop-<unix-timestamp> off
-develop, a merge commit "Merge hotfix/X.Y.Z into develop", a push of that branch,
-and a pull request into develop titled "Hotfix X.Y.Z to develop".`,
+Applying, when the merge is clean, creates: the branch
+hotfix-X.Y.Z-into-develop-<unix-timestamp> off develop, a merge commit
+"Merge hotfix/X.Y.Z into develop", a push of that branch, and a pull request into
+develop titled "Hotfix X.Y.Z to develop".
+
+Applying, when the merge conflicts, creates the same branch and push, but the
+commit carries the conflicted paths with their markers left intact and the pull
+request opens as a DRAFT titled "Hotfix X.Y.Z to develop (conflict resolution)",
+listing the files for a human to resolve.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -969,23 +976,30 @@ Common issues:
         return `🌿 Merge branch: \`${result.mergeBranchName}\`
 🔗 Pull Request: ${result.pullRequestUrl}`;
       case "merge-branch-with-conflicts": {
-        const buildTriggerLines = result.buildTriggerSkippedReason
-          ? `⏭️  Build-trigger PR skipped: ${result.buildTriggerSkippedReason}`
-          : [
-              `🛠️  Build-trigger PR (auto-closed): ${result.buildTriggerPullRequestUrl}`,
-              result.checksStarted
-                ? "✅ Build-trigger CI checks observed before close"
-                : "⚠️  Build-trigger PR closed without checks registering within 60s",
-            ].join("\n");
-        const conflictedList = result.conflictedFiles
-          .map((f) => `   - ${f}`)
-          .join("\n");
-        return `🌿 Merge branch (conflicts unresolved): \`${result.mergeBranchName}\`
-🔗 Draft merge-resolution PR: ${result.mergeBranchPullRequestUrl}
-${buildTriggerLines}
-
-⚠️  Conflicted files (resolve in the draft PR):
-${conflictedList}`;
+        const lines = [
+          `🌿 Merge branch (conflicts unresolved): \`${result.mergeBranchName}\``,
+          `🔗 Draft merge-resolution PR: ${result.mergeBranchPullRequestUrl}`,
+        ];
+        // Only the release → develop downmerge opens a build-trigger PR, so stay
+        // silent about one rather than reporting an absent step.
+        if (result.buildTriggerSkippedReason) {
+          lines.push(
+            `⏭️  Build-trigger PR skipped: ${result.buildTriggerSkippedReason}`
+          );
+        } else if (result.buildTriggerPullRequestUrl) {
+          lines.push(
+            `🛠️  Build-trigger PR (auto-closed): ${result.buildTriggerPullRequestUrl}`,
+            result.checksStarted
+              ? "✅ Build-trigger CI checks observed before close"
+              : "⚠️  Build-trigger PR closed without checks registering within 60s"
+          );
+        }
+        lines.push(
+          "",
+          "⚠️  Conflicted files (resolve in the draft PR):",
+          ...result.conflictedFiles.map((f) => `   - ${f}`)
+        );
+        return lines.join("\n");
       }
     }
   }

@@ -2029,10 +2029,14 @@ This PR merges the release branch into main via a merge branch (\`${mergeBranchN
    * request head is never `hotfix/*` and CI workflows keyed on that head do not
    * rebuild an already-deployed hotfix.
    *
-   * A conflict aborts: the merge is undone, the local merge branch is deleted,
-   * and a MergeConflictError names the conflicted files. Nothing is pushed and no
-   * pull request is opened, because this is a deliberate reconciliation step and
-   * a half-merged branch is worse than none.
+   * A conflict is an outcome rather than a failure, the same way it is for
+   * release → develop: the conflicted files are committed with their markers
+   * intact and the pull request opens as a draft for a human to resolve. A hotfix
+   * and develop have both moved VERSION on by the time this runs, so conflicting
+   * is the ordinary case, not the exceptional one.
+   *
+   * No build-trigger pull request: the hotfix has already been deployed, so
+   * re-firing CI on a `hotfix/*` head has nothing to build.
    */
   async downmergeHotfixToDevelop(version?: string): Promise<DownmergeResult> {
     try {
@@ -2054,15 +2058,32 @@ This PR merges the release branch into main via a merge branch (\`${mergeBranchN
         baseBranch: "develop",
         sourceBranch: cleanName,
         branchName: mergeBranchName,
-        commitConflictMarkers: false,
+        commitConflictMarkers: true,
         mergeCommitMessage: `Merge ${cleanName} into develop`,
       });
 
-      const prTitle = `Hotfix ${branch.version.full} to develop`;
+      const conflicted = mergeResult.hasConflicts;
+      const conflictSection = conflicted
+        ? `
+### ⚠️ Action required
+
+1. Check out \`${mergeBranchName}\` locally.
+2. Resolve the conflicts in the files listed below.
+3. Commit and push the resolution.
+4. Mark this PR ready for review and merge.
+
+### 📋 Conflicted files
+${mergeResult.conflictedFiles.map((f) => `- \`${f}\``).join("\n")}
+`
+        : "";
+
+      const prTitle = conflicted
+        ? `Hotfix ${branch.version.full} to develop (conflict resolution)`
+        : `Hotfix ${branch.version.full} to develop`;
       const prBody = `## Hotfix ${branch.version.full} to develop
 
 This PR brings the hotfix back into develop via a merge branch (\`${mergeBranchName}\`). The merge branch is used instead of a direct hotfix/* head so CI workflows that build the hotfix artifact do not re-trigger.
-
+${conflictSection}
 ### 📋 Hotfix Information
 - **Version**: ${branch.version.full}
 - **Source**: ${cleanName}
@@ -2076,15 +2097,28 @@ This PR brings the hotfix back into develop via a merge branch (\`${mergeBranchN
         mergeResult.branchName,
         "develop",
         prTitle,
-        prBody
+        prBody,
+        conflicted
       );
       const verb = prResult.action === "updated" ? "Updated" : "Created";
-      console.log(`✅ ${verb} pull request: ${prResult.url}`);
+      console.log(
+        `✅ ${verb} ${conflicted ? "draft " : ""}pull request: ${prResult.url}`
+      );
+
+      if (!conflicted) {
+        return {
+          kind: "merge-branch",
+          pullRequestUrl: prResult.url,
+          mergeBranchName: mergeResult.branchName,
+        };
+      }
 
       return {
-        kind: "merge-branch",
-        pullRequestUrl: prResult.url,
+        kind: "merge-branch-with-conflicts",
         mergeBranchName: mergeResult.branchName,
+        mergeBranchPullRequestUrl: prResult.url,
+        checksStarted: false,
+        conflictedFiles: mergeResult.conflictedFiles,
       };
     } catch (error) {
       if (error instanceof MergeConflictError) {

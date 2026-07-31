@@ -25,7 +25,7 @@ Each action is reachable two ways with the same underlying implementation in
 | Downmerge main → develop | `downmerge_main_to_develop` | `downmerge main-to-develop` | Yes | Merge branch, merge commit, 1 push, PR → `develop` |
 | Downmerge release → develop | `downmerge_release_to_develop` | `downmerge release-to-develop` | Yes | Clean merge: PR → `develop`. Conflicting merge: merge branch, commit, 1 push, draft PR → `develop`, plus a transient build-trigger PR |
 | Downmerge release → main | `downmerge_release_to_main` | `downmerge release-to-main` | Yes | Merge branch, merge commit, 1 push, PR → `main` |
-| Downmerge hotfix → develop | `downmerge_hotfix_to_develop` | `downmerge hotfix-to-develop` | Yes | Merge branch, merge commit, 1 push, PR → `develop` |
+| Downmerge hotfix → develop | `downmerge_hotfix_to_develop` | `downmerge hotfix-to-develop` | Yes | Merge branch, commit, 1 push, PR → `develop`; draft when the merge conflicts |
 | Downmerge hotfix → main | `downmerge_hotfix_to_main` | `downmerge hotfix-to-main` | Yes | PR → `main` |
 
 Read-only actions are `health_check` and `list_versions`.
@@ -594,31 +594,35 @@ CLI `$GITHUB_OUTPUT` keys: `kind`, `pull_request_url`, `merge_branch`.
 | `version` / `--version` | newest hotfix branch by semantic version |
 | `workingDirectory` / `--working-directory` | current directory |
 
-The plan is anchored on `develop`, and names the hotfix branch's head as the commit that
-would be merged in. A previewed conflict is a warning, because the action creates nothing
-at all in that case.
+The plan is anchored on `develop`, names the hotfix branch's head as the commit that would
+be merged in, and previews the merge so it describes the outcome that would actually
+occur.
 
 **Steps.**
 
 1. Resolve the hotfix branch, by exact version or as the newest one.
 2. Check out and pull `develop`, then check out and pull the hotfix branch.
 3. Create the merge branch off `develop`, merge the hotfix branch in, and push.
-4. Open or update the pull request to `develop`.
+4. Open or update the pull request to `develop`, as a draft when the merge conflicted.
 
 **Objects and remote effects.**
 
 | Kind | Exact form |
 | --- | --- |
 | Branch | `hotfix-X.Y.Z-into-develop-<unix-timestamp>` off `develop` |
-| Commit | merge commit `Merge hotfix/X.Y.Z into develop` (`git merge --no-ff`) |
+| Commit | merge commit `Merge hotfix/X.Y.Z into develop` (`git merge --no-ff`); on conflict, `Merge hotfix/X.Y.Z into develop (conflicts unresolved — needs manual resolution)` with the conflicted paths added on top, markers intact |
 | Push | `git push -u origin hotfix-X.Y.Z-into-develop-<unix-timestamp>` (not forced) |
-| Pull request | head `hotfix-X.Y.Z-into-develop-<unix-timestamp>` → base `develop`, title `Hotfix X.Y.Z to develop` |
+| Pull request | head `hotfix-X.Y.Z-into-develop-<unix-timestamp>` → base `develop`, title `Hotfix X.Y.Z to develop`; on conflict a draft titled `Hotfix X.Y.Z to develop (conflict resolution)` listing the conflicted files |
 
 The pull request head is always the merge branch, never `hotfix/*`, so CI workflows keyed
-on a `hotfix/*` head do not rebuild an already-deployed hotfix.
+on a `hotfix/*` head do not rebuild an already-deployed hotfix. For the same reason there
+is no build-trigger pull request: the hotfix has already shipped, so there is nothing to
+rebuild.
 
-On conflict the merge is aborted, the local merge branch is deleted, and the action fails
-naming the conflicted files. No branch is pushed and no pull request is opened.
+A conflict is an outcome rather than a failure, as it is for
+`downmerge_release_to_develop`. A hotfix and `develop` have both moved `VERSION` on by the
+time this runs, so conflicting is the ordinary case and the draft pull request is where it
+gets resolved.
 
 Run this once the fix is written; at creation the hotfix branch holds only a version bump.
 

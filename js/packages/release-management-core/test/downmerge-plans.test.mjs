@@ -209,15 +209,42 @@ test("hotfix into develop goes through a merge branch, never head=hotfix/*", asy
   );
 });
 
-test("a conflicting hotfix into develop warns that nothing is created", async () => {
-  // Unlike the hotfix → main pull request, this one is a deliberate
-  // reconciliation step, so a conflict aborts rather than opening anything.
+test("a conflicting hotfix into develop commits the markers for resolution", async () => {
+  // A hotfix and develop have both moved VERSION on by the time this runs, so
+  // conflicting is the ordinary case. It resolves the same way release → develop
+  // does: markers committed, draft pull request opened.
   const plan = await makeAgent(
     conflicting("VERSION")
   ).planDownmergeHotfixToDevelop();
 
-  assert.match(plan.warnings[0], /conflicts in 1 file\(s\): VERSION/);
+  assert.deepEqual(summaries(plan), [
+    "branch: hotfix-4.124.1-into-develop-<unix-timestamp> off develop, merging hotfix/4.124.1 at 9876543210a",
+    'commit: merge commit "Merge hotfix/4.124.1 into develop (conflicts unresolved — needs manual resolution)" on hotfix-4.124.1-into-develop-<unix-timestamp>',
+    "push: hotfix-4.124.1-into-develop-<unix-timestamp> to origin",
+    "pull-request: open draft hotfix-4.124.1-into-develop-<unix-timestamp> → develop",
+  ]);
+  assert.equal(plan.mutations[1].detail.files, "VERSION");
+  assert.equal(
+    plan.mutations.at(-1).detail.title,
+    "Hotfix 4.124.1 to develop (conflict resolution)"
+  );
+  assert.match(plan.warnings[0], /markers intact/);
+  assert.doesNotMatch(plan.warnings[0], /creates nothing/);
+
+  // No build-trigger pull request: the hotfix is already deployed.
+  assert.ok(!summaries(plan).some((s) => s.includes("build trigger")));
+});
+
+test("release into main still abandons a conflicting merge", async () => {
+  const plan = await makeAgent(
+    conflicting("VERSION")
+  ).planDownmergeReleaseToMain();
+
   assert.match(plan.warnings[0], /creates nothing/);
+  assert.equal(
+    plan.mutations.at(-1).summary,
+    "open release-4.125.0-into-main-<unix-timestamp> → main"
+  );
 });
 
 test("hotfix into main is a pull request and nothing else", async () => {

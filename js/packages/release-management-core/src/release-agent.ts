@@ -1713,6 +1713,7 @@ This PR increments the release candidate version for \`${branchName}\`.
       mergeBranch: `hotfix-${branch.version.full}-into-develop-<unix-timestamp>`,
       mergeCommitMessage: `Merge ${cleanName} into develop`,
       prTitle: `Hotfix ${branch.version.full} to develop`,
+      onConflict: "commit-markers",
     });
   }
 
@@ -1732,8 +1733,11 @@ This PR increments the release candidate version for \`${branchName}\`.
     mergeBranch: string;
     mergeCommitMessage: string;
     prTitle: string;
+    /** What a conflict does: abandon the merge, or commit it for resolution. */
+    onConflict?: "abort" | "commit-markers";
   }): Promise<ChangePlan> {
     const { action, baseBranch, sourceBranch, mergeBranch } = opts;
+    const onConflict = opts.onConflict ?? "abort";
 
     const baseBranchHead = await this.gitFlowManager.getBranchHead(baseBranch);
     const sourceHead = await this.gitFlowManager.getBranchHead(sourceBranch);
@@ -1742,7 +1746,7 @@ This PR increments the release candidate version for \`${branchName}\`.
     if (await this.gitFlowManager.checkIsAncestor(sourceHead, baseBranchHead)) {
       warnings.push(
         `${sourceBranch} is already merged into ${baseBranch}; the merge produces no ` +
-          `commit and the pull request would be empty.`
+          `commit, so the action refuses rather than pushing an empty branch.`
       );
     }
 
@@ -1750,11 +1754,16 @@ This PR increments the release candidate version for \`${branchName}\`.
       baseBranchHead,
       sourceHead
     );
+    const resolving = probe.hasConflicts && onConflict === "commit-markers";
+
     if (probe.hasConflicts) {
       warnings.push(
         `Merging ${sourceBranch} into ${baseBranch} conflicts in ` +
           `${probe.conflictedFiles.length} file(s): ${probe.conflictedFiles.join(", ")}. ` +
-          `The action aborts the merge, deletes the temporary branch, and creates nothing.`
+          (resolving
+            ? `They are committed with their markers intact, for resolution in the draft ` +
+              `pull request.`
+            : `The action aborts the merge, deletes the temporary branch, and creates nothing.`)
       );
     }
 
@@ -1765,13 +1774,22 @@ This PR increments the release candidate version for \`${branchName}\`.
       },
       {
         kind: "commit",
-        summary: `merge commit "${opts.mergeCommitMessage}" on ${mergeBranch}`,
+        summary: resolving
+          ? `merge commit "${opts.mergeCommitMessage} (conflicts unresolved — needs manual resolution)" on ${mergeBranch}`
+          : `merge commit "${opts.mergeCommitMessage}" on ${mergeBranch}`,
+        ...(resolving
+          ? { detail: { files: probe.conflictedFiles.join(", ") } }
+          : {}),
       },
       { kind: "push", summary: `${mergeBranch} to origin` },
       {
         kind: "pull-request",
-        summary: `open ${mergeBranch} → ${baseBranch}`,
-        detail: { title: opts.prTitle },
+        summary: resolving
+          ? `open draft ${mergeBranch} → ${baseBranch}`
+          : `open ${mergeBranch} → ${baseBranch}`,
+        detail: {
+          title: resolving ? `${opts.prTitle} (conflict resolution)` : opts.prTitle,
+        },
       },
     ];
 

@@ -216,12 +216,16 @@ function renderDownmerge(r: DownmergeResult): string {
       return [
         `Merge branch (conflicts unresolved): ${r.mergeBranchName}`,
         `Draft merge-resolution PR: ${r.mergeBranchPullRequestUrl}`,
+        // Only the release → develop downmerge opens a build-trigger PR, so stay
+        // silent about one rather than reporting an absent step.
         ...(r.buildTriggerSkippedReason
           ? [`Build-trigger PR skipped: ${r.buildTriggerSkippedReason}`]
-          : [
+          : r.buildTriggerPullRequestUrl
+          ? [
               `Build-trigger PR (auto-closed): ${r.buildTriggerPullRequestUrl}`,
               `CI checks observed before close: ${r.checksStarted ? "yes" : "no (60s timeout)"}`,
-            ]),
+            ]
+          : []),
         ``,
         `Conflicted files:`,
         ...r.conflictedFiles.map((f) => `  - ${f}`),
