@@ -8,6 +8,7 @@
     "release-management-mcp": "bin/release-management-mcp"
   },
   "scripts": {
+    "prebuild": "node scripts/write-build-info.mjs",
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf lib/",
@@ -36,7 +37,7 @@
   ],
   "author": "Esteban Trejos",
   "license": "MIT",
-  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/js/packages/release-management-mcp#readme",
+  "homepage": "https://github.com/officespacesoftware/versioner/tree/master/js/packages/release-management-mcp#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/officespacesoftware/versioner.git",

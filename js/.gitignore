@@ -1,6 +1,9 @@
 node_modules/
 lib/
 dist/
+
+# Written by the MCP package's prebuild step; regenerated on every build.
+packages/release-management-mcp/src/build-info.ts
 *.log
 .DS_Store
 TODO.md
