@@ -1,6 +1,6 @@
 {
   "name": "@officespacesoftware/release-management-cli",
-  "version": "0.2.0",
+  "version": "0.3.0-RC.0",
   "description": "Plain CLI for release-management workflows. Wraps the same core logic the MCP uses; suitable for GitHub Actions and direct shell use.",
   "main": "lib/cli.js",
   "type": "module",
