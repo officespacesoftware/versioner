@@ -17,11 +17,27 @@ export type MutationKind =
   | "pull-request"
   | "github-release";
 
+/**
+ * Whether a mutation brings something into existence or removes it. Absent means
+ * `create`, so every builder that predates reverting is unaffected.
+ *
+ * A plan that cannot distinguish the two would describe deleting a tag as creating
+ * one, which is precisely the misstatement plans exist to prevent.
+ */
+export type MutationOperation = "create" | "delete";
+
 export interface PlannedMutation {
   kind: MutationKind;
+  operation?: MutationOperation;
   /** One line, in the imperative: "Create annotated tag 4.124.1-RC.2". */
   summary: string;
   detail?: Record<string, string>;
+}
+
+export function mutationOperation(
+  mutation: PlannedMutation
+): MutationOperation {
+  return mutation.operation ?? "create";
 }
 
 export interface ChangePlan {
@@ -67,7 +83,9 @@ function canonicalForm(plan: Omit<ChangePlan, "digest">): string {
     ...(plan.resultingVersion === undefined
       ? []
       : [`to:${plan.resultingVersion}`]),
-    ...plan.mutations.map((m) => `mutation:${m.kind}:${m.summary}`),
+    ...plan.mutations.map(
+      (m) => `mutation:${mutationOperation(m)}:${m.kind}:${m.summary}`
+    ),
     ...plan.warnings.map((w) => `warning:${w}`),
   ].join("\n");
 }
@@ -134,11 +152,30 @@ export function renderChangePlan(plan: ChangePlan): string {
   if (plan.mutations.length === 0) {
     lines.push("Would change nothing.");
   } else {
-    lines.push("Would create:");
-    for (const mutation of plan.mutations) {
-      lines.push(`  ${KIND_LABELS[mutation.kind]}: ${mutation.summary}`);
-      for (const [key, value] of Object.entries(mutation.detail ?? {})) {
-        lines.push(`      ${key}: ${value}`);
+    // Grouped by operation so a plan that both creates and destroys says so in two
+    // headings rather than filing a deletion under "Would create".
+    const headings: Array<[MutationOperation, string]> = [
+      ["create", "Would create:"],
+      ["delete", "Would delete:"],
+    ];
+    let first = true;
+    for (const [operation, heading] of headings) {
+      const group = plan.mutations.filter(
+        (m) => mutationOperation(m) === operation
+      );
+      if (group.length === 0) {
+        continue;
+      }
+      if (!first) {
+        lines.push("");
+      }
+      first = false;
+      lines.push(heading);
+      for (const mutation of group) {
+        lines.push(`  ${KIND_LABELS[mutation.kind]}: ${mutation.summary}`);
+        for (const [key, value] of Object.entries(mutation.detail ?? {})) {
+          lines.push(`      ${key}: ${value}`);
+        }
       }
     }
   }
