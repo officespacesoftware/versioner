@@ -33,7 +33,7 @@
   ],
   "author": "Esteban Trejos",
   "license": "MIT",
-  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/js/packages/release-management-cli#readme",
+  "homepage": "https://github.com/officespacesoftware/versioner/tree/master/js/packages/release-management-cli#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/officespacesoftware/versioner.git",

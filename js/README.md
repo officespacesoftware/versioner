@@ -220,10 +220,17 @@ pnpm release release-management-core 1.3.0
 
 It validates that the version is semver-shaped and higher than the current one, writes
 `package.json`, commits `Release <name>@<version>`, and creates the tag
-`<name>@<version>`. Pushing that tag triggers
-`.github/workflows/publish-js.yml`, which verifies the commit is reachable from
-`origin/master`, verifies the tag version matches `package.json`, builds the workspace, and
-publishes to GitHub Packages.
+`<name>@<version>`. Pass `--allow-downgrade` to renumber a package downwards on purpose.
+
+Push that tag — and only that tag, since `git push --tags` would try to move older package
+tags whose local and remote refs have diverged. It triggers
+`.github/workflows/publish-js.yml`, which verifies the tag version matches `package.json`,
+builds the workspace, and publishes to GitHub Packages.
+
+A **stable** version must sit on a commit reachable from `origin/master`. A **prerelease**
+(`0.5.0-RC.0`) is exempt: it publishes from any branch under the `next` dist-tag, so an
+unfinished API can be exercised by real consumers before it is merged, without moving
+`latest`. Install one explicitly, or with `@next`.
 
 ## Requirements
 

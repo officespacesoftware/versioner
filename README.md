@@ -145,9 +145,11 @@ workspace typechecks and tests on Node 20 with pnpm 10, and the Ruby gem runs RS
 RuboCop on Ruby 4.0.5.
 
 `.github/workflows/publish-js.yml` publishes one JS package when a tag of the form
-`@officespacesoftware/<package>@<version>` is pushed. It refuses to publish a commit that
-is not reachable from `origin/master`, and refuses when the tag version and the package's
-`package.json` version disagree.
+`@officespacesoftware/<package>@<version>` is pushed. It refuses when the tag version and
+the package's `package.json` version disagree. For a stable version it also refuses a
+commit that is not reachable from `origin/master`; prerelease versions — anything carrying
+a `-` suffix, such as `0.5.0-RC.0` — are exempt from that check and publish from any branch
+under the `next` dist-tag, so `latest` keeps pointing at the last stable release.
 
 ## License
 

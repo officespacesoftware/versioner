@@ -36,7 +36,7 @@
   ],
   "author": "Esteban Trejos",
   "license": "MIT",
-  "homepage": "https://github.com/officespacesoftware/versioner/tree/main/js/packages/versioner#readme",
+  "homepage": "https://github.com/officespacesoftware/versioner/tree/master/js/packages/versioner#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/officespacesoftware/versioner.git",
