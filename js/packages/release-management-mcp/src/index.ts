@@ -9,6 +9,7 @@
  */
 
 import { createRequire } from "node:module";
+import { BUILD_COMMIT, BUILD_TIME } from "./build-info.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -170,8 +171,12 @@ Reports whether the Release Management MCP server process is responsive.
 
 Creates nothing. It does not read the repository, run git, or contact GitHub.
 
-Returns the server name, its package version, the status, an ISO timestamp, and a
-list of capability descriptions.`,
+Returns the server name, its package version, the commit and time it was built
+from, the status, an ISO timestamp, and a list of capability descriptions.
+
+The build fields identify which copy is answering, which the package version alone
+cannot do when a local build and a published release share a version number. A
+commit suffixed "-dirty" was built from an uncommitted working tree.`,
             inputSchema: {
               type: "object",
               properties: {},
@@ -858,7 +863,7 @@ Common issues:
 
       const rows = listing.entries.map((e) => {
         const marker = e.isCurrentBranch ? "👉" : "  ";
-        const kind = e.isReleaseCandidate ? "RC" : "final";
+        const kind = e.kind === "rc" ? "RC" : e.kind;
         const flags = [
           e.tagExistsRemotely
             ? "tag:remote"
@@ -866,11 +871,12 @@ Common issues:
             ? "tag:local-only"
             : "tag:none",
           e.mergedIntoProduction ? `merged→${productionBranch}` : "unmerged",
+          ...(e.staleLocal ? ["local-stale"] : []),
         ].join(", ");
         return `${marker} ${e.branch}  ${e.version ?? "no VERSION"}  [${kind}]  (${flags})`;
       });
 
-      const candidates = listing.entries.filter((e) => e.isReleaseCandidate);
+      const candidates = listing.entries.filter((e) => e.kind === "rc");
 
       return `🔎 Release & Hotfix Branches
 
@@ -886,7 +892,13 @@ ${candidates.length} release candidate(s) available.
 - 👉 marks the branch currently checked out
 - Pass the version explicitly to increment_release_candidate or release_version
   to act on a specific branch
-- "merged→${productionBranch}" means that branch is already in production history`;
+- "merged→${productionBranch}" means that branch is already in production history
+- Versions come from what origin holds. "local-stale" means your local branch of
+  that name holds a different version
+- "[unknown]" means no VERSION could be read on either side, so the branch makes
+  no claim either way — it is not the same as [final]
+- Tag columns are live (ls-remote), but merge status compares local remote-tracking
+  refs and is only as fresh as your last fetch`;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -1331,15 +1343,20 @@ Common issues:
     const status = {
       server: "Release Management MCP Server",
       version: SERVER_VERSION,
+      build: { commit: BUILD_COMMIT, time: BUILD_TIME },
       status: "healthy",
       timestamp: new Date().toISOString(),
       capabilities: [
-        "Git Flow workflow orchestration",
-        "Release candidate creation (major, minor)",
-        "Hotfix branch creation for patch releases",
-        "Branch validation and synchronization",
-        "Integration with versioner-mcp",
-        "Automated PR management",
+        "Plan/confirm protocol: mutating tools describe their git objects and " +
+          "change nothing until a plan digest is confirmed",
+        "Release candidate creation off develop (major, minor or patch)",
+        "Hotfix creation off the production branch",
+        "Release candidate increment and promotion to a final version",
+        "Five downmerges between release, hotfix, production and integration " +
+          "branches, with conflict resolution branches where merging cannot be clean",
+        "Read-only enumeration of release and hotfix branches (list_versions)",
+        "Version management via the versioner library, in-process",
+        "Pull request management through the GitHub API, opening or updating in place",
       ],
     };
 

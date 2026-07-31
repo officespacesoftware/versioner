@@ -27,9 +27,7 @@ export function registerListVersions(parent: Command): void {
           return gfm.listVersions(cmdOpts.productionBranch || "main");
         },
         (result) => {
-          const candidates = result.entries.filter(
-            (e) => e.isReleaseCandidate
-          );
+          const candidates = result.entries.filter((e) => e.kind === "rc");
           writeGithubOutput({
             current_branch: result.currentBranch,
             release_candidates: candidates.map((e) => e.version).join(","),
@@ -47,7 +45,7 @@ function renderListing(r: VersionListing): string {
 
   const rows = r.entries.map((e) => {
     const marker = e.isCurrentBranch ? "*" : " ";
-    const kind = e.isReleaseCandidate ? "RC" : "final";
+    const kind = e.kind === "rc" ? "RC" : e.kind;
     const tag = e.tagExistsRemotely
       ? "tag:remote"
       : e.tagExistsLocally
@@ -56,9 +54,10 @@ function renderListing(r: VersionListing): string {
     const merged = e.mergedIntoProduction
       ? `merged->${r.productionBranch}`
       : "unmerged";
+    const flags = [tag, merged, ...(e.staleLocal ? ["local-stale"] : [])];
     return `${marker} ${e.branch}  ${
       e.version ?? "no VERSION"
-    }  [${kind}]  (${tag}, ${merged})`;
+    }  [${kind}]  (${flags.join(", ")})`;
   });
 
   return [
@@ -68,5 +67,9 @@ function renderListing(r: VersionListing): string {
     ...rows,
     "",
     "* marks the checked-out branch",
+    "Versions come from what origin holds; local-stale means your local branch of",
+    "that name holds a different version",
+    "[unknown] means no VERSION could be read on either side — not the same as [final]",
+    "Tag columns are live; merge status is only as fresh as your last fetch",
   ].join("\n");
 }
