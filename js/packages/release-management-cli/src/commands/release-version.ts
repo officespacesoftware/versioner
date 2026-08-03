@@ -39,6 +39,9 @@ export function registerReleaseVersion(parent: Command): void {
             pull_request_error: result.pullRequestError,
             release_url: result.releaseUrl,
             release_notes_warning: result.releaseNotesWarning,
+            own_base_pull_request_url: result.ownBasePullRequestUrl,
+            own_base_pull_request_action: result.ownBasePullRequestAction,
+            own_base_pull_request_error: result.ownBasePullRequestError,
           });
           emit(result, opts, renderReleaseVersion);
         },
@@ -64,6 +67,17 @@ function renderReleaseVersion(r: ReleaseVersionWorkflowContext): string {
   }
   if (r.releaseNotesWarning) {
     lines.push(`Release notes warning: ${r.releaseNotesWarning}`);
+  }
+  if (r.ownBasePullRequestUrl) {
+    const verb = r.ownBasePullRequestAction === "updated" ? "Updated" : "Opened";
+    lines.push(
+      `${verb} ${r.branchInfo?.targetBranch ?? "own-base"} PR: ${r.ownBasePullRequestUrl}`
+    );
+  }
+  if (r.ownBasePullRequestError) {
+    lines.push(
+      `${r.branchInfo?.targetBranch ?? "Own-base"} PR refresh failed: ${r.ownBasePullRequestError}`
+    );
   }
   return lines.join("\n");
 }

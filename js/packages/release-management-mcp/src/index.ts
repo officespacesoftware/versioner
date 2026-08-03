@@ -1972,6 +1972,22 @@ ${
     ? `⚠️  Release notes: ${workflowResult.releaseNotesWarning}`
     : ""
 }
+${
+  workflowResult.ownBasePullRequestUrl
+    ? `🔗 ${
+        workflowResult.ownBasePullRequestAction === "updated"
+          ? "Updated"
+          : "Opened"
+      } ${workflowResult.branchInfo.targetBranch} PR: ${
+        workflowResult.ownBasePullRequestUrl
+      }`
+    : ""
+}
+${
+  workflowResult.ownBasePullRequestError
+    ? `⚠️  ${workflowResult.branchInfo.targetBranch} PR refresh failed: ${workflowResult.ownBasePullRequestError}`
+    : ""
+}
 
 ✅ All steps completed successfully. The release candidate has been converted to final version and is ready for ${
         workflowResult.branchType === "release"

@@ -383,6 +383,8 @@ CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
 7. Open or update the pull request to `main`.
 8. For a hotfix branch, log the deploy-before-merge warning.
 9. Create the GitHub release.
+10. Update the pull request on the branch's own base, if one is open. Skipped for a
+    hotfix, whose own base is `main` and therefore already written by step 7.
 
 **Objects and remote effects.**
 
@@ -394,15 +396,18 @@ CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
 | Push | `git push origin X.Y.Z` (not forced) |
 | Pull request | head `<target branch>` → base `main`, title `Release X.Y.Z to main`; body opens with a `> [!WARNING]` block stating the PR must be merged after the release or hotfix has been deployed to production |
 | GitHub release | tag `X.Y.Z`, name `Release X.Y.Z`, `target_commitish` = the target branch, body from GitHub's `generateReleaseNotes` for that tag and target |
+| Pull request (release branches only) | the open PR on the branch's own base, retitled `Release X.Y.Z to develop`, body rewritten to the final version. Only ever updated, never opened: the own-base PR belongs to `create_release_candidate`, and opening one here would propose merging a release into develop off the back of a promotion. Same title `downmerge_release_to_develop` uses, so the two converge |
 
 Release notes are requested up to three times with 1 s and 2 s backoff. If no body is
 obtained the release is still created, then one further attempt is made and the body
 patched in; if that also yields nothing the release keeps an empty body and the result
-carries a notes warning. A failure in step 7 does not fail the action; the pull-request
-error is reported alongside the result.
+carries a notes warning. A failure in step 7 or step 10 does not fail the action; by then
+the tag is pushed and the release is out, so the pull-request error is reported alongside
+the result instead. `revert_version` writes the same own-base PR — see its table below.
 
 CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
-`pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`.
+`pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`,
+`own_base_pull_request_url`, `own_base_pull_request_error`.
 
 ---
 
