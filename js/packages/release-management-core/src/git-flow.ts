@@ -500,6 +500,30 @@ ${stagedFiles}
   }
 
   /**
+   * The files `headRef` changed since it forked from `baseRef`, and nothing `baseRef`
+   * changed — the three-dot form, so a base that has moved on does not inflate the list.
+   *
+   * Read-only, and tolerant: an unknown ref or absent shared history yields an empty
+   * list rather than throwing, because callers use this to enrich a warning and must
+   * not fail a plan over a diff they could not take.
+   */
+  async filesChangedSinceFork(
+    baseRef: string,
+    headRef: string
+  ): Promise<string[]> {
+    const { stdout, exitCode } = await this.execGitTolerant(
+      `diff --name-only ${quoteGitArg(baseRef)}...${quoteGitArg(headRef)}`
+    );
+    if (exitCode !== 0) {
+      return [];
+    }
+    return stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  }
+
+  /**
    * Check if there are actual content differences between branches
    */
   async checkContentDiff(branch1: string, branch2: string): Promise<boolean> {

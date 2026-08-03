@@ -371,6 +371,17 @@ CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
 
 **Target selection** is identical to `increment_release_candidate`.
 
+**Preflight.** The plan rehearses the merge this branch will eventually make into `main`
+and warns about two things, refusing neither. A conflict is reported with its files, since
+`downmerge_release_to_main` will refuse until it is resolved — after the tag is already
+cut. More quietly, if `main` holds commits the branch does not, those files merge in
+`main`'s favour with no conflict at all, so `main` keeps changes the released artifact does
+not carry and passes them to the next branch cut from it; a hotfix landing after the
+release branch was cut is the ordinary cause. The remedy in both cases is to merge `main`
+into the release branch before promoting. Whether to promote anyway is the operator's call.
+A check that could not run is reported as such rather than passing silently. All of it is
+read-only: `merge-tree --write-tree`, `rev-list` and `diff`.
+
 **Steps.**
 
 1. Select the target branch.

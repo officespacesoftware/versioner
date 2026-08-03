@@ -44,6 +44,12 @@ function makeAgent(branches, overrides = {}) {
     tagExistsLocally: async () => false,
     tagExistsRemotely: async () => false,
     findOpenPullRequest: async () => null,
+    commitsNotIn: async () => [],
+    filesChangedSinceFork: async () => [],
+    previewMergeConflicts: async () => ({
+      hasConflicts: false,
+      conflictedFiles: [],
+    }),
     ...overrides,
   };
 
@@ -153,6 +159,82 @@ test("promoting a hotfix lists one PR, its own base being main", async () => {
   const prs = plan.mutations.filter((m) => m.kind === "pull-request");
   assert.equal(prs.length, 1);
   assert.match(prs[0].summary, /update PR #42 \(hotfix\/1\.4\.1 → main\)/);
+});
+
+// The expensive failure is the quiet one: no conflict, but main keeps its own side of
+// files the release branch never touched, so main ends up with changes the shipped
+// artifact does not have. A hotfix landing after the branch was cut is the usual cause.
+test("promoting warns when main holds commits the release branch does not", async () => {
+  const agent = makeAgent(
+    { "release/1.4.0": "1.4.0-RC.2\nabc1234" },
+    {
+      commitsNotIn: async (head, base) =>
+        head.includes("main") ? ["deadbee hotfix: suppress a cron"] : [],
+      filesChangedSinceFork: async () => ["config/initializers/sidekiq.rb"],
+      getBranchHead: async (b) => (b === "main" ? "mainsha000000" : "branchsha0000"),
+    }
+  );
+
+  const plan = await agent.planReleaseVersion("1.4.0");
+
+  const warning = plan.warnings.find((w) => /holds 1 commit/.test(w));
+  assert.ok(warning, `expected a divergence warning, got: ${plan.warnings}`);
+  assert.match(warning, /config\/initializers\/sidekiq\.rb/);
+  assert.match(warning, /without reporting a conflict/);
+  assert.match(warning, /Merge main into release\/1\.4\.0 first/);
+});
+
+test("promoting warns when the merge into main would conflict", async () => {
+  const agent = makeAgent(
+    { "release/1.4.0": "1.4.0-RC.2\nabc1234" },
+    {
+      previewMergeConflicts: async () => ({
+        hasConflicts: true,
+        conflictedFiles: ["VERSION"],
+      }),
+    }
+  );
+
+  const plan = await agent.planReleaseVersion("1.4.0");
+
+  const warning = plan.warnings.find((w) => /conflicts in 1 file/.test(w));
+  assert.ok(warning, `expected a conflict warning, got: ${plan.warnings}`);
+  assert.match(warning, /VERSION/);
+  assert.match(warning, /downmerge_release_to_main will refuse/);
+});
+
+// A check that silently did not run reads as a clean bill of health.
+test("promoting reports a merge check it could not perform", async () => {
+  const agent = makeAgent(
+    { "release/1.4.0": "1.4.0-RC.2\nabc1234" },
+    {
+      previewMergeConflicts: async () => {
+        throw new Error("unrelated histories");
+      },
+    }
+  );
+
+  const plan = await agent.planReleaseVersion("1.4.0");
+
+  assert.ok(
+    plan.warnings.some((w) => /Could not check whether .* merges cleanly/.test(w)),
+    `expected a not-checked warning, got: ${plan.warnings}`
+  );
+});
+
+test("incrementing an RC does not rehearse the merge into main", async () => {
+  const agent = makeAgent(
+    { "release/1.4.0": "1.4.0-RC.2\nabc1234" },
+    {
+      previewMergeConflicts: async () => {
+        throw new Error("should not be called for an increment");
+      },
+    }
+  );
+
+  const plan = await agent.planIncrementRC("1.4.0");
+
+  assert.equal(plan.warnings.length, 0);
 });
 
 test("planning refuses on a branch that is not holding a release candidate", async () => {
