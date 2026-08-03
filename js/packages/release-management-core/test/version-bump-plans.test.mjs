@@ -161,9 +161,9 @@ test("promoting a hotfix lists one PR, its own base being main", async () => {
   assert.match(prs[0].summary, /update PR #42 \(hotfix\/1\.4\.1 → main\)/);
 });
 
-// The expensive failure is the quiet one: no conflict, but main keeps its own side of
-// files the release branch never touched, so main ends up with changes the shipped
-// artifact does not have. A hotfix landing after the branch was cut is the usual cause.
+// The quiet failure is not a merge failure: the merge is faithful, but the artifact
+// predates main's commits, so main ends up holding changes that were never deployed.
+// A hotfix landing after the branch was cut is the usual cause.
 test("promoting warns when main holds commits the release branch does not", async () => {
   const agent = makeAgent(
     { "release/1.4.0": "1.4.0-RC.2\nabc1234" },
@@ -180,8 +180,8 @@ test("promoting warns when main holds commits the release branch does not", asyn
   const warning = plan.warnings.find((w) => /holds 1 commit/.test(w));
   assert.ok(warning, `expected a divergence warning, got: ${plan.warnings}`);
   assert.match(warning, /config\/initializers\/sidekiq\.rb/);
-  assert.match(warning, /without reporting a conflict/);
-  assert.match(warning, /Merge main into release\/1\.4\.0 first/);
+  assert.match(warning, /will not match what was deployed/);
+  assert.match(warning, /Merge main into release\/1\.4\.0 before promoting/);
 });
 
 test("promoting warns when the merge into main would conflict", async () => {

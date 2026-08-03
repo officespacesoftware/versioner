@@ -372,15 +372,26 @@ CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
 **Target selection** is identical to `increment_release_candidate`.
 
 **Preflight.** The plan rehearses the merge this branch will eventually make into `main`
-and warns about two things, refusing neither. A conflict is reported with its files, since
-`downmerge_release_to_main` will refuse until it is resolved — after the tag is already
-cut. More quietly, if `main` holds commits the branch does not, those files merge in
-`main`'s favour with no conflict at all, so `main` keeps changes the released artifact does
-not carry and passes them to the next branch cut from it; a hotfix landing after the
-release branch was cut is the ordinary cause. The remedy in both cases is to merge `main`
-into the release branch before promoting. Whether to promote anyway is the operator's call.
-A check that could not run is reported as such rather than passing silently. All of it is
-read-only: `merge-tree --write-tree`, `rev-list` and `diff`.
+and warns about two things, refusing neither.
+
+A conflict is reported with its files, since `downmerge_release_to_main` will refuse until
+it is resolved — after the tag is already cut.
+
+`main` holding commits the branch does not is reported more quietly, and is not a merge
+failure at all: the merge combines both histories faithfully. The problem is that the
+artifact tagged from the branch predates those commits, so `main` ends up holding changes
+that were never deployed, and the next branch cut from `main` inherits them. A hotfix
+landing after the release branch was cut is the ordinary cause. This is deliberately
+reported at the commit level, not per file — whether a given hunk survives a three-way
+merge depends on what both sides touched, so file-level claims over-report (the branch may
+carry the same content under a different commit) or under-report to nothing (both sides
+routinely edit one file in different places). The files those commits touch are listed as
+context, not as a claim about which side wins.
+
+The remedy in both cases is to merge `main` into the release branch before promoting.
+Whether to promote anyway is the operator's call. A check that could not run is reported as
+such rather than passing silently. All of it is read-only: `merge-tree --write-tree`,
+`rev-list` and `diff`.
 
 **Steps.**
 
