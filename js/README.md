@@ -140,7 +140,14 @@ builds the workspace, and publishes to GitHub Packages.
 A **stable** version must sit on a commit reachable from `origin/master`. A **prerelease**
 (`0.5.0-RC.0`) is exempt: it publishes from any branch under the `next` dist-tag, so an
 unfinished API can be exercised by real consumers before it is merged, without moving
-`latest`. Install one explicitly, or with `@next`.
+`latest` off the last stable release.
+
+Where there is no stable release to protect, the workflow also points `latest` at the
+prerelease — holding it back on a package that has never published a stable version only
+aims a plain `npm install` at nothing. All four packages are in that state today, so
+`latest` and `next` resolve to the same version. The first stable publish claims `latest`
+permanently. Install with `@next` either way: it is the tag that keeps meaning "the current
+prerelease" once a stable line exists.
 
 ## Requirements
 

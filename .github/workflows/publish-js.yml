@@ -9,6 +9,11 @@ name: Publish JS package
 # carrying a `-` suffix, such as `0.5.0-RC.0` — are exempt and publish from any
 # branch under the `next` dist-tag, so an unfinished API can be exercised by real
 # consumers without first being merged.
+#
+# A prerelease also takes `latest` when the package has no stable version at all:
+# holding `latest` back protects the last stable release, and where there is none it
+# only points a plain `npm install` at nothing. The first stable publish takes `latest`
+# over permanently.
 
 on:
   push:
@@ -135,6 +140,41 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # `latest` protects the last stable release — but only if there is one to protect.
+      # On a package that has never published a stable version, holding `latest` back
+      # points a plain `npm install` at nothing at all, so the newest prerelease should
+      # take it. The first stable publish claims `latest` for itself and this step then
+      # stops firing for good.
+      - name: Point latest at this prerelease while no stable version exists
+        id: latest
+        if: steps.parse.outputs.prerelease == 'true'
+        working-directory: ${{ steps.parse.outputs.dir }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PKG: ${{ steps.parse.outputs.pkg_name }}
+          VER: ${{ steps.parse.outputs.version }}
+        run: |
+          set -euo pipefail
+          # A stable version is one carrying no prerelease suffix. `npm view` answers a
+          # bare string rather than an array when the package has exactly one version.
+          STABLE=$(npm view "${PKG}" versions --json 2>/dev/null | node -e '
+            let s = "";
+            process.stdin.on("data", (d) => (s += d)).on("end", () => {
+              let all = [];
+              try { all = JSON.parse(s); } catch {}
+              if (!Array.isArray(all)) all = all ? [all] : [];
+              console.log(all.filter((v) => !String(v).includes("-")).join(" "));
+            });
+          ')
+          if [ -n "${STABLE}" ]; then
+            echo "moved=false" >> "$GITHUB_OUTPUT"
+            echo "Stable version(s) exist (${STABLE}); leaving 'latest' where it is."
+            exit 0
+          fi
+          npm dist-tag add "${PKG}@${VER}" latest
+          echo "moved=true" >> "$GITHUB_OUTPUT"
+          echo "No stable version published yet; 'latest' now points at ${VER}."
+
       - name: Summarize
         run: |
           if [ "${{ steps.parse.outputs.prerelease }}" = "true" ]; then
@@ -143,4 +183,7 @@ jobs:
             DIST_TAG=latest
           fi
           echo "Published ${{ steps.parse.outputs.pkg_name }}@${{ steps.parse.outputs.version }} under dist-tag ${DIST_TAG}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.latest.outputs.moved }}" = "true" ]; then
+            echo "No stable version exists yet, so \`latest\` was also moved to this version." >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "Registry: https://npm.pkg.github.com" >> "$GITHUB_STEP_SUMMARY"
