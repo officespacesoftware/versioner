@@ -30,8 +30,8 @@ npm install -g @officespacesoftware/release-management-cli@next
 npx -p @officespacesoftware/release-management-cli@next release-management --help
 ```
 
-The current line is a prerelease published under the `next` dist-tag, so install it
-explicitly as `@next` or pin an exact version.
+The current line is a prerelease published under the `next` dist-tag. Install with `@next`,
+or pin an exact version; `latest` is reserved for stable releases.
 
 It also needs a GitHub token for the API calls — see [Authentication](#authentication).
 

@@ -57,9 +57,9 @@ SSH or HTTPS URL.
 
 ## Install from GitHub Packages
 
-The current line is a prerelease published under the `next` dist-tag, so **the `@next` in
-these commands is required** — a bare package name resolves `latest`, which this line does
-not set.
+The current line is a prerelease published under the `next` dist-tag, which is why every
+command below carries **`@next`**. Keep it: `latest` is reserved for stable releases, and a
+bare package name will start resolving to something else the moment one is published.
 
 ### Claude Code
 
@@ -321,8 +321,9 @@ Check `~/.npmrc` has both lines from [Registry access](#1-registry-access--to-in
 and that the token has `read:packages`. Test outside the client:
 `npx --yes @officespacesoftware/release-management-mcp@next --help`.
 
-**`No matching version found`.** The `@next` suffix is missing. This line publishes under
-the `next` dist-tag and does not set `latest`.
+**`No matching version found`.** Check the version selector. This line publishes under the
+`next` dist-tag; `@next` resolves it, and a bare package name resolves whatever `latest`
+points at, which is not guaranteed to be this line.
 
 **"No GitHub token available".** Nothing in the four-step resolution order produced one. Run
 `gh auth login`, or add `GH_TOKEN` to the server's `env` in your client config. Note that a

@@ -29,8 +29,8 @@ npx @officespacesoftware/versioner@next show
 pnpm dlx @officespacesoftware/versioner@next show
 ```
 
-The current line is a prerelease published under the `next` dist-tag, so install it
-explicitly as `@next` or pin an exact version.
+The current line is a prerelease published under the `next` dist-tag. Install with `@next`,
+or pin an exact version; `latest` is reserved for stable releases.
 
 > This package was renumbered from `1.0.1` down to the `0.x` line it shares with the
 > release-management packages, to stop claiming a stability it had not earned. The API did

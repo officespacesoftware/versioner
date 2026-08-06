@@ -36,8 +36,9 @@ token with `read:packages`:
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-The current line of all four packages is a prerelease on the `next` dist-tag, so install
-them as `@next` or pin an exact version — `latest` is not set on this line.
+The current line of all four packages is a prerelease on the `next` dist-tag. Install with
+`@next`, or pin an exact version; `latest` is reserved for stable releases and will move
+away from this line as soon as one is published.
 
 ## Workspace commands
 

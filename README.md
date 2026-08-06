@@ -143,8 +143,9 @@ for what each action does.
 Installing the packages requires a token with `read:packages` for the
 `officespacesoftware` organization.
 
-The current line of all four packages is a prerelease published under the `next` dist-tag,
-so install them explicitly as `@next` — `latest` is not set on this line.
+The current line of all four packages is a prerelease published under the `next` dist-tag.
+Install with `@next`, or pin an exact version; `latest` is reserved for stable releases and
+will move away from this line as soon as one is published.
 
 ## Continuous integration
 

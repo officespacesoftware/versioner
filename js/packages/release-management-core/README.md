@@ -32,8 +32,8 @@ npm install @officespacesoftware/release-management-core@next
 pnpm add @officespacesoftware/release-management-core@next
 ```
 
-The current line is a prerelease published under the `next` dist-tag, so install it
-explicitly as `@next` or pin an exact version.
+The current line is a prerelease published under the `next` dist-tag. Install with `@next`,
+or pin an exact version; `latest` is reserved for stable releases.
 
 ```ts
 import {
