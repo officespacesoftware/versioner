@@ -20,14 +20,21 @@ project's `.npmrc`:
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-Then:
+The token needs `read:packages`. Then:
 
 ```sh
-npm install -g @officespacesoftware/versioner
+npm install -g @officespacesoftware/versioner@next
 # or run it without installing
-npx @officespacesoftware/versioner show
-pnpm dlx @officespacesoftware/versioner show
+npx @officespacesoftware/versioner@next show
+pnpm dlx @officespacesoftware/versioner@next show
 ```
+
+The current line is a prerelease published under the `next` dist-tag, so install it
+explicitly as `@next` or pin an exact version.
+
+> This package was renumbered from `1.0.1` down to the `0.x` line it shares with the
+> release-management packages, to stop claiming a stability it had not earned. The API did
+> not change. If you pinned `^1.0.1`, move to `@next`.
 
 ## CLI
 
@@ -222,6 +229,8 @@ packages/versioner/
   in the wider system
 - [../../../docs/actions.md](../../../docs/actions.md) — the release workflows that call
   into it
+- [../release-management-core/README.md](../release-management-core/README.md) — the
+  orchestration layer that drives this package
 
 ## License
 

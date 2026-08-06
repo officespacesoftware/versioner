@@ -5,10 +5,10 @@ A pnpm workspace (`versioner-js-workspace`, private) holding the four
 
 | Package | Directory | Version | Entry points |
 | --- | --- | --- | --- |
-| `@officespacesoftware/versioner` | `packages/versioner` | `1.0.1` | `lib/index.js`, bin `versioner` |
-| `@officespacesoftware/release-management-core` | `packages/release-management-core` | `0.5.0-RC.0` | `lib/index.js` + `lib/index.d.ts` |
-| `@officespacesoftware/release-management-cli` | `packages/release-management-cli` | `0.3.0-RC.0` | `lib/cli.js`, bin `release-management` |
-| `@officespacesoftware/release-management-mcp` | `packages/release-management-mcp` | `0.5.0-RC.0` | `lib/index.js`, bin `release-management-mcp` |
+| [`@officespacesoftware/versioner`](packages/versioner/README.md) | `packages/versioner` | `0.5.0-RC.0` | `lib/index.js`, bin `versioner` |
+| [`@officespacesoftware/release-management-core`](packages/release-management-core/README.md) | `packages/release-management-core` | `0.5.0-RC.1` | `lib/index.js` + `lib/index.d.ts` |
+| [`@officespacesoftware/release-management-cli`](packages/release-management-cli/README.md) | `packages/release-management-cli` | `0.3.0-RC.1` | `lib/cli.js`, bin `release-management` |
+| [`@officespacesoftware/release-management-mcp`](packages/release-management-mcp/README.md) | `packages/release-management-mcp` | `0.5.0-RC.1` | `lib/index.js`, bin `release-management-mcp` |
 
 The core depends on the versioner package; the CLI and MCP depend on the core. Nothing
 depends on the CLI or the MCP. See
@@ -35,6 +35,9 @@ token with `read:packages`:
 @officespacesoftware:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
+
+The current line of all four packages is a prerelease on the `next` dist-tag, so install
+them as `@next` or pin an exact version — `latest` is not set on this line.
 
 ## Workspace commands
 
@@ -67,149 +70,54 @@ TypeScript packages compile `src/` to `lib/` with declaration files, extending
 `exactOptionalPropertyTypes`, `noUnusedLocals`, `noUnusedParameters`). The versioner
 package is plain ESM JavaScript with no compile step.
 
-## `@officespacesoftware/versioner`
+## The packages
+
+Each package documents its own install, surface and use. This file covers the workspace
+they share.
+
+### [`@officespacesoftware/versioner`](packages/versioner/README.md)
 
 The version-mutation layer: it owns the `VERSION` file and creates the version commit and
-annotated tag. Full documentation in
-[packages/versioner/README.md](packages/versioner/README.md).
+annotated tag. A `versioner` CLI and a library, pure ESM with no dependencies and no build
+step.
 
 ```sh
-npx @officespacesoftware/versioner init
-npx @officespacesoftware/versioner show
+npx @officespacesoftware/versioner@next show
 ```
 
-## `@officespacesoftware/release-management-core`
+### [`@officespacesoftware/release-management-core`](packages/release-management-core/README.md)
 
-The orchestration layer. It exports `GitFlowManager`, `ReleaseAgent`, `VersionerAdapter`,
-`VersionerDirectClient`, the change-plan helpers, the shared guards, and their types:
+The orchestration layer, exporting `GitFlowManager`, `ReleaseAgent`, `VersionerAdapter`,
+`VersionerDirectClient`, the change-plan helpers and the shared guards. It depends on
+`@octokit/rest`, `@octokit/graphql`, `js-yaml` and the versioner package; nothing in it
+imports `commander` or the MCP SDK, which is what keeps the two front-ends
+interchangeable.
 
-```ts
-import {
-  GitFlowManager,
-  ReleaseAgent,
-  VersionerAdapter,
-  MergeConflictError,
-  BranchSelectionError,
-  buildChangePlan,
-  renderChangePlan,
-  assertPlanIsCurrent,
-  StalePlanError,
-} from "@officespacesoftware/release-management-core";
+### [`@officespacesoftware/release-management-cli`](packages/release-management-cli/README.md)
 
-const gfm = new GitFlowManager(process.cwd());
-const listing = await gfm.listVersions("main"); // read-only
-```
-
-It depends on `@octokit/rest`, `@octokit/graphql`, `js-yaml`, and the versioner package.
-Nothing in it imports `commander` or the MCP SDK, so both front-ends stay interchangeable.
-
-GitHub credentials resolve in this order: `GH_TOKEN`, `GITHUB_TOKEN`, `gh auth token`,
-`~/.config/gh/hosts.yml`. `owner`/`repo` come from the `origin` remote URL.
-
-## `@officespacesoftware/release-management-cli`
-
-A `commander` CLI, suitable for shells and GitHub Actions.
+A `commander` CLI over the core, for shells and GitHub Actions. Twelve commands, global
+`--json` and `--quiet`, results appended to `$GITHUB_OUTPUT`.
 
 ```sh
-npx @officespacesoftware/release-management-cli --help
-# or, once installed:
-release-management --help
+npx -p @officespacesoftware/release-management-cli@next release-management --help
 ```
 
-Global options: `--json` (structured JSON on stdout) and `--quiet` (suppress progress
-logging). There is deliberately no global `--version` flag, because subcommands take
-`--version <ver>` as a release version argument.
+### [`@officespacesoftware/release-management-mcp`](packages/release-management-mcp/README.md)
 
-Commands:
+A Model Context Protocol stdio server over the core, exposing thirteen tools to AI
+assistants. Its README carries the setup recipes for **Claude Code, Codex and Cursor**,
+from the registry or from a local build, along with what each credential is for.
 
 ```sh
-release-management list-versions            [--production-branch <branch>]
-release-management create-rc                [--release-type major|minor|patch]
-release-management create-hotfix
-release-management increment-rc             [--version <version>]
-release-management release-version          [--version <version>]
-release-management revert-version           [--version <version>]
-release-management initialize-versioner     [--version <version>]
-release-management downmerge main-to-develop
-release-management downmerge release-to-develop  [--version <version>]
-release-management downmerge release-to-main     [--version <version>]
-release-management downmerge hotfix-to-develop   [--version <version>]
-release-management downmerge hotfix-to-main      [--version <version>]
+claude mcp add release-management --scope user \
+  -- npx --yes @officespacesoftware/release-management-mcp@next
 ```
 
-Every command accepts `--working-directory <path>`, defaulting to the current directory.
-The five version workflows — `create-rc`, `create-hotfix`, `increment-rc`,
-`release-version` and `revert-version` — also accept `--dry-run`.
-
-How mutating commands describe a change before applying it — and the digest that has to be
-handed back to apply it — is documented in
-[../docs/actions.md](../docs/actions.md#the-planconfirm-protocol). Run
-`release-management <command> --help` for the flags a given command takes.
-
-Results are written to `$GITHUB_OUTPUT` when that variable is set, using the inline
-`key=value` form for single-line values and the heredoc form for multi-line ones. The keys
-each command writes are listed per action in
-[../docs/actions.md](../docs/actions.md).
-
-Exit codes: `0` on success, `1` for user errors (not a git repository, staged changes, no
-matching branch, a refused branch selection), `2` for everything else. A fourth code, `3`,
-is defined for partial success. A fatal parse-time error also exits `2`.
-
-## `@officespacesoftware/release-management-mcp`
-
-A Model Context Protocol stdio server exposing thirteen tools: `health_check`,
-`list_versions`, `create_release_candidate`, `create_hotfix`,
-`increment_release_candidate`, `release_version`, `revert_version`,
-`initialize_versioner`, `downmerge_main_to_develop`, `downmerge_release_to_develop`,
-`downmerge_release_to_main`, `downmerge_hotfix_to_develop`, and
-`downmerge_hotfix_to_main`. Each is documented in
-[../docs/actions.md](../docs/actions.md).
-
-Every tool takes an optional `workingDirectory`; the server rebinds its `GitFlowManager`
-and `ReleaseAgent` whenever that value changes, so consecutive calls can target different
-repositories.
-
-### Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "release-management": {
-      "command": "npx",
-      "args": ["--yes", "@officespacesoftware/release-management-mcp"]
-    }
-  }
-}
-```
-
-### Claude Code
-
-```sh
-claude mcp add-json release-management '{"type":"stdio","command":"npx","args":["--yes","@officespacesoftware/release-management-mcp"]}'
-```
-
-### From a local build
-
-```sh
-cd js
-pnpm install
-pnpm build
-```
-
-Then point the client at the built entry point:
-
-```json
-{
-  "mcpServers": {
-    "release-management": {
-      "command": "node",
-      "args": ["/path/to/versioner/js/packages/release-management-mcp/bin/release-management-mcp"]
-    }
-  }
-}
-```
+Both front-ends share one protocol for describing a change before making it: called without
+an apply flag or confirmation digest, a mutating action reports the git objects it would
+create and changes nothing. See
+[../docs/actions.md](../docs/actions.md#the-planconfirm-protocol) for the protocol and
+[../docs/actions.md](../docs/actions.md) for every action's ordered steps.
 
 ## Publishing
 

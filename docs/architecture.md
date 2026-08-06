@@ -12,17 +12,19 @@ git objects, so a project can move between them without migrating anything.
 
 ## Components
 
-| Component | Path | Version | Role |
-| --- | --- | --- | --- |
-| `versioner` (gem) | `ruby/` + `versioner.gemspec` | `1.2.0` (root `VERSION`) | Rake tasks that mutate `VERSION` and create git objects |
-| `@officespacesoftware/versioner` | `js/packages/versioner` | `1.0.1` | CLI + library that mutate `VERSION` and create git objects |
-| `@officespacesoftware/release-management-core` | `js/packages/release-management-core` | `1.2.0` | Git Flow primitives, workflow orchestration, change plans, GitHub client |
-| `@officespacesoftware/release-management-cli` | `js/packages/release-management-cli` | `0.2.0` | Shell/GitHub Actions front-end over the core |
-| `@officespacesoftware/release-management-mcp` | `js/packages/release-management-mcp` | `0.4.0` | Model Context Protocol stdio server over the core |
+| Component | Path | Role |
+| --- | --- | --- |
+| `versioner` (gem) | `ruby/` + `versioner.gemspec` | Rake tasks that mutate `VERSION` and create git objects |
+| `@officespacesoftware/versioner` | `js/packages/versioner` | CLI + library that mutate `VERSION` and create git objects |
+| `@officespacesoftware/release-management-core` | `js/packages/release-management-core` | Git Flow primitives, workflow orchestration, change plans, GitHub client |
+| `@officespacesoftware/release-management-cli` | `js/packages/release-management-cli` | Shell/GitHub Actions front-end over the core |
+| `@officespacesoftware/release-management-mcp` | `js/packages/release-management-mcp` | Model Context Protocol stdio server over the core |
 
-The gem version is read at load time from the first line of the repository-root `VERSION`
-file (`ruby/lib/versioner/version.rb`). The JS package versions are the `version` fields of
-each `package.json`.
+Versions are deliberately not listed here — this document describes the shape of the system,
+which does not change when a package is published. The gem version is read at load time from
+the first line of the repository-root `VERSION` file (`ruby/lib/versioner/version.rb`); each
+JS package's is the `version` field of its own `package.json`, tabulated in
+[../js/README.md](../js/README.md).
 
 ### Registry
 
@@ -106,7 +108,8 @@ inputs, call core methods, and format results.
 - `js/packages/release-management-cli/src/cli.ts` registers subcommands with `commander`;
   `src/commands/*.ts` each wire one workflow; `src/output.ts` emits text or JSON and
   appends `key=value` pairs to `$GITHUB_OUTPUT`; `src/exit-codes.ts` defines exit codes
-  `0` success, `1` user error, `2` environment error, `3` partial success.
+  `0` success, `1` user error and `2` environment error, plus `3`, reserved for partial
+  success and not currently returned by any path.
 - `js/packages/release-management-mcp/src/index.ts` declares the tool list and dispatches
   each tool name to a handler that returns a formatted text block. It rebinds its
   `GitFlowManager` and `ReleaseAgent` whenever the requested `workingDirectory` changes.

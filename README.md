@@ -11,8 +11,11 @@ CLI and an MCP server.
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Components, dependency direction, layers, `VERSION` contract, GitHub token resolution |
 | [docs/actions.md](docs/actions.md) | Every action, its ordered steps, and the exact git objects it creates |
-| [js/README.md](js/README.md) | The JavaScript workspace: packages, install, workflows |
+| [js/README.md](js/README.md) | The JavaScript workspace: packages, registry, workspace commands, publishing |
 | [js/packages/versioner/README.md](js/packages/versioner/README.md) | The `@officespacesoftware/versioner` CLI and library |
+| [js/packages/release-management-core/README.md](js/packages/release-management-core/README.md) | The `release-management-core` library API |
+| [js/packages/release-management-cli/README.md](js/packages/release-management-cli/README.md) | The `release-management` CLI, its flags, exit codes, and GitHub Actions use |
+| [js/packages/release-management-mcp/README.md](js/packages/release-management-mcp/README.md) | The MCP server, its thirteen tools, and setup for Claude Code, Codex and Cursor |
 
 ## Layout
 
@@ -120,12 +123,14 @@ Four packages, published to GitHub Packages under the `@officespacesoftware` sco
 | Package | Purpose |
 | --- | --- |
 | [`@officespacesoftware/versioner`](js/packages/versioner/README.md) | `versioner` CLI and library: reads and writes `VERSION`, creates commits and annotated tags |
-| `@officespacesoftware/release-management-core` | Shared Git Flow primitives and workflow orchestration; consumed by the two front-ends |
-| `@officespacesoftware/release-management-cli` | `release-management` CLI for shells and GitHub Actions |
-| `@officespacesoftware/release-management-mcp` | `release-management-mcp` MCP stdio server for AI assistants |
+| [`@officespacesoftware/release-management-core`](js/packages/release-management-core/README.md) | Shared Git Flow primitives and workflow orchestration; consumed by the two front-ends |
+| [`@officespacesoftware/release-management-cli`](js/packages/release-management-cli/README.md) | `release-management` CLI for shells and GitHub Actions |
+| [`@officespacesoftware/release-management-mcp`](js/packages/release-management-mcp/README.md) | `release-management-mcp` MCP stdio server for AI assistants |
 
-See [js/README.md](js/README.md) for install, configuration, and workspace commands, and
-[docs/actions.md](docs/actions.md) for what each action does.
+Each package's README covers its own install and use — including, for the MCP server, setup
+for Claude Code, Codex and Cursor from either the registry or a local build. See
+[js/README.md](js/README.md) for the workspace itself and [docs/actions.md](docs/actions.md)
+for what each action does.
 
 ## Registry
 
@@ -137,6 +142,9 @@ See [js/README.md](js/README.md) for install, configuration, and workspace comma
 
 Installing the packages requires a token with `read:packages` for the
 `officespacesoftware` organization.
+
+The current line of all four packages is a prerelease published under the `next` dist-tag,
+so install them explicitly as `@next` — `latest` is not set on this line.
 
 ## Continuous integration
 
