@@ -1,6 +1,6 @@
 {
   "name": "@officespacesoftware/versioner",
-  "version": "0.5.0-RC.0",
+  "version": "0.5.0-RC.1",
   "description": "Version-numbering tasks that create the appropriate Git objects",
   "main": "lib/index.js",
   "type": "module",
