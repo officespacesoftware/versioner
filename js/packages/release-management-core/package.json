@@ -1,6 +1,6 @@
 {
   "name": "@officespacesoftware/release-management-core",
-  "version": "0.5.0-RC.0",
+  "version": "0.5.0-RC.1",
   "description": "Shared business logic for the release-management CLI and MCP: git flow primitives, workflow orchestration, output formatting.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
