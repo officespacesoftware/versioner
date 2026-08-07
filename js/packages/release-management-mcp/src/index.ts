@@ -210,7 +210,11 @@ titled "RC X.Y.Z-RC.0 to develop" (opened, or updated if one is already open).`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 releaseType: {
                   type: "string",
@@ -241,8 +245,11 @@ Cuts a hotfix branch off main and sets it to the next patch RC.0 version.
 - Version: main's own VERSION with the patch number incremented
 - Opens the pull request to **main**, the one head/base pair that every later
   increment_release_candidate and release_version updates rather than duplicates
-- Does NOT bring the hotfix into develop; use downmerge_hotfix_to_develop for
-  that, once the fix is written
+- Also opens a **draft** pull request to develop, so the fix's second destination
+  is visible from the start. It is a placeholder: the branch holds only a version
+  bump and conflicts with develop on VERSION by construction. It does not merge
+  the hotfix into develop — downmerge_hotfix_to_develop still does that, from a
+  merge branch, once the fix is written and deployed
 
 Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
 branch, commit, tag, pushes and pull request it would create, plus a digest. Pass
@@ -251,10 +258,11 @@ digest no longer matches and it refuses, returning a fresh plan.
 
 Applying creates: the branch hotfix/X.Y.Z off main, a commit
 "To version X.Y.Z-RC.0" touching only VERSION, an annotated tag X.Y.Z-RC.0, a push
-of the branch and a push of the tag, and a pull request hotfix/X.Y.Z → main titled
+of the branch and a push of the tag, a pull request hotfix/X.Y.Z → main titled
 "RC X.Y.Z-RC.0 to main", carrying a warning not to merge before the hotfix has
-been deployed. If a pull request for that head/base pair is already open, its
-title and the watermarked region of its body are updated instead.`,
+been deployed, and a draft pull request hotfix/X.Y.Z → develop titled
+"Hotfix X.Y.Z to develop". If a pull request for either head/base pair is already
+open, its title and the watermarked region of its body are updated instead.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -262,7 +270,11 @@ title and the watermarked region of its body are updated instead.`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 workingDirectory: {
                   type: "string",
@@ -310,7 +322,11 @@ updated if one is already open.`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 version: {
                   type: "string",
@@ -363,7 +379,11 @@ target is the release branch.`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 version: {
                   type: "string",
@@ -447,7 +467,11 @@ into develop" otherwise.`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 workingDirectory: {
                   type: "string",
@@ -491,7 +515,11 @@ that this action closes again once CI checks start.`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 version: {
                   type: "string",
@@ -539,7 +567,11 @@ that it must be merged only after the release has been deployed to production.`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 version: {
                   type: "string",
@@ -594,7 +626,11 @@ listing the files for a human to resolve.`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 version: {
                   type: "string",
@@ -639,7 +675,11 @@ hotfix has been deployed to production. No branch, commit, tag or push.`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 version: {
                   type: "string",
@@ -734,7 +774,11 @@ the tag already triggered.`,
                   type: "string",
                   description:
                     "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything.",
+                    "Omit to receive a plan without changing anything. " +
+                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
+                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
+                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
+                    "staleness check.",
                 },
                 version: {
                   type: "string",
@@ -1630,7 +1674,15 @@ ${
           : "Pull Request"
       }: ${workflowResult.pullRequestUrl}`
     : ""
-}
+}${
+        workflowResult.trackingPullRequestUrl
+          ? `\n📝 Draft PR to develop: ${workflowResult.trackingPullRequestUrl}`
+          : ""
+      }${
+        workflowResult.trackingPullRequestError
+          ? `\n⚠️  Could not open the develop PR: ${workflowResult.trackingPullRequestError}`
+          : ""
+      }
 
 ✅ All steps completed successfully.
 

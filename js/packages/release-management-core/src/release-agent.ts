@@ -79,6 +79,10 @@ export interface HotfixWorkflowContext {
   stepProgress: WorkflowStep[];
   pullRequestUrl?: string;
   pullRequestAction?: "created" | "updated";
+  /** The draft PR to develop, tracking the fix's second destination. */
+  trackingPullRequestUrl?: string;
+  trackingPullRequestAction?: "created" | "updated";
+  trackingPullRequestError?: string;
 }
 
 export interface IncrementRCWorkflowContext {
@@ -274,6 +278,11 @@ export class ReleaseAgent {
         { step: 4, name: "Update version to patch RC", status: "pending" },
         { step: 5, name: "Push hotfix branch and tag", status: "pending" },
         { step: 6, name: "Create pull request to main", status: "pending" },
+        {
+          step: 7,
+          name: "Open draft pull request to develop",
+          status: "pending",
+        },
       ],
     };
 
@@ -285,6 +294,7 @@ export class ReleaseAgent {
       await this.executeHotfixStep4_UpdateVersion();
       await this.executeHotfixStep5_PushBranchAndTag();
       await this.executeHotfixStep6_CreatePullRequest();
+      await this.executeHotfixStep7_TrackingPullRequest();
 
       console.log(`\n✅ Hotfix Workflow completed successfully!`);
       return this.context as HotfixWorkflowContext;
@@ -784,6 +794,91 @@ export class ReleaseAgent {
       step.error = error instanceof Error ? error.message : String(error);
       throw new Error(`Step 6 failed: ${step.error}`);
     }
+  }
+
+  /**
+   * Hotfix Step 7: open (or refresh) the draft pull request into develop.
+   *
+   * A hotfix ships through main, so nothing in the main-bound workflow ever puts the
+   * fix in front of develop, and a fix that reaches production but not develop is
+   * reintroduced as a regression by the next release cut from it. Opening the pull
+   * request at creation time makes that outstanding work visible for the whole life
+   * of the hotfix rather than depending on someone remembering it after the deploy.
+   *
+   * A draft, because at this point the branch holds only a version bump and the
+   * merge conflicts on VERSION by construction: it is a placeholder to be reconciled,
+   * not a merge anyone should take.
+   *
+   * Failure is recorded and reported, never fatal — the branch, the tag and the
+   * main-bound pull request all already exist by the time this runs.
+   */
+  private async executeHotfixStep7_TrackingPullRequest(): Promise<void> {
+    const step = this.updateStepStatus(7, "in_progress");
+    const context = this.context as HotfixWorkflowContext;
+    const hotfixBranch = context.currentBranch;
+
+    if (context.dryRun) {
+      step.message = `Dry run: would open draft PR ${hotfixBranch} → develop`;
+      this.updateStepStatus(7, "skipped");
+      console.log(`   ⏭️  ${step.message}`);
+      return;
+    }
+
+    console.log("📋 Step 7: Opening draft pull request to develop...");
+
+    try {
+      const version =
+        context.targetVersion?.version ??
+        (await this.versionerAdapter.getCurrentVersion()).version;
+      const baseVersion = version.split("-")[0] ?? version;
+
+      const result = await this.gitFlowManager.createPullRequest(
+        hotfixBranch,
+        "develop",
+        `Hotfix ${baseVersion} to develop`,
+        this.trackingPullRequestBody(hotfixBranch, baseVersion),
+        true
+      );
+
+      context.trackingPullRequestUrl = result.url;
+      context.trackingPullRequestAction = result.action;
+      const verb = result.action === "updated" ? "Updated" : "Opened";
+      step.message = `${verb} draft pull request: ${result.url}`;
+      this.updateStepStatus(7, "completed");
+      console.log(`   ✅ ${step.message}`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      context.trackingPullRequestError = msg;
+      step.message = `Could not open the develop pull request: ${msg}`;
+      this.updateStepStatus(7, "completed");
+      console.warn(`   ⚠️  ${step.message}`);
+    }
+  }
+
+  /** Generate the PR body for the draft hotfix pull request into develop. */
+  private trackingPullRequestBody(
+    hotfixBranch: string,
+    baseVersion: string
+  ): string {
+    return [
+      `## Hotfix ${baseVersion} to develop`,
+      ``,
+      `Draft placeholder, opened when \`${hotfixBranch}\` was cut, so that the ` +
+        `fix's second destination is visible before anyone has to remember it.`,
+      ``,
+      `**This is not ready to merge.** Right now the branch carries only a ` +
+        `version bump, and it conflicts with develop on \`VERSION\` by ` +
+        `construction — a hotfix and develop are on different version lines.`,
+      ``,
+      `### 🔄 Next Steps`,
+      `1. Write and ship the fix through \`main\` as usual.`,
+      `2. After the deploy, run \`downmerge_hotfix_to_develop\`, which opens a ` +
+        `reconciled pull request from a merge branch.`,
+      `3. Close this draft once that one is merged.`,
+      ``,
+      `---`,
+      autoGeneratedFooter(),
+    ].join("\n");
   }
 
   /** Generate the PR body for a hotfix RC targeting main. */
@@ -1429,6 +1524,19 @@ ${autoGeneratedFooter()}`;
   }
 
   /**
+   * The branch a finished release or hotfix still has to be reconciled into.
+   *
+   * A release branch integrates back into the branch it was cut from. A hotfix is
+   * cut from production, so its own base is already the pull request target and
+   * naming it again would describe one pull request as two; the branch actually
+   * left behind is develop, which never sees the fix unless it is asked for by
+   * name.
+   */
+  private integrationBase(branchInfo: BranchTypeInfo): string {
+    return branchInfo.type === "hotfix" ? "develop" : branchInfo.targetBranch;
+  }
+
+  /**
    * Describe what promoting the release candidate to a final version would do,
    * changing nothing.
    */
@@ -1444,7 +1552,7 @@ ${autoGeneratedFooter()}`;
       currentVersion,
       resultingVersion,
       prBase: "main",
-      ownBase: branchInfo.targetBranch,
+      ownBase: this.integrationBase(branchInfo),
       // The promotion is the last point at which merging main in first is cheap: after
       // it, the tag is cut and the fix costs a revert.
       checkMergeInto: "main",
@@ -2332,6 +2440,11 @@ ${autoGeneratedFooter()}`;
       baseBranch: "main",
       branchType: "hotfix",
       prBase: "main",
+      // A hotfix reaches production through main, but develop has to end up with
+      // the fix as well. The pull request is opened here, as a draft, so the gap
+      // is visible from the moment the branch exists rather than being remembered
+      // after the deploy.
+      trackingBase: "develop",
       nextBaseVersion: (v) => `${v.major}.${v.minor}.${v.patch + 1}`,
     });
   }
@@ -2346,6 +2459,11 @@ ${autoGeneratedFooter()}`;
     baseBranch: "develop" | "main";
     branchType: BranchType;
     prBase: "develop" | "main";
+    /**
+     * A second base the new branch also opens a draft pull request against, for
+     * work that has to land in two places. Ignored when it equals prBase.
+     */
+    trackingBase?: "develop" | "main";
     nextBaseVersion: (parts: VersionParts) => string;
     extraWarnings?: string[];
   }): Promise<ChangePlan> {
@@ -2445,6 +2563,34 @@ ${autoGeneratedFooter()}`;
         detail: { title: `RC ${rcVersion} to ${prBase}` },
       },
     ];
+
+    const trackingBase = opts.trackingBase;
+    if (trackingBase && trackingBase !== prBase) {
+      const trackingPr = await this.gitFlowManager.findOpenPullRequest(
+        newBranch,
+        trackingBase
+      );
+      mutations.push({
+        kind: "pull-request",
+        summary: trackingPr
+          ? `update PR #${trackingPr.number} (${newBranch} → ${trackingBase})`
+          : `open draft ${newBranch} → ${trackingBase}`,
+        detail: { title: `${branchType} ${nextVersion} to ${trackingBase}` },
+      });
+      if (trackingPr) {
+        warnings.push(
+          `PR #${trackingPr.number} is already open for ${newBranch} → ` +
+            `${trackingBase}; it will be updated, not created.`
+        );
+      } else {
+        warnings.push(
+          `The ${newBranch} → ${trackingBase} pull request opens as a draft ` +
+            `holding only a version bump, and conflicts on VERSION until the ` +
+            `fix lands and it is reconciled. It is a reminder, not a merge ` +
+            `that is ready to take.`
+        );
+      }
+    }
 
     return buildChangePlan({
       action,
@@ -3392,10 +3538,11 @@ ${autoGeneratedFooter()}`;
 
     const context = this.context as ReleaseVersionWorkflowContext;
     const branchName = branchInfo.name.replace(/^remotes\/origin\//, "");
-    const ownBase = branchInfo.targetBranch;
+    const ownBase = this.integrationBase(branchInfo);
 
-    // A hotfix's own base is main, which step 7 has already written. Running both
-    // would leave the title of a single PR decided by whichever went last.
+    // Whatever step 7 already wrote is not written again here: running both against
+    // one head/base pair would leave that pull request's title decided by whichever
+    // went last.
     if (ownBase === "main") {
       const step = this.updateStepStatus(10, "skipped");
       step.message = `${branchName} integrates into main, already handled in step 7`;
@@ -3422,9 +3569,9 @@ ${autoGeneratedFooter()}`;
       const result = await this.gitFlowManager.createPullRequest(
         branchName,
         ownBase,
-        // Deliberately the title downmerge_release_to_develop uses, so the two
-        // actions converge on one wording instead of overwriting each other.
-        `Release ${version} to ${ownBase}`,
+        // Deliberately the title the matching downmerge uses, so the two actions
+        // converge on one wording instead of overwriting each other.
+        `${branchInfo.type === "hotfix" ? "Hotfix" : "Release"} ${version} to ${ownBase}`,
         this.ownBasePullRequestBody(branchInfo, branchName, ownBase, version)
       );
 
