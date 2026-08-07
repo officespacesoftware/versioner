@@ -602,6 +602,10 @@ Reconciles develop with a fix that reached production through main.
   same reason there is no build-trigger PR: the hotfix has already shipped.
 - A conflict is an outcome, not a failure. A hotfix and develop have both moved
   VERSION on by the time this runs, so conflicting is the ordinary case.
+- Closes the draft hotfix/* → develop pull request that create_hotfix opened, of
+  which this one is the reconciled replacement, so develop is never left with two
+  open pull requests carrying one hotfix. Failing to close it is reported, not
+  fatal.
 - Run this after the fix is written; at creation the hotfix branch holds only a
   version bump
 
