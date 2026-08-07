@@ -1,0 +1,131 @@
+name: Delete package version
+
+# Removes one published version of one package from GitHub Packages.
+#
+# This exists because deleting a version with a personal token can fail on a package
+# whose namespace GitHub has in an inconsistent state — `release-management-core`
+# answers `404 Package not found` to a DELETE naming a version that plainly exists,
+# while a GET on the same path returns it. A workflow authenticates as the repository
+# rather than as a user, and a repository that published a package holds the `admin`
+# role on it by default, so this path can succeed where a user token does not.
+#
+# Deliberately one version per run, named explicitly. There is no "delete every
+# version" mode: emptying a package makes GitHub drop it entirely and leaves a
+# soft-deleted record on the namespace for 30 days, which is the very state this
+# workflow exists to work around.
+#
+# Deletions are restorable for 30 days, from the package's version list on GitHub.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to delete a version from"
+        required: true
+        type: choice
+        options:
+          - versioner
+          - release-management-core
+          - release-management-cli
+          - release-management-mcp
+      version:
+        description: "Exact version to delete (e.g. 0.5.0-RC.0)"
+        required: true
+        type: string
+      confirm:
+        description: "Type <package>@<version> to confirm (e.g. release-management-core@0.5.0-RC.0)"
+        required: true
+        type: string
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    permissions:
+      # Deleting through the REST API needs the admin role on the package itself,
+      # which is a package-level grant; `packages: write` is what the workflow token
+      # carries to exercise it.
+      packages: write
+    steps:
+      - name: Confirm the target
+        env:
+          PKG: ${{ inputs.package }}
+          VER: ${{ inputs.version }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          EXPECTED="${PKG}@${VER}"
+          if [ "${CONFIRM}" != "${EXPECTED}" ]; then
+            echo "::error::Confirmation mismatch. Expected '${EXPECTED}', got '${CONFIRM}'. Nothing was deleted."
+            exit 1
+          fi
+          echo "Target confirmed: ${EXPECTED}"
+
+      - name: Resolve version id and check it is safe to remove
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORG: ${{ github.repository_owner }}
+          PKG: ${{ inputs.package }}
+          VER: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          VERSIONS=$(gh api --paginate \
+            "/orgs/${ORG}/packages/npm/${PKG}/versions" \
+            --jq '.[] | "\(.id) \(.name)"')
+
+          if [ -z "${VERSIONS}" ]; then
+            echo "::error::${PKG} has no published versions."
+            exit 1
+          fi
+
+          echo "Published versions of ${PKG}:"
+          echo "${VERSIONS}" | sed 's/^/  /'
+
+          TOTAL=$(printf '%s\n' "${VERSIONS}" | grep -c .)
+          ID=$(printf '%s\n' "${VERSIONS}" | awk -v v="${VER}" '$2 == v { print $1 }')
+
+          if [ -z "${ID}" ]; then
+            echo "::error::${PKG} has no version ${VER}. Nothing was deleted."
+            exit 1
+          fi
+
+          # Refuse to empty a package: GitHub then drops it and holds the namespace
+          # in a soft-deleted state for 30 days, which breaks name resolution for
+          # exactly the operations this workflow performs.
+          if [ "${TOTAL}" -le 1 ]; then
+            echo "::error::${VER} is the only version of ${PKG}. Refusing to leave the package empty."
+            exit 1
+          fi
+
+          echo "id=${ID}" >> "$GITHUB_OUTPUT"
+          echo "Resolved ${PKG}@${VER} to version id ${ID}."
+
+      - name: Delete the version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORG: ${{ github.repository_owner }}
+          PKG: ${{ inputs.package }}
+          VER: ${{ inputs.version }}
+          ID: ${{ steps.resolve.outputs.id }}
+        run: |
+          set -euo pipefail
+          # Show the response on failure: a `404 Package not found` here, on an id that
+          # resolved a step ago, is the namespace inconsistency described at the top of
+          # this file and not a missing version.
+          if ! OUT=$(gh api -X DELETE \
+                "/orgs/${ORG}/packages/npm/${PKG}/versions/${ID}" 2>&1); then
+            echo "::error::Delete of ${PKG}@${VER} (id ${ID}) failed: ${OUT}"
+            exit 1
+          fi
+          echo "Deleted ${PKG}@${VER} (id ${ID})."
+
+      - name: Summarize
+        env:
+          PKG: ${{ inputs.package }}
+          VER: ${{ inputs.version }}
+        run: |
+          {
+            echo "Deleted \`@officespacesoftware/${PKG}@${VER}\` from GitHub Packages."
+            echo ""
+            echo "Restorable for 30 days from the package's version list."
+          } >> "$GITHUB_STEP_SUMMARY"
