@@ -185,7 +185,7 @@ test("promoting opens a develop PR when none is waiting", async () => {
   );
 });
 
-test("promoting a hotfix leaves its main PR with the step 7 title", async () => {
+test("promoting a hotfix writes main from step 7 and develop from step 10", async () => {
   hotfixBranchAtRC0();
   const { agent } = makeAgent({
     openPrs: {
@@ -200,13 +200,15 @@ test("promoting a hotfix leaves its main PR with the step 7 title", async () => 
 
   const result = await agent.executeReleaseWorkflow(repo, undefined, false);
 
-  // One write, from step 7. Step 10 must not follow it with develop wording.
-  assert.equal(calls.created.length, 1);
+  // Two writes to two bases. The point is that step 10 goes to develop and leaves
+  // step 7's main title alone: a hotfix's own base is main, and targeting it twice
+  // would let whichever ran last decide one pull request's wording.
+  assert.equal(calls.created.length, 2);
   assert.equal(prTo("main").title, "Release 1.3.1 to main");
+  assert.equal(prTo("develop").title, "Hotfix 1.3.1 to develop");
 
   const step10 = result.stepProgress.find((s) => s.step === 10);
-  assert.equal(step10.status, "skipped");
-  assert.match(step10.message, /already handled in step 7/);
+  assert.equal(step10.status, "completed");
 });
 
 test("a failure refreshing the develop PR is reported, not thrown", async () => {

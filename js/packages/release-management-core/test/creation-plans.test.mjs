@@ -128,8 +128,19 @@ test("a hotfix is cut off main at the next patch", async () => {
     "tag: annotated tag 4.124.1-RC.0",
     "push: hotfix/4.124.1 and tag 4.124.1-RC.0 to origin",
     "pull-request: open hotfix/4.124.1 → main",
+    "pull-request: open draft hotfix/4.124.1 → develop",
   ]);
-  assert.equal(plan.mutations.at(-1).detail.title, "RC 4.124.1-RC.0 to main");
+  assert.equal(
+    plan.mutations.at(-2).detail.title,
+    "RC 4.124.1-RC.0 to main"
+  );
+  assert.equal(
+    plan.mutations.at(-1).detail.title,
+    "hotfix 4.124.1 to develop"
+  );
+  // The draft is unmergeable on arrival and the plan has to say so, or it reads as
+  // a second route to production rather than a placeholder.
+  assert.match(plan.warnings[0], /opens as a draft holding only a version bump/);
 });
 
 test("an open hotfix pull request into main is reconciled, not duplicated", async () => {
@@ -148,7 +159,7 @@ test("an open hotfix pull request into main is reconciled, not duplicated", asyn
   const plan = await agent.planCreateHotfix();
 
   assert.equal(
-    plan.mutations.at(-1).summary,
+    plan.mutations.at(-2).summary,
     "update PR #31 (hotfix/4.124.1 → main)"
   );
   assert.match(plan.warnings[0], /#31 is already open/);
@@ -254,7 +265,11 @@ test("the hotfix plan does not consult main/develop synchronization", async () =
     }
   );
 
-  assert.deepEqual((await agent.planCreateHotfix()).warnings, []);
+  // The throwing stub is what proves the point: reaching it fails the test. The
+  // draft placeholder is the only thing a clean hotfix plan warns about.
+  const { warnings } = await agent.planCreateHotfix();
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /opens as a draft holding only a version bump/);
 });
 
 test("planning refuses when the base branch has no readable VERSION", async () => {

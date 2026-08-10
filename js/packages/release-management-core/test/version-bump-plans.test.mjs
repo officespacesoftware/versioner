@@ -139,9 +139,10 @@ test("promoting plans to open the develop PR when none is open", async () => {
   assert.match(prs[1].summary, /open release\/1\.4\.0 → develop/);
 });
 
-// A hotfix integrates into main, so its own base and the promotion target are the
-// same PR. Listing it twice would read as two writes to two places.
-test("promoting a hotfix lists one PR, its own base being main", async () => {
+// A hotfix ships through main but still owes develop the fix, so promotion writes to
+// two different places. Neither entry duplicates the other: one carries the release
+// into production, the other carries the reconciliation back into develop.
+test("promoting a hotfix lists a PR to main and one to develop", async () => {
   const agent = makeAgent(
     { "hotfix/1.4.1": "1.4.1-RC.0\nabc1234" },
     {
@@ -157,8 +158,9 @@ test("promoting a hotfix lists one PR, its own base being main", async () => {
   const plan = await agent.planReleaseVersion("1.4.1");
 
   const prs = plan.mutations.filter((m) => m.kind === "pull-request");
-  assert.equal(prs.length, 1);
+  assert.equal(prs.length, 2);
   assert.match(prs[0].summary, /update PR #42 \(hotfix\/1\.4\.1 → main\)/);
+  assert.match(prs[1].summary, /update PR #42 \(hotfix\/1\.4\.1 → develop\)/);
 });
 
 // The quiet failure is not a merge failure: the merge is faithful, but the artifact
