@@ -55,11 +55,21 @@ export interface ChangePlan {
   mutations: PlannedMutation[];
   /** Conditions that do not block planning but change the outcome. */
   warnings: string[];
+  /**
+   * Facts about the repository that shape the plan without putting the outcome at
+   * risk, such as a pull request being updated rather than opened. Nothing to act
+   * on before approving.
+   */
+  notices: string[];
   digest: string;
 }
 
-export type ChangePlanInput = Omit<ChangePlan, "digest" | "warnings"> & {
+export type ChangePlanInput = Omit<
+  ChangePlan,
+  "digest" | "warnings" | "notices"
+> & {
   warnings?: string[];
+  notices?: string[];
 };
 
 const DIGEST_LENGTH = 12;
@@ -68,9 +78,9 @@ const DIGEST_LENGTH = 12;
  * Canonical serialisation the digest is taken over.
  *
  * Includes the target branch HEAD so a push to that branch invalidates the plan,
- * and the warnings because they encode remote facts the HEAD sha does not cover —
- * whether a tag already exists, whether a pull request will be updated rather
- * than created.
+ * and the warnings and notices because they encode remote facts the HEAD sha
+ * does not cover — whether a tag already exists, whether a pull request will be
+ * updated rather than created.
  */
 function canonicalForm(plan: Omit<ChangePlan, "digest">): string {
   return [
@@ -87,17 +97,22 @@ function canonicalForm(plan: Omit<ChangePlan, "digest">): string {
       (m) => `mutation:${mutationOperation(m)}:${m.kind}:${m.summary}`
     ),
     ...plan.warnings.map((w) => `warning:${w}`),
+    ...plan.notices.map((n) => `notice:${n}`),
   ].join("\n");
 }
 
 export function buildChangePlan(input: ChangePlanInput): ChangePlan {
-  const withWarnings = { ...input, warnings: input.warnings ?? [] };
+  const complete = {
+    ...input,
+    warnings: input.warnings ?? [],
+    notices: input.notices ?? [],
+  };
   const digest = createHash("sha256")
-    .update(canonicalForm(withWarnings))
+    .update(canonicalForm(complete))
     .digest("hex")
     .slice(0, DIGEST_LENGTH);
 
-  return { ...withWarnings, digest };
+  return { ...complete, digest };
 }
 
 /**
@@ -184,6 +199,13 @@ export function renderChangePlan(plan: ChangePlan): string {
     lines.push("", "Warnings:");
     for (const warning of plan.warnings) {
       lines.push(`  - ${warning}`);
+    }
+  }
+
+  if (plan.notices.length > 0) {
+    lines.push("", "Notes:");
+    for (const notice of plan.notices) {
+      lines.push(`  - ${notice}`);
     }
   }
 

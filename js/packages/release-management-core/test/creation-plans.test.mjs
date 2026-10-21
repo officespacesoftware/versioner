@@ -162,7 +162,8 @@ test("an open hotfix pull request into main is reconciled, not duplicated", asyn
     plan.mutations.at(-2).summary,
     "update PR #31 (hotfix/4.124.1 → main)"
   );
-  assert.match(plan.warnings[0], /#31 is already open/);
+  assert.match(plan.notices[0], /#31 is already open/);
+  assert.ok(!plan.warnings.some((w) => /#31/.test(w)));
 });
 
 test("an existing branch of the same name is a warning", async () => {

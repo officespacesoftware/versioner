@@ -173,8 +173,9 @@ test("an open pull request on the release branch drops the build trigger", async
     !summaries(plan).some((s) => s.includes("build trigger")),
     "the build-trigger pull request must not be planned"
   );
-  assert.match(plan.warnings.at(-1), /#77 is already open/);
-  assert.match(plan.warnings.at(-1), /CI is not re-triggered/);
+  assert.match(plan.notices[0], /#77 is already open/);
+  assert.match(plan.notices[0], /CI is not re-triggered/);
+  assert.ok(!plan.warnings.some((w) => /#77/.test(w)));
 });
 
 test("a clean release into develop reports an open pull request as an update", async () => {
@@ -190,6 +191,8 @@ test("a clean release into develop reports an open pull request as an update", a
   assert.deepEqual(summaries(plan), [
     "pull-request: update PR #12 (release/4.125.0 at a1b2c3d4e5f → develop)",
   ]);
+  assert.match(plan.notices[0], /#12 is already open/);
+  assert.deepEqual(plan.warnings, []);
 });
 
 test("hotfix into develop goes through a merge branch, never head=hotfix/*", async () => {

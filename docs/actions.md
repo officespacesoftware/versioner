@@ -92,6 +92,7 @@ Every mutating action except `initialize_versioner` is two-phase.
 | `currentVersion` → `resultingVersion` | the version transition, absent for the downmerges, which create no version commit |
 | `mutations` | the ordered list of objects the action would touch, each with a kind (`branch`, `commit`, `tag`, `push`, `pull-request`, `github-release`), an `operation` of `create` or `delete` (absent means `create`), and a one-line summary. `renderChangePlan` groups them under "Would create:" and "Would delete:" |
 | `warnings` | conditions that do not block planning but change the outcome |
+| `notices` | facts that shape the plan without putting the outcome at risk, such as a pull request being updated rather than opened; rendered under "Notes:" |
 | `digest` | the confirmation token |
 
 Every fact in a plan comes from read-only primitives: branch selection, `git rev-parse` for

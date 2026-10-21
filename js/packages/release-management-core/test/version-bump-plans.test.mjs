@@ -100,7 +100,8 @@ test("an open pull request on the branch's own base is reported as an update", a
   const plan = await agent.planIncrementRC("1.4.1");
 
   assert.match(pullRequest(plan), /update PR #42/);
-  assert.ok(plan.warnings.some((w) => /#42 is already open/.test(w)));
+  assert.ok(plan.notices.some((n) => /#42 is already open/.test(n)));
+  assert.deepEqual(plan.warnings, []);
 });
 
 // Promotion writes two pull requests: the one into main it opens, and the release

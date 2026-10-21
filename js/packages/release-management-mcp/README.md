@@ -277,7 +277,7 @@ supplied, must come from a human rather than being guessed.
 ### The plan/confirm protocol
 
 Omit `confirm` and a mutating tool returns a plan — the branches, commits, tags, pushes,
-pull requests and releases it would create or delete, any warnings, and a digest:
+pull requests and releases it would create or delete, any warnings and notes, and a digest:
 
 ```
 📋 Plan — nothing has been changed yet
@@ -295,7 +295,7 @@ Nothing has been changed. To apply, confirm with digest: 3f2a1b0c9d8e
 ```
 
 Call the same tool again with `confirm: "3f2a1b0c9d8e"` to apply it. The digest covers the
-target branch's `HEAD` and the plan's warnings, so if anyone pushed to the branch, or a tag
+target branch's `HEAD` and the plan's warnings and notes, so if anyone pushed to the branch, or a tag
 or pull request appeared in the meantime, the confirm is refused and a fresh plan comes
 back instead. Nothing is changed by a refusal.
 

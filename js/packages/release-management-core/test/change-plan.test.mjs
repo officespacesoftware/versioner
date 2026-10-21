@@ -84,6 +84,25 @@ test("a new warning invalidates the digest", () => {
   assert.notEqual(before.digest, after.digest);
 });
 
+test("a new notice invalidates the digest", () => {
+  const before = buildChangePlan(base());
+  const after = buildChangePlan({
+    ...base(),
+    notices: ["PR #7 is already open for b → main; it will be updated"],
+  });
+
+  assert.notEqual(before.digest, after.digest);
+});
+
+test("the same text as a notice and as a warning digests differently", () => {
+  const text = "PR #7 is already open for b → main; it will be updated";
+
+  assert.notEqual(
+    buildChangePlan({ ...base(), notices: [text] }).digest,
+    buildChangePlan({ ...base(), warnings: [text] }).digest
+  );
+});
+
 test("warnings default to an empty array", () => {
   const { warnings } = buildChangePlan({
     action: "a",
@@ -95,6 +114,17 @@ test("warnings default to an empty array", () => {
   });
 
   assert.deepEqual(warnings, []);
+});
+
+test("notices default to an empty array", () => {
+  const { notices } = buildChangePlan({
+    action: "a",
+    targetBranch: "b",
+    targetBranchHead: "c",
+    mutations: [],
+  });
+
+  assert.deepEqual(notices, []);
 });
 
 test("assertPlanIsCurrent accepts a matching digest", () => {
@@ -168,4 +198,13 @@ test("warnings are rendered when present", () => {
 
   assert.match(text, /Warnings:/);
   assert.match(text, /Already merged into main/);
+});
+
+test("notices are rendered apart from warnings", () => {
+  const text = renderChangePlan(
+    buildChangePlan({ ...base(), notices: ["PR #7 will be updated"] })
+  );
+
+  assert.match(text, /Notes:\n  - PR #7 will be updated/);
+  assert.doesNotMatch(text, /Warnings:/);
 });

@@ -206,7 +206,7 @@ assertPlanIsCurrent(await agent.planReleaseVersion(), providedDigest);
 
 | Export | Purpose |
 | --- | --- |
-| `ChangePlan` | `action`, `targetBranch`, `targetBranchHead`, optional `currentVersion`/`resultingVersion`, `mutations`, `warnings`, `digest` |
+| `ChangePlan` | `action`, `targetBranch`, `targetBranchHead`, optional `currentVersion`/`resultingVersion`, `mutations`, `warnings`, `notices`, `digest` |
 | `PlannedMutation` | one object: `kind`, `operation`, one-line imperative `summary`, optional `detail` |
 | `MutationKind` | `branch`, `commit`, `tag`, `push`, `pull-request`, `github-release` |
 | `MutationOperation` | `create` or `delete`; `mutationOperation(m)` defaults an absent value to `create` |
@@ -216,8 +216,9 @@ assertPlanIsCurrent(await agent.planReleaseVersion(), providedDigest);
 | `StalePlanError` | carries the freshly computed `.plan` so the caller can show what changed |
 
 The digest covers the target branch's `HEAD` — so a push to that branch invalidates the
-plan — and the warnings, because those encode remote facts a sha does not: whether a tag
-already exists, whether a pull request will be updated rather than created.
+plan — and the warnings and notices, because those encode remote facts a sha does not:
+whether a tag already exists, whether a pull request will be updated rather than created.
+Warnings call for a decision before approving; notices only explain the plan.
 
 The protocol both front-ends build on top of this is documented in
 [docs/actions.md](../../../docs/actions.md#the-planconfirm-protocol).
