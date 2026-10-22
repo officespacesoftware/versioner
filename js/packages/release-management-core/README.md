@@ -136,11 +136,13 @@ refuses to run over tracked local changes, because its cleanup would discard the
 
 **Downmerge execution**
 
-`downmergeMainToDevelop()`, `downmergeReleaseToDevelop(version?)`,
-`downmergeReleaseToMain(version?)`, `downmergeHotfixToDevelop(version?)`,
-`downmergeHotfixToMain(version?)`. The three returning `DownmergeResult` report which
-shape they took — `direct`, `merge-branch`, or `merge-branch-with-conflicts`, the last
-carrying the conflicted files and the transient build-trigger PR.
+`downmerge(route, version?)` runs one route — `{ source, target }`, validated by
+`parseDownmergeRoute` against `DOWNMERGE_ROUTES` — and returns a `DownmergeResult` of kind
+`direct` or `merge-branch`. A conflict creates nothing and throws
+`ManualDownmergeRequired`, whose `handoff` holds the conflicted files, the branch to
+resolve them on, the pull request title and numbered steps; `renderManualDownmerge`
+formats it. `ReleaseAgent.planDownmerge(route, version?)` is the matching plan, and throws
+the same handoff when the preview conflicts.
 
 `MergeConflictError` carries `conflictedFiles`.
 

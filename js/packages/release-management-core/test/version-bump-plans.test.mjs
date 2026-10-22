@@ -203,7 +203,7 @@ test("promoting warns when the merge into main would conflict", async () => {
   const warning = plan.warnings.find((w) => /conflicts in 1 file/.test(w));
   assert.ok(warning, `expected a conflict warning, got: ${plan.warnings}`);
   assert.match(warning, /VERSION/);
-  assert.match(warning, /downmerge_release_to_main will refuse/);
+  assert.match(warning, /downmerge into main will create nothing/);
 });
 
 // A check that silently did not run reads as a clean bill of health.

@@ -12,7 +12,9 @@ import {
   ensureGitRepository,
   ensureNoStagedChanges,
   ensureVersionerAvailable,
+  ManualDownmergeRequired,
   renderChangePlan,
+  renderManualDownmerge,
   StalePlanError,
   type ChangePlan,
   type GitFlowManager,
@@ -135,10 +137,15 @@ export async function runPlanAwareCommand<T>(params: {
         process.stderr.write(`${hint}\n`);
       }
     },
-    (error) =>
-      error instanceof StalePlanError
-        ? renderStalePlan(error, commandName)
-        : undefined
+    (error) => {
+      if (error instanceof StalePlanError) {
+        return renderStalePlan(error, commandName);
+      }
+      if (error instanceof ManualDownmergeRequired) {
+        return renderManualDownmerge(error.handoff);
+      }
+      return undefined;
+    }
   );
 }
 

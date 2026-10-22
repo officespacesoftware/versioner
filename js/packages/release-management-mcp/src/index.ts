@@ -18,12 +18,14 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   GitFlowManager,
-  MergeConflictError,
+  ManualDownmergeRequired,
   ReleaseAgent,
   StalePlanError,
   VersionerAdapter,
   assertPlanIsCurrent,
+  parseDownmergeRoute,
   renderChangePlan,
+  renderManualDownmerge,
   type ChangePlan,
   type DownmergeResult,
 } from "@officespacesoftware/release-management-core";
@@ -248,7 +250,7 @@ Cuts a hotfix branch off main and sets it to the next patch RC.0 version.
 - Also opens a **draft** pull request to develop, so the fix's second destination
   is visible from the start. It is a placeholder: the branch holds only a version
   bump and conflicts with develop on VERSION by construction. It does not merge
-  the hotfix into develop — downmerge_hotfix_to_develop still does that, from a
+  the hotfix into develop — the hotfix → develop downmerge still does that, from a
   merge branch, once the fix is written and deployed
 
 Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
@@ -439,78 +441,47 @@ Nothing is pushed and no pull request is opened, so there is no plan to confirm.
             },
           },
           {
-            name: "downmerge_main_to_develop",
-            title: "Downmerge Main to Develop",
-            description: `⬇️  Downmerge main → develop
+            name: "downmerge",
+            title: "Downmerge",
+            description: `⬇️  Downmerge one branch into another through a pull request
 
-Brings production changes on main back into develop through a pull request.
+Routes (source → target):
+- main → develop: merges main into a fresh branch cut off develop. Use after a
+  release or hotfix reaches main.
+- release → develop: one pull request straight from release/X.Y.Z.
+- release → main: merges the release into a fresh branch cut off main. The pull
+  request head is never release/*, which would re-trigger CI workflows that build
+  a fresh artifact for an already-cut release.
+- hotfix → develop: merges the hotfix into a fresh branch cut off develop, and
+  closes the draft hotfix/* → develop pull request create_hotfix opened. Run it
+  after the fix is written and deployed.
+- hotfix → main: one pull request straight from hotfix/X.Y.Z.
 
-- Merges main into a fresh branch cut off develop, never into develop directly
-- On conflict the merge is aborted, the temporary branch is deleted, the
-  repository is left on develop, and nothing is pushed
-- Use after a hotfix or any direct update to main
+Pull requests into main carry a warning to merge them only after the deploy.
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
-branch, merge commit, push and pull request it would create, plus a digest. Pass
-that digest back as 'confirm' to apply. If either main or develop moved in
-between, the digest no longer matches and it refuses, returning a fresh plan.
-
-Applying creates: the branch main-into-develop-<unix-timestamp> off develop, a
-merge commit "Downmerge main into develop", a push of that branch, and a pull
-request main-into-develop-<unix-timestamp> → develop, titled "Release <v> to
-develop" when main's newest non-merge commit is a version bump and "Downmerge main
-into develop" otherwise.`,
+Called WITHOUT 'confirm', this changes nothing. It previews the merge with git
+merge-tree, which touches neither the index nor the working tree.
+- Clean merge: returns a plan listing what it would create, plus a digest. Pass
+  that digest back as 'confirm', with the same source, target and version, to
+  apply. If either branch moved in between, the digest no longer matches and it
+  refuses, returning a fresh plan.
+- Conflicting merge: returns a manual downmerge handoff instead of a plan, and
+  creates nothing. It lists the conflicted files and the steps to finish the
+  downmerge by hand, following docs/manual-downmerge.md in the versioner
+  repository. The tools never push a conflicted merge.`,
             inputSchema: {
               type: "object",
               properties: {
-                confirm: {
+                source: {
                   type: "string",
-                  description:
-                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything. " +
-                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
-                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
-                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
-                    "staleness check.",
+                  enum: ["main", "release", "hotfix"],
+                  description: "The branch type being merged.",
                 },
-                workingDirectory: {
+                target: {
                   type: "string",
-                  description:
-                    "The working directory path for the project (optional, defaults to current directory)",
+                  enum: ["develop", "main"],
+                  description: "The branch it is merged into.",
                 },
-              },
-            },
-          },
-          {
-            name: "downmerge_release_to_develop",
-            title: "Downmerge Release to Develop",
-            description: `⬇️  PR: release → develop
-
-Brings a release branch back into develop after the release is cut.
-
-- Input: optional version to merge (e.g. 1.2.0); auto-detects the newest release
-  branch when omitted
-- What it creates depends on whether the merge conflicts
-
-Called WITHOUT 'confirm', this changes nothing: it previews the merge with
-git merge-tree — which merges in memory and touches neither the index nor the
-working tree — and returns a plan for the one path that would actually be taken,
-plus a digest. Pass that digest back as 'confirm' to apply. If either branch moved
-in between, the digest no longer matches and it refuses, returning a fresh plan.
-
-Applying, when the merge is clean, creates: one pull request release/X.Y.Z →
-develop titled "Release X.Y.Z to develop".
-
-Applying, when the merge conflicts, creates: the branch
-release-X.Y.Z-into-develop-<unix-timestamp> off develop, a commit staging only the
-conflicted paths with their markers left intact, a push of that branch, a DRAFT
-pull request into develop titled "Release X.Y.Z to develop (conflict resolution)"
-for a human to resolve, and — unless a pull request for release/X.Y.Z → develop is
-already open — a transient "[Build trigger] Release X.Y.Z → develop" pull request
-that this action closes again once CI checks start.`,
-            inputSchema: {
-              type: "object",
-              properties: {
                 confirm: {
                   type: "string",
                   description:
@@ -524,172 +495,8 @@ that this action closes again once CI checks start.`,
                 version: {
                   type: "string",
                   description:
-                    "Optional specific version to merge (e.g., '1.2.0'). " +
-                    "When not provided, automatically finds the most recent release version available on the upstream Git repository. " +
-                    "If provided, this parameter must be entered by a human user.",
-                },
-                workingDirectory: {
-                  type: "string",
-                  description:
-                    "The working directory path for the project (optional, defaults to current directory)",
-                },
-              },
-            },
-          },
-          {
-            name: "downmerge_release_to_main",
-            title: "Downmerge Release to Main",
-            description: `📤  PR: release → main (via merge branch)
-
-Merges a release branch into main through a merge branch.
-
-- Input: optional version to merge (e.g. 1.2.0); auto-detects the newest release
-  branch when omitted
-- The pull request head is always the merge branch, never release/* — the latter
-  would re-trigger CI workflows that build a fresh artifact for an already-cut
-  release
-- On conflict the merge is aborted, the local merge branch is deleted, and nothing
-  is pushed; the error lists the conflicted files
-
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
-branch, merge commit, push and pull request it would create, plus a digest. Pass
-that digest back as 'confirm' to apply. If either branch moved in between, the
-digest no longer matches and it refuses, returning a fresh plan.
-
-Applying creates: the branch release-X.Y.Z-into-main-<unix-timestamp> off main, a
-merge commit "Merge release/X.Y.Z into main", a push of that branch, and a pull
-request into main titled "Release X.Y.Z to main", whose body opens with a warning
-that it must be merged only after the release has been deployed to production.`,
-            inputSchema: {
-              type: "object",
-              properties: {
-                confirm: {
-                  type: "string",
-                  description:
-                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything. " +
-                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
-                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
-                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
-                    "staleness check.",
-                },
-                version: {
-                  type: "string",
-                  description:
-                    "Optional specific version to merge (e.g., '1.2.0'). " +
-                    "When not provided, automatically finds the most recent release version available on the upstream Git repository. " +
-                    "If provided, this parameter must be entered by a human user.",
-                },
-                workingDirectory: {
-                  type: "string",
-                  description:
-                    "The working directory path for the project (optional, defaults to current directory)",
-                },
-              },
-            },
-          },
-          {
-            name: "downmerge_hotfix_to_develop",
-            title: "Downmerge Hotfix to Develop",
-            description: `⬇️  PR: hotfix → develop (via merge branch)
-
-Reconciles develop with a fix that reached production through main.
-
-- Input: optional version to merge (e.g. 1.2.1); auto-detects the newest hotfix
-  branch when omitted
-- The pull request head is always the merge branch, never hotfix/* — the latter
-  would re-trigger CI workflows that build an already-deployed hotfix. For the
-  same reason there is no build-trigger PR: the hotfix has already shipped.
-- A conflict is an outcome, not a failure. A hotfix and develop have both moved
-  VERSION on by the time this runs, so conflicting is the ordinary case.
-- Closes the draft hotfix/* → develop pull request that create_hotfix opened, of
-  which this one is the reconciled replacement, so develop is never left with two
-  open pull requests carrying one hotfix. Failing to close it is reported, not
-  fatal.
-- Run this after the fix is written; at creation the hotfix branch holds only a
-  version bump
-
-Called WITHOUT 'confirm', this changes nothing: it previews the merge with
-git merge-tree and returns a plan for the outcome that would actually occur, plus
-a digest. Pass that digest back as 'confirm' to apply. If either branch moved in
-between, the digest no longer matches and it refuses, returning a fresh plan.
-
-Applying, when the merge is clean, creates: the branch
-hotfix-X.Y.Z-into-develop-<unix-timestamp> off develop, a merge commit
-"Merge hotfix/X.Y.Z into develop", a push of that branch, and a pull request into
-develop titled "Hotfix X.Y.Z to develop".
-
-Applying, when the merge conflicts, creates the same branch and push, but the
-commit carries the conflicted paths with their markers left intact and the pull
-request opens as a DRAFT titled "Hotfix X.Y.Z to develop (conflict resolution)",
-listing the files for a human to resolve.`,
-            inputSchema: {
-              type: "object",
-              properties: {
-                confirm: {
-                  type: "string",
-                  description:
-                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything. " +
-                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
-                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
-                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
-                    "staleness check.",
-                },
-                version: {
-                  type: "string",
-                  description:
-                    "Optional specific version to merge (e.g., '1.2.1'). " +
-                    "When not provided, automatically finds the most recent hotfix version available on the upstream Git repository. " +
-                    "If provided, this parameter must be entered by a human user.",
-                },
-                workingDirectory: {
-                  type: "string",
-                  description:
-                    "The working directory path for the project (optional, defaults to current directory)",
-                },
-              },
-            },
-          },
-          {
-            name: "downmerge_hotfix_to_main",
-            title: "Downmerge Hotfix to Main",
-            description: `🔥  PR: hotfix → main
-
-Opens the pull request that merges a hotfix branch into main.
-
-- Input: optional version to merge (e.g. 1.2.1); auto-detects the newest hotfix
-  branch when omitted
-- A merge conflict does not block it: the pull request opens either way and
-  records the merge-check result in its body, where GitHub reports the conflict too
-- Production-critical: merge only after the hotfix has been deployed
-
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the pull
-request it would create, plus a digest. Pass that digest back as 'confirm' to
-apply. If either branch moved in between, the digest no longer matches and it
-refuses, returning a fresh plan.
-
-Applying creates: one pull request hotfix/X.Y.Z → main titled "Release X.Y.Z to
-main", whose body opens with a warning that it must be merged only after the
-hotfix has been deployed to production. No branch, commit, tag or push.`,
-            inputSchema: {
-              type: "object",
-              properties: {
-                confirm: {
-                  type: "string",
-                  description:
-                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything. " +
-                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
-                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
-                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
-                    "staleness check.",
-                },
-                version: {
-                  type: "string",
-                  description:
-                    "Optional specific version to merge (e.g., '1.2.1'). " +
-                    "When not provided, automatically finds the most recent hotfix version available on the upstream Git repository. " +
+                    "Optional release or hotfix version to merge (e.g., '1.2.0'). Ignored for source main. " +
+                    "When not provided, automatically finds the most recent branch of the source type on the upstream Git repository. " +
                     "If provided, this parameter must be entered by a human user.",
                 },
                 workingDirectory: {
@@ -840,24 +647,8 @@ the tag already triggered.`,
             result = await this.handleInitializeVersioner(args);
             break;
 
-          case "downmerge_main_to_develop":
-            result = await this.handleDownmergeMainToDevelop(args);
-            break;
-
-          case "downmerge_release_to_develop":
-            result = await this.handleDownmergeReleaseToDevelop(args);
-            break;
-
-          case "downmerge_release_to_main":
-            result = await this.handleDownmergeReleaseToMain(args);
-            break;
-
-          case "downmerge_hotfix_to_develop":
-            result = await this.handleDownmergeHotfixToDevelop(args);
-            break;
-
-          case "downmerge_hotfix_to_main":
-            result = await this.handleDownmergeHotfixToMain(args);
+          case "downmerge":
+            result = await this.handleDownmerge(args);
             break;
 
           case "list_versions":
@@ -1029,86 +820,73 @@ ${candidates.length} release candidate(s) available.
     }
   }
 
-  private async handleDownmergeMainToDevelop(args: any): Promise<string> {
+  private async handleDownmerge(args: any): Promise<string> {
+    const version: string | undefined = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
     const confirm: string | undefined = args?.confirm;
 
     try {
-      await this.bindWorkingDirectory(workingDirectory);
+      const route = parseDownmergeRoute(args?.source, args?.target);
+      const toolCall = `downmerge (source: "${route.source}", target: "${route.target}"${
+        version ? `, version: "${version}"` : ""
+      })`;
 
-      // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager!.isGitRepository();
-      if (!isGitRepo) {
-        throw new Error(
-          `Directory '${workingDirectory}' is not a Git repository`
-        );
-      }
+      try {
+        await this.bindWorkingDirectory(workingDirectory);
 
-      // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager!.validateNoStagedChanges();
+        const isGitRepo = await this.gitFlowManager!.isGitRepository();
+        if (!isGitRepo) {
+          throw new Error(
+            `Directory '${workingDirectory}' is not a Git repository`
+          );
+        }
 
-      // Without a confirmation digest, describe the change and stop.
-      const plan = await this.planningAgent().planDownmergeMainToDevelop();
-      if (!confirm) {
-        return renderPlanForApproval(plan, "downmerge_main_to_develop");
-      }
-      assertPlanIsCurrent(plan, confirm);
+        await this.gitFlowManager!.validateNoStagedChanges();
 
-      const prUrl = await this.gitFlowManager!.downmergeMainToDevelop();
+        // Without a confirmation digest, describe the change and stop.
+        const plan = await this.planningAgent().planDownmerge(route, version);
+        if (!confirm) {
+          return renderPlanForApproval(plan, toolCall);
+        }
+        assertPlanIsCurrent(plan, confirm);
 
-      return `🚀 Downmerge Main to Develop Completed Successfully!
+        const result = await this.gitFlowManager!.downmerge(route, version);
+
+        const nextSteps =
+          route.target === "main"
+            ? `📋 Next Steps:
+1. Review the pull request
+2. Merge it only after the ${route.source} has been deployed to production`
+            : `📋 Next Steps:
+1. Review the pull request and CI checks
+2. Merge once green`;
+
+        return `🚀 Downmerge ${route.source} → ${route.target} completed
 
 📁 Working Directory: ${workingDirectory}
 
-✅ Completed the following actions:
-1. Fetched latest changes from origin
-2. Checked out and pulled main branch
-3. Checked out and pulled develop branch
-4. Created new branch from develop
-5. Merged main into the new branch
-6. Pushed the new branch to origin
-7. Created pull request targeting develop
+${this.formatDownmergeResult(result)}
 
-${prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
-
-📋 Next Steps:
-1. Review the pull request for merge conflicts
-2. Test the merged changes in a development environment
-3. Merge the PR when ready to integrate main changes into develop`;
+${nextSteps}`;
+      } catch (error) {
+        if (error instanceof StalePlanError) {
+          return renderStalePlan(error, toolCall);
+        }
+        throw error;
+      }
     } catch (error) {
-      if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "downmerge_main_to_develop");
-      }
-      if (error instanceof MergeConflictError) {
-        const conflictedList = error.conflictedFiles
-          .map((f) => `   - ${f}`)
-          .join("\n");
-        return `❌ Downmerge Main to Develop Aborted — Merge Conflicts
-
-📁 Working Directory: ${workingDirectory}
-
-The merge of main into develop produced conflicts. The merge was aborted, the
-temporary branch was deleted, and the repository is back on develop. No remote
-branch was pushed and no PR was opened.
-
-⚠️  Conflicted files:
-${conflictedList}
-
-📋 To resolve:
-1. Create a branch off develop, merge main in, and resolve the conflicts
-2. Push that branch and open a PR to develop yourself
-3. Re-run this tool only once main and develop no longer conflict`;
+      if (error instanceof ManualDownmergeRequired) {
+        return `⚠️  ${renderManualDownmerge(error.handoff)}`;
       }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      return `❌ Downmerge Main to Develop Failed
+      return `❌ Downmerge Failed
 
 📁 Working Directory: ${workingDirectory}
 💥 Error: ${errorMessage}
 
 Common issues:
-- Not in a git repository
-- Missing main or develop branches
+- No release or hotfix branch found matching the criteria
 - Network issues with git operations
 - Permission issues with git push or PR creation
 - Tracked local changes in the working tree (commit or stash first)`;
@@ -1122,340 +900,6 @@ Common issues:
       case "merge-branch":
         return `🌿 Merge branch: \`${result.mergeBranchName}\`
 🔗 Pull Request: ${result.pullRequestUrl}`;
-      case "merge-branch-with-conflicts": {
-        const lines = [
-          `🌿 Merge branch (conflicts unresolved): \`${result.mergeBranchName}\``,
-          `🔗 Draft merge-resolution PR: ${result.mergeBranchPullRequestUrl}`,
-        ];
-        // Only the release → develop downmerge opens a build-trigger PR, so stay
-        // silent about one rather than reporting an absent step.
-        if (result.buildTriggerSkippedReason) {
-          lines.push(
-            `⏭️  Build-trigger PR skipped: ${result.buildTriggerSkippedReason}`
-          );
-        } else if (result.buildTriggerPullRequestUrl) {
-          lines.push(
-            `🛠️  Build-trigger PR (auto-closed): ${result.buildTriggerPullRequestUrl}`,
-            result.checksStarted
-              ? "✅ Build-trigger CI checks observed before close"
-              : "⚠️  Build-trigger PR closed without checks registering within 60s"
-          );
-        }
-        lines.push(
-          "",
-          "⚠️  Conflicted files (resolve in the draft PR):",
-          ...result.conflictedFiles.map((f) => `   - ${f}`)
-        );
-        return lines.join("\n");
-      }
-    }
-  }
-
-  private async handleDownmergeReleaseToDevelop(args: any): Promise<string> {
-    const version = args?.version;
-    const workingDirectory = args?.workingDirectory || process.cwd();
-    const confirm: string | undefined = args?.confirm;
-
-    try {
-      await this.bindWorkingDirectory(workingDirectory);
-
-      const isGitRepo = await this.gitFlowManager!.isGitRepository();
-      if (!isGitRepo) {
-        throw new Error(
-          `Directory '${workingDirectory}' is not a Git repository`
-        );
-      }
-
-      await this.gitFlowManager!.validateNoStagedChanges();
-
-      // Without a confirmation digest, describe the change and stop.
-      const plan = await this.planningAgent().planDownmergeReleaseToDevelop(
-        version
-      );
-      if (!confirm) {
-        return renderPlanForApproval(plan, "downmerge_release_to_develop");
-      }
-      assertPlanIsCurrent(plan, confirm);
-
-      const result = await this.gitFlowManager!.downmergeReleaseToDevelop(
-        version
-      );
-
-      const nextSteps =
-        result.kind === "merge-branch-with-conflicts"
-          ? `📋 Next Steps:
-1. Check out the merge branch locally and resolve the conflicts listed above
-2. Push the resolution and mark the draft PR ready for review
-3. Merge the resolution PR once CI is green`
-          : `📋 Next Steps:
-1. Review the pull request and CI checks
-2. Merge once green`;
-
-      return `🚀 Downmerge Release to Develop Completed Successfully!
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Release"}
-
-${this.formatDownmergeResult(result)}
-
-${nextSteps}`;
-    } catch (error) {
-      if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "downmerge_release_to_develop");
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return `❌ Downmerge Release to Develop Failed
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Release"}
-💥 Error: ${errorMessage}
-
-Common issues:
-- No release branches found matching the criteria
-- Network issues with git operations
-- Permission issues with git push or PR creation
-- GitHub CLI (gh) not available or not authenticated`;
-    }
-  }
-
-  private async handleDownmergeReleaseToMain(args: any): Promise<string> {
-    const version = args?.version;
-    const workingDirectory = args?.workingDirectory || process.cwd();
-    const confirm: string | undefined = args?.confirm;
-
-    try {
-      await this.bindWorkingDirectory(workingDirectory);
-
-      const isGitRepo = await this.gitFlowManager!.isGitRepository();
-      if (!isGitRepo) {
-        throw new Error(
-          `Directory '${workingDirectory}' is not a Git repository`
-        );
-      }
-
-      await this.gitFlowManager!.validateNoStagedChanges();
-
-      // Without a confirmation digest, describe the change and stop.
-      const plan = await this.planningAgent().planDownmergeReleaseToMain(
-        version
-      );
-      if (!confirm) {
-        return renderPlanForApproval(plan, "downmerge_release_to_main");
-      }
-      assertPlanIsCurrent(plan, confirm);
-
-      const result = await this.gitFlowManager!.downmergeReleaseToMain(version);
-
-      return `🚀 Downmerge Release to Main Completed Successfully!
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Release"}
-
-✅ Completed the following actions:
-1. Validated target release branch exists
-2. Fetched latest main and release branches from origin
-3. Created merge branch off main and merged release into it
-4. Pushed merge branch and opened PR targeting main
-
-${this.formatDownmergeResult(result)}
-
-📋 Next Steps:
-1. Review the pull request
-2. Merge the PR when ready`;
-    } catch (error) {
-      if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "downmerge_release_to_main");
-      }
-      if (error instanceof MergeConflictError) {
-        const conflictedList = error.conflictedFiles
-          .map((f) => `   - ${f}`)
-          .join("\n");
-        return `❌ Downmerge Release to Main Aborted — Merge Conflicts
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Release"}
-
-The merge of the release branch into main produced conflicts. No remote branch was pushed and no PR was opened.
-
-⚠️  Conflicted files:
-${conflictedList}
-
-📋 To resolve:
-1. Manually create a branch off main, merge the release branch in, and resolve the conflicts
-2. Push that branch and open a PR to main yourself
-3. Re-run this tool only once main and release no longer conflict`;
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return `❌ Downmerge Release to Main Failed
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Release"}
-💥 Error: ${errorMessage}
-
-Common issues:
-- No release branches found matching the criteria
-- Network issues with git operations
-- Permission issues with git push or PR creation
-- GitHub CLI (gh) not available or not authenticated`;
-    }
-  }
-
-  private async handleDownmergeHotfixToDevelop(args: any): Promise<string> {
-    const version = args?.version;
-    const workingDirectory = args?.workingDirectory || process.cwd();
-    const confirm: string | undefined = args?.confirm;
-
-    try {
-      await this.bindWorkingDirectory(workingDirectory);
-
-      const isGitRepo = await this.gitFlowManager!.isGitRepository();
-      if (!isGitRepo) {
-        throw new Error(
-          `Directory '${workingDirectory}' is not a Git repository`
-        );
-      }
-
-      await this.gitFlowManager!.validateNoStagedChanges();
-
-      // Without a confirmation digest, describe the change and stop.
-      const plan = await this.planningAgent().planDownmergeHotfixToDevelop(
-        version
-      );
-      if (!confirm) {
-        return renderPlanForApproval(plan, "downmerge_hotfix_to_develop");
-      }
-      assertPlanIsCurrent(plan, confirm);
-
-      const result = await this.gitFlowManager!.downmergeHotfixToDevelop(
-        version
-      );
-
-      return `🚀 Downmerge Hotfix to Develop Completed Successfully!
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Hotfix"}
-
-✅ Completed the following actions:
-1. Validated target hotfix branch exists
-2. Checked out and pulled develop and the hotfix branch
-3. Created merge branch off develop and merged the hotfix into it
-4. Pushed merge branch and opened PR targeting develop
-
-${this.formatDownmergeResult(result)}
-
-📋 Next Steps:
-1. Review the pull request and CI checks
-2. Merge once green`;
-    } catch (error) {
-      if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "downmerge_hotfix_to_develop");
-      }
-      if (error instanceof MergeConflictError) {
-        const conflictedList = error.conflictedFiles
-          .map((f) => `   - ${f}`)
-          .join("\n");
-        return `❌ Downmerge Hotfix to Develop Aborted — Merge Conflicts
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Hotfix"}
-
-The merge of the hotfix branch into develop produced conflicts. The merge was
-aborted and the local merge branch deleted. No remote branch was pushed and no PR
-was opened.
-
-⚠️  Conflicted files:
-${conflictedList}
-
-📋 To resolve:
-1. Create a branch off develop, merge the hotfix in, and resolve the conflicts
-2. Push that branch and open a PR to develop yourself
-3. Re-run this tool only once develop and the hotfix no longer conflict`;
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return `❌ Downmerge Hotfix to Develop Failed
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Hotfix"}
-💥 Error: ${errorMessage}
-
-Common issues:
-- No hotfix branches found matching the criteria
-- Network issues with git operations
-- Permission issues with git push or PR creation
-- Tracked local changes in the working tree (commit or stash first)`;
-    }
-  }
-
-  private async handleDownmergeHotfixToMain(args: any): Promise<string> {
-    const version = args?.version;
-    const workingDirectory = args?.workingDirectory || process.cwd();
-    const confirm: string | undefined = args?.confirm;
-
-    try {
-      await this.bindWorkingDirectory(workingDirectory);
-
-      // Check if we're in a git repository
-      const isGitRepo = await this.gitFlowManager!.isGitRepository();
-      if (!isGitRepo) {
-        throw new Error(
-          `Directory '${workingDirectory}' is not a Git repository`
-        );
-      }
-
-      // Check for staged changes (prevents committing unrelated changes)
-      await this.gitFlowManager!.validateNoStagedChanges();
-
-      // Without a confirmation digest, describe the change and stop.
-      const plan = await this.planningAgent().planDownmergeHotfixToMain(
-        version
-      );
-      if (!confirm) {
-        return renderPlanForApproval(plan, "downmerge_hotfix_to_main");
-      }
-      assertPlanIsCurrent(plan, confirm);
-
-      const prUrl = await this.gitFlowManager!.downmergeHotfixToMain(version);
-
-      return `🚀 Downmerge Hotfix to Main Completed Successfully!
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detected Latest Hotfix"}
-
-✅ Completed the following actions:
-1. Validated target hotfix branch exists
-2. Fetched latest changes from origin
-3. Created pull request from hotfix branch to main
-
-${prUrl ? `🔗 Pull Request: ${prUrl}` : ""}
-
-⚠️  IMPORTANT: This is a HOTFIX merge to production.
-
-📋 Next Steps:
-1. Review the pull request for merge conflicts
-2. Deploy the hotfix to production environment FIRST
-3. Verify the hotfix is working correctly in production
-4. THEN merge the PR after successful deployment
-5. Create follow-up PR to merge hotfix changes back to develop`;
-    } catch (error) {
-      if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "downmerge_hotfix_to_main");
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return `❌ Downmerge Hotfix to Main Failed
-
-📁 Working Directory: ${workingDirectory}
-${version ? `🔍 Target Version: ${version}` : "🔍 Auto-detect Latest Hotfix"}
-💥 Error: ${errorMessage}
-
-Common issues:
-- No hotfix branches found matching the criteria
-- Network issues with git operations
-- Permission issues with git push or PR creation
-- GitHub CLI (gh) not available or not authenticated`;
     }
   }
 
@@ -1699,14 +1143,14 @@ ${
 3. Promote the RC to a final version with release_version
 4. Deploy to production
 5. Merge the → main PR only AFTER the deployment succeeds
-6. Bring the hotfix into develop with downmerge_hotfix_to_develop`
+6. Bring the hotfix into develop with downmerge (source: hotfix, target: develop)`
     : `
 📋 Next steps:
 1. Commit the actual fix on the hotfix branch and push it
 2. Promote the RC to a final version with release_version
 3. Deploy to production
 4. Merge the → main PR only AFTER the deployment succeeds
-5. Bring the hotfix into develop with downmerge_hotfix_to_develop`
+5. Bring the hotfix into develop with downmerge (source: hotfix, target: develop)`
 }`;
     } catch (error) {
       if (error instanceof StalePlanError) {

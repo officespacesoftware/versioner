@@ -11,11 +11,12 @@ CLI and an MCP server.
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Components, dependency direction, layers, `VERSION` contract, GitHub token resolution |
 | [docs/actions.md](docs/actions.md) | Every action, its ordered steps, and the exact git objects it creates |
+| [docs/manual-downmerge.md](docs/manual-downmerge.md) | How to finish a downmerge by hand when the merge conflicts |
 | [js/README.md](js/README.md) | The JavaScript workspace: packages, registry, workspace commands, publishing |
 | [js/packages/versioner/README.md](js/packages/versioner/README.md) | The `@officespacesoftware/versioner` CLI and library |
 | [js/packages/release-management-core/README.md](js/packages/release-management-core/README.md) | The `release-management-core` library API |
 | [js/packages/release-management-cli/README.md](js/packages/release-management-cli/README.md) | The `release-management` CLI, its flags, exit codes, and GitHub Actions use |
-| [js/packages/release-management-mcp/README.md](js/packages/release-management-mcp/README.md) | The MCP server, its thirteen tools, and setup for Claude Code, Codex and Cursor |
+| [js/packages/release-management-mcp/README.md](js/packages/release-management-mcp/README.md) | The MCP server, its nine tools, and setup for Claude Code, Codex and Cursor |
 
 ## Layout
 
@@ -28,7 +29,7 @@ js/                                      pnpm workspace
   packages/release-management-core       @officespacesoftware/release-management-core
   packages/release-management-cli        @officespacesoftware/release-management-cli
   packages/release-management-mcp        @officespacesoftware/release-management-mcp
-docs/                                    architecture.md, actions.md
+docs/                                    architecture.md, actions.md, manual-downmerge.md
 ```
 
 ## The VERSION file

@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { GitFlowManager, MergeConflictError } from "../lib/git-flow.js";
+import { ManualDownmergeRequired } from "../lib/manual-downmerge.js";
 
 let repo;
 let origin;
@@ -66,10 +67,8 @@ test("pushes a merge branch when the merge produces a commit", async () => {
     baseBranch: "develop",
     sourceBranch: "main",
     branchName: "main-into-develop-1",
-    commitConflictMarkers: false,
   });
 
-  assert.equal(result.hasConflicts, false);
   assert.equal(result.branchName, "main-into-develop-1");
   assert.ok(remoteBranches().includes("main-into-develop-1"));
 });
@@ -86,7 +85,6 @@ test("refuses without pushing when the source is already merged", async () => {
         baseBranch: "develop",
         sourceBranch: "main",
         branchName: "main-into-develop-2",
-        commitConflictMarkers: false,
       }),
     (error) => {
       assert.match(error.message, /already merged into develop/);
@@ -116,7 +114,6 @@ test("a conflicting merge leaves neither a local nor a remote branch", async () 
         baseBranch: "develop",
         sourceBranch: "main",
         branchName: "main-into-develop-3",
-        commitConflictMarkers: false,
       }),
     (error) => {
       assert.ok(error instanceof MergeConflictError);
@@ -128,5 +125,31 @@ test("a conflicting merge leaves neither a local nor a remote branch", async () 
   assert.ok(!remoteBranches().includes("main-into-develop-3"));
   assert.equal(git("rev-parse", "--abbrev-ref", "HEAD"), "develop");
   assert.equal(git("branch", "--list", "main-into-develop-3"), "");
+  assert.equal(git("status", "--porcelain"), "");
+});
+
+test("a conflicting downmerge hands off and pushes nothing", async () => {
+  git("checkout", "-q", "main");
+  commit("VERSION", "1.0.1\nabc1234\n", "To version 1.0.1");
+  git("push", "-q", "origin", "main");
+  git("checkout", "-q", "develop");
+  commit("VERSION", "1.1.0-RC.0\nabc1234\n", "To version 1.1.0-RC.0");
+  git("push", "-q", "origin", "develop");
+
+  const gfm = new GitFlowManager(repo);
+
+  await assert.rejects(
+    () => gfm.downmerge({ source: "main", target: "develop" }),
+    (error) => {
+      assert.ok(error instanceof ManualDownmergeRequired);
+      assert.deepEqual(error.handoff.conflictedFiles, ["VERSION"]);
+      assert.equal(error.handoff.resolutionBase, "develop");
+      assert.equal(error.handoff.pullRequestTitle, "Release 1.0.1 to develop");
+      return true;
+    }
+  );
+
+  assert.deepEqual(remoteBranches().sort(), ["develop", "main"]);
+  assert.equal(git("rev-parse", "--abbrev-ref", "HEAD"), "develop");
   assert.equal(git("status", "--porcelain"), "");
 });

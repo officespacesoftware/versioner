@@ -259,11 +259,7 @@ Thirteen tools. Full step-by-step behaviour and the exact git objects each creat
 | [`release_version`](../../../docs/actions.md#release_version) | `confirm`, `version`, `dryRun` | Promotes an RC to a final version, tags it, creates the GitHub release. |
 | [`revert_version`](../../../docs/actions.md#revert_version) | `confirm`, `version`, `dryRun` | Undoes the most recent version bump and deletes its tag. |
 | [`initialize_versioner`](../../../docs/actions.md#initialize_versioner) | `version` | Creates the `VERSION` file and its initial tag. Local only. |
-| [`downmerge_main_to_develop`](../../../docs/actions.md#downmerge_main_to_develop) | `confirm` | PRs `main` → `develop` via a merge branch. |
-| [`downmerge_release_to_develop`](../../../docs/actions.md#downmerge_release_to_develop) | `confirm`, `version` | PRs `release` → `develop`; direct when clean, merge branch plus build trigger when not. |
-| [`downmerge_release_to_main`](../../../docs/actions.md#downmerge_release_to_main) | `confirm`, `version` | PRs `release` → `main` via a merge branch, never with `head=release/*`. |
-| [`downmerge_hotfix_to_develop`](../../../docs/actions.md#downmerge_hotfix_to_develop) | `confirm`, `version` | PRs `hotfix` → `develop` via a merge branch. |
-| [`downmerge_hotfix_to_main`](../../../docs/actions.md#downmerge_hotfix_to_main) | `confirm`, `version` | PRs `hotfix` → `main`. |
+| [`downmerge`](../../../docs/actions.md#downmerge) | `source`, `target`, `confirm`, `version` | PRs one branch into another: `main` → `develop`, `release` → `develop`/`main`, `hotfix` → `develop`/`main`. A conflicting merge creates nothing and returns a [manual downmerge](../../../docs/manual-downmerge.md) handoff. |
 
 `releaseType` is `major`, `minor` or `patch`, defaulting to `minor`. `version` identifies
 which branch to act on; when omitted, the newest matching branch on the upstream repository

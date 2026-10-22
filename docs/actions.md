@@ -23,11 +23,7 @@ Each action is reachable two ways with the same underlying implementation in
 | Release version | `release_version` | `release-version` | Yes | Commit, annotated tag, 2 pushes, PR → `main`, GitHub release |
 | Revert version | `revert_version` | `revert-version` | Yes | Revert commit, 1 push, PR update — **deletes** the tag locally and on origin, the GitHub release for a final version, and the branch when abandoning |
 | Initialize versioner | `initialize_versioner` | `initialize-versioner` | Yes (local only) | `VERSION` file, commit, annotated tag |
-| Downmerge main → develop | `downmerge_main_to_develop` | `downmerge main-to-develop` | Yes | Merge branch, merge commit, 1 push, PR → `develop` |
-| Downmerge release → develop | `downmerge_release_to_develop` | `downmerge release-to-develop` | Yes | Clean merge: PR → `develop`. Conflicting merge: merge branch, commit, 1 push, draft PR → `develop`, plus a transient build-trigger PR |
-| Downmerge release → main | `downmerge_release_to_main` | `downmerge release-to-main` | Yes | Merge branch, merge commit, 1 push, PR → `main` |
-| Downmerge hotfix → develop | `downmerge_hotfix_to_develop` | `downmerge hotfix-to-develop` | Yes | Merge branch, commit, 1 push, PR → `develop`; draft when the merge conflicts |
-| Downmerge hotfix → main | `downmerge_hotfix_to_main` | `downmerge hotfix-to-main` | Yes | PR → `main` |
+| Downmerge | `downmerge` | `downmerge <source>-to-<target>` | Yes | Clean merge: PR → the target, through a merge branch on three of the five routes. Conflicting merge: nothing; returns a [manual downmerge](manual-downmerge.md) handoff |
 
 Read-only actions are `health_check` and `list_versions`.
 
@@ -291,11 +287,11 @@ branch.
 | Pull request | head `hotfix/X.Y.Z` → base `main`, title `RC X.Y.Z-RC.0 to main`; body opens with a `> [!WARNING]` block stating the PR must be merged after the hotfix has been deployed to production |
 
 `hotfix/X.Y.Z` → `main` is the one head/base pair a hotfix uses. Step 6,
-`increment_release_candidate`, `release_version` and `downmerge_hotfix_to_main` all resolve
+`increment_release_candidate`, `release_version` and the hotfix → main `downmerge` all resolve
 to it, so whichever runs first opens the pull request and the rest update its title and the
 watermarked region of its body.
 
-Bringing the hotfix into `develop` is a separate action, `downmerge_hotfix_to_develop`.
+Bringing the hotfix into `develop` is a separate action, the hotfix → develop `downmerge`.
 
 CLI `$GITHUB_OUTPUT` keys: `version`, `pull_request_url`, `pull_request_action`.
 
@@ -375,8 +371,8 @@ CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
 **Preflight.** The plan rehearses the merge this branch will eventually make into `main`
 and warns about two things, refusing neither.
 
-A conflict is reported with its files, since `downmerge_release_to_main` will refuse until
-it is resolved — after the tag is already cut.
+A conflict is reported with its files, since the release → main `downmerge` will hand the
+merge over for manual resolution — after the tag is already cut.
 
 `main` holding commits the branch does not is reported more quietly, and is not a merge
 failure at all: the merge combines both histories faithfully. The problem is that the
@@ -419,7 +415,7 @@ such rather than passing silently. All of it is read-only: `merge-tree --write-t
 | Push | `git push origin X.Y.Z` (not forced) |
 | Pull request | head `<target branch>` → base `main`, title `Release X.Y.Z to main`; body opens with a `> [!WARNING]` block stating the PR must be merged after the release or hotfix has been deployed to production |
 | GitHub release | tag `X.Y.Z`, name `Release X.Y.Z`, `target_commitish` = the target branch, body from GitHub's `generateReleaseNotes` for that tag and target |
-| Pull request (release branches only) | the open PR on the branch's own base, retitled `Release X.Y.Z to develop`, body rewritten to the final version. Only ever updated, never opened: the own-base PR belongs to `create_release_candidate`, and opening one here would propose merging a release into develop off the back of a promotion. Same title `downmerge_release_to_develop` uses, so the two converge |
+| Pull request (release branches only) | the open PR on the branch's own base, retitled `Release X.Y.Z to develop`, body rewritten to the final version. Only ever updated, never opened: the own-base PR belongs to `create_release_candidate`, and opening one here would propose merging a release into develop off the back of a promotion. Same title the release → develop `downmerge` uses, so the two converge |
 
 Release notes are requested up to three times with 1 s and 2 s backoff. If no body is
 obtained the release is still created, then one further attempt is made and the body
@@ -564,230 +560,65 @@ CLI `$GITHUB_OUTPUT` keys: `version`, `is_release_candidate`.
 
 ---
 
-## `downmerge_main_to_develop`
+## `downmerge`
 
-**Purpose.** Bring production changes on `main` back into `develop` through a pull
-request.
+**Purpose.** Bring one branch into another through a pull request. One tool covers the
+five routes:
+
+| `source` → `target` | CLI command | Pull request head |
+| --- | --- | --- |
+| `main` → `develop` | `downmerge main-to-develop` | merge branch `main-into-develop-<unix-timestamp>` off `develop` |
+| `release` → `develop` | `downmerge release-to-develop` | `release/X.Y.Z` itself |
+| `release` → `main` | `downmerge release-to-main` | merge branch `release-X.Y.Z-into-main-<unix-timestamp>` off `main` |
+| `hotfix` → `develop` | `downmerge hotfix-to-develop` | merge branch `hotfix-X.Y.Z-into-develop-<unix-timestamp>` off `develop` |
+| `hotfix` → `main` | `downmerge hotfix-to-main` | `hotfix/X.Y.Z` itself |
 
 **Inputs.**
 
 | Input | Default |
 | --- | --- |
+| `source`, `target` (MCP only; the CLI names the route in the subcommand) | required |
 | `confirm` / `--confirm` (plan digest) | absent — plan only |
+| `version` / `--version` (release and hotfix sources) | newest branch of that type by semantic version |
 | `workingDirectory` / `--working-directory` | current directory |
 
-The plan is anchored on `develop`, and names `main`'s head as the commit that would be
-merged in.
+**Clean or conflicting.** The plan previews the merge with `merge-tree`. Only a clean
+merge gets a plan. A conflicting one creates nothing and returns a manual downmerge
+handoff instead: the conflicted files, the branch to resolve them on, the pull request
+title, and numbered steps from [manual-downmerge.md](manual-downmerge.md). The CLI prints
+the handoff and exits with the user-error code. The tools never push a conflicted merge,
+and the apply re-checks: a conflict that appears between plan and apply aborts the merge,
+deletes the local branch, and returns the same handoff.
 
-**Steps.**
+**Steps for a clean merge.**
 
-1. Fetch `main` and `develop`.
-2. Check out `main` and pull it.
-3. Check out `develop` and pull it.
-4. Compose the merge branch name from the current Unix timestamp, and derive the pull
-   request title from the newest non-merge commit subject on `origin/main`: a subject
-   matching `To version <v>` gives `Release <v> to develop`, anything else gives
-   `Downmerge main into develop`.
-5. Check out `develop`, create the merge branch off it, merge `main` in, and push.
-6. Open or update the pull request to `develop`.
+1. Resolve the release or hotfix branch, by exact version or as the newest one.
+2. Fetch, check out and pull the target and the source.
+3. Merge-branch routes: create the merge branch off the target, merge the source in with
+   `git merge --no-ff`, and push. A source already merged into the target produces no
+   commit, so the action refuses rather than pushing an empty branch.
+4. Open or update the pull request into the target.
+5. `hotfix` → `develop` only: close the draft `hotfix/X.Y.Z` → `develop` pull request that
+   `create_hotfix` opened, with a comment linking the new one. Failing to close it is
+   reported, not fatal.
 
 **Objects and remote effects.**
 
-| Kind | Exact form |
-| --- | --- |
-| Branch | `main-into-develop-<unix-timestamp>` off `develop` |
-| Commit | merge commit `Downmerge main into develop` (`git merge --no-ff`) |
-| Push | `git push -u origin main-into-develop-<unix-timestamp>` (not forced) |
-| Pull request | head `main-into-develop-<unix-timestamp>` → base `develop`, title `Release <v> to develop` or `Downmerge main into develop` |
-| Remote refs | `refs/remotes/origin/main` and `refs/remotes/origin/develop` updated by step 1 |
+| Route | Commit | Pull request |
+| --- | --- | --- |
+| `main` → `develop` | `Downmerge main into develop` | title `Release <v> to develop` when `main`'s newest non-merge commit is `To version <v>`, else `Downmerge main into develop` |
+| `release` → `develop` | none | title `Release X.Y.Z to develop` |
+| `release` → `main` | `Merge release/X.Y.Z into main` | title `Release X.Y.Z to main` |
+| `hotfix` → `develop` | `Merge hotfix/X.Y.Z into develop` | title `Hotfix X.Y.Z to develop` |
+| `hotfix` → `main` | none | title `Release X.Y.Z to main` |
 
-On conflict the merge is aborted, the temporary branch is deleted, the repository is left
-on `develop`, and the action fails naming the conflicted files. No branch is pushed and no
-pull request is opened.
+Merge-branch routes push their branch with `git push -u origin <branch>` (not forced).
+Pull requests into `main` open with a `> [!WARNING]` block stating they must be merged
+after the deploy. The merge branch keeps CI workflows keyed on a `release/*` or `hotfix/*`
+head from rebuilding an artifact that was already cut.
 
-CLI `$GITHUB_OUTPUT` keys: `pull_request_url`.
-
----
-
-## `downmerge_release_to_develop`
-
-**Purpose.** Merge a release branch back into `develop` after the release is cut.
-
-**Inputs.**
-
-| Input | Default |
-| --- | --- |
-| `confirm` / `--confirm` (plan digest) | absent — plan only |
-| `version` / `--version` | newest release branch by semantic version |
-| `workingDirectory` / `--working-directory` | current directory |
-
-The plan previews the merge with `merge-tree` and describes only the path that would
-actually be taken: the direct pull request when the merge is clean, or the merge branch,
-the draft pull request and the build-trigger pull request when it is not.
-
-**Steps.**
-
-1. Resolve the release branch, by exact version or as the newest one.
-2. Check out and pull `develop`, then check out and pull the release branch.
-3. Probe for conflicts by checking out `develop`, running
-   `git merge --no-commit --no-ff <release>`, collecting unmerged paths, aborting, and
-   rewinding HEAD if the probe moved it. The probe refuses to run over tracked local
-   changes.
-4. With no conflicts: open or update a direct pull request and stop.
-5. With conflicts: create a merge branch off `develop` with the release merged in and the
-   conflicted files committed with their markers intact, push it, and open a draft pull
-   request for human resolution.
-6. If no pull request is already open for the release branch into `develop`, open a
-   transient build-trigger pull request whose head is the release branch, poll its checks
-   for up to 60 s at 3 s intervals, comment, and close it. If such a pull request is
-   already open, the build-trigger step is skipped and the reason reported.
-
-**Objects and remote effects — clean merge.**
-
-| Kind | Exact form |
-| --- | --- |
-| Pull request | head `release/X.Y.Z` → base `develop`, title `Release X.Y.Z to develop` |
-
-**Objects and remote effects — conflicting merge.**
-
-| Kind | Exact form |
-| --- | --- |
-| Branch | `release-X.Y.Z-into-develop-<unix-timestamp>` off `develop` |
-| Commit | `Merge release/X.Y.Z into develop (conflicts unresolved — needs manual resolution)`; git has already staged the cleanly-merged paths, and only the conflicted ones are added on top, markers intact, so untracked files are never swept in |
-| Push | `git push -u origin release-X.Y.Z-into-develop-<unix-timestamp>` (not forced) |
-| Pull request | draft; head `release-X.Y.Z-into-develop-<unix-timestamp>` → base `develop`, title `Release X.Y.Z to develop (conflict resolution)` |
-| Pull request | head `release/X.Y.Z` → base `develop`, title `[Build trigger] Release X.Y.Z → develop`; closed again by this action, with a closing comment |
-
-CLI `$GITHUB_OUTPUT` keys: `kind`, `pull_request_url`, `merge_branch`, `merge_pr_url`,
-`build_trigger_pr_url`, `build_trigger_pr_number`, `build_trigger_skipped_reason`,
-`checks_started`, `conflicted_files` — the subset written depends on which outcome
-occurred.
-
----
-
-## `downmerge_release_to_main`
-
-**Purpose.** Merge a release branch into `main` through a merge branch.
-
-**Inputs.**
-
-| Input | Default |
-| --- | --- |
-| `confirm` / `--confirm` (plan digest) | absent — plan only |
-| `version` / `--version` | newest release branch by semantic version |
-| `workingDirectory` / `--working-directory` | current directory |
-
-The plan is anchored on `main`, and names the release branch's head as the commit that
-would be merged in. A previewed conflict is a warning, because the action creates nothing
-at all in that case.
-
-**Steps.**
-
-1. Resolve the release branch, by exact version or as the newest one.
-2. Check out and pull `main`, then check out and pull the release branch.
-3. Create the merge branch off `main`, merge the release branch in, and push.
-4. Open or update the pull request to `main`.
-
-**Objects and remote effects.**
-
-| Kind | Exact form |
-| --- | --- |
-| Branch | `release-X.Y.Z-into-main-<unix-timestamp>` off `main` |
-| Commit | merge commit `Merge release/X.Y.Z into main` (`git merge --no-ff`) |
-| Push | `git push -u origin release-X.Y.Z-into-main-<unix-timestamp>` (not forced) |
-| Pull request | head `release-X.Y.Z-into-main-<unix-timestamp>` → base `main`, title `Release X.Y.Z to main`; body opens with a `> [!WARNING]` block stating the PR must be merged after the release has been deployed to production |
-
-The pull request head is always the merge branch, never `release/*`, so CI workflows keyed
-on a `release/*` head do not rebuild an already-cut release.
-
-On conflict the merge is aborted, the local merge branch is deleted, and the action fails
-naming the conflicted files. No branch is pushed and no pull request is opened.
-
-CLI `$GITHUB_OUTPUT` keys: `kind`, `pull_request_url`, `merge_branch`.
-
----
-
-## `downmerge_hotfix_to_develop`
-
-**Purpose.** Reconcile `develop` with a fix that reached production through `main`.
-
-**Inputs.**
-
-| Input | Default |
-| --- | --- |
-| `confirm` / `--confirm` (plan digest) | absent — plan only |
-| `version` / `--version` | newest hotfix branch by semantic version |
-| `workingDirectory` / `--working-directory` | current directory |
-
-The plan is anchored on `develop`, names the hotfix branch's head as the commit that would
-be merged in, and previews the merge so it describes the outcome that would actually
-occur.
-
-**Steps.**
-
-1. Resolve the hotfix branch, by exact version or as the newest one.
-2. Check out and pull `develop`, then check out and pull the hotfix branch.
-3. Create the merge branch off `develop`, merge the hotfix branch in, and push.
-4. Open or update the pull request to `develop`, as a draft when the merge conflicted.
-
-**Objects and remote effects.**
-
-| Kind | Exact form |
-| --- | --- |
-| Branch | `hotfix-X.Y.Z-into-develop-<unix-timestamp>` off `develop` |
-| Commit | merge commit `Merge hotfix/X.Y.Z into develop` (`git merge --no-ff`); on conflict, `Merge hotfix/X.Y.Z into develop (conflicts unresolved — needs manual resolution)` with the conflicted paths added on top, markers intact |
-| Push | `git push -u origin hotfix-X.Y.Z-into-develop-<unix-timestamp>` (not forced) |
-| Pull request | head `hotfix-X.Y.Z-into-develop-<unix-timestamp>` → base `develop`, title `Hotfix X.Y.Z to develop`; on conflict a draft titled `Hotfix X.Y.Z to develop (conflict resolution)` listing the conflicted files |
-
-The pull request head is always the merge branch, never `hotfix/*`, so CI workflows keyed
-on a `hotfix/*` head do not rebuild an already-deployed hotfix. For the same reason there
-is no build-trigger pull request: the hotfix has already shipped, so there is nothing to
-rebuild.
-
-A conflict is an outcome rather than a failure, as it is for
-`downmerge_release_to_develop`. A hotfix and `develop` have both moved `VERSION` on by the
-time this runs, so conflicting is the ordinary case and the draft pull request is where it
-gets resolved.
-
-Run this once the fix is written; at creation the hotfix branch holds only a version bump.
-
-CLI `$GITHUB_OUTPUT` keys: `kind`, `pull_request_url`, `merge_branch`.
-
----
-
-## `downmerge_hotfix_to_main`
-
-**Purpose.** Open the pull request that merges a hotfix branch into `main`.
-
-**Inputs.**
-
-| Input | Default |
-| --- | --- |
-| `confirm` / `--confirm` (plan digest) | absent — plan only |
-| `version` / `--version` | newest hotfix branch by semantic version |
-| `workingDirectory` / `--working-directory` | current directory |
-
-The plan is anchored on `main`. A previewed conflict is a warning rather than a refusal,
-because the pull request opens either way.
-
-**Steps.**
-
-1. Resolve the hotfix branch, by exact version or as the newest one.
-2. Probe whether the branch merges cleanly into `main` and turn the answer into one line
-   of the pull request body. The probe checks out `main`, attempts a no-commit merge,
-   aborts, rewinds, and restores the original branch. A failed probe is recorded as
-   "not checked" and never blocks the action.
-3. Open or update the pull request to `main`.
-
-**Objects and remote effects.**
-
-| Kind | Exact form |
-| --- | --- |
-| Pull request | head `hotfix/X.Y.Z` → base `main`, title `Release X.Y.Z to main`; body opens with a `> [!WARNING]` block stating the PR must be merged after the hotfix has been deployed to production, and records the merge-check result |
-
-No branch, commit, tag, or push. Step 2 moves HEAD locally and puts it back.
-
-CLI `$GITHUB_OUTPUT` keys: `pull_request_url`.
+CLI `$GITHUB_OUTPUT` keys: `kind`, `pull_request_url`; plus `merge_branch` on the
+merge-branch routes.
 
 ---
 
