@@ -7,6 +7,7 @@
 
 export * from "./change-plan.js";
 export * from "./git-flow.js";
+export * from "./manual-downmerge.js";
 export * from "./release-agent.js";
 export * from "./versioner-adapter.js";
 export * from "./versioner-direct.js";

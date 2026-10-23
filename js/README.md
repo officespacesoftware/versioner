@@ -105,7 +105,7 @@ npx -p @officespacesoftware/release-management-cli@next release-management --hel
 
 ### [`@officespacesoftware/release-management-mcp`](packages/release-management-mcp/README.md)
 
-A Model Context Protocol stdio server over the core, exposing thirteen tools to AI
+A Model Context Protocol stdio server over the core, exposing nine tools to AI
 assistants. Its README carries the setup recipes for **Claude Code, Codex and Cursor**,
 from the registry or from a local build, along with what each credential is for.
 

@@ -136,11 +136,13 @@ refuses to run over tracked local changes, because its cleanup would discard the
 
 **Downmerge execution**
 
-`downmergeMainToDevelop()`, `downmergeReleaseToDevelop(version?)`,
-`downmergeReleaseToMain(version?)`, `downmergeHotfixToDevelop(version?)`,
-`downmergeHotfixToMain(version?)`. The three returning `DownmergeResult` report which
-shape they took — `direct`, `merge-branch`, or `merge-branch-with-conflicts`, the last
-carrying the conflicted files and the transient build-trigger PR.
+`downmerge(route, version?)` runs one route — `{ source, target }`, validated by
+`parseDownmergeRoute` against `DOWNMERGE_ROUTES` — and returns a `DownmergeResult` of kind
+`direct` or `merge-branch`. A conflict creates nothing and throws
+`ManualDownmergeRequired`, whose `handoff` holds the conflicted files, the branch to
+resolve them on, the pull request title and numbered steps; `renderManualDownmerge`
+formats it. `ReleaseAgent.planDownmerge(route, version?)` is the matching plan, and throws
+the same handoff when the preview conflicts.
 
 `MergeConflictError` carries `conflictedFiles`.
 
@@ -206,7 +208,7 @@ assertPlanIsCurrent(await agent.planReleaseVersion(), providedDigest);
 
 | Export | Purpose |
 | --- | --- |
-| `ChangePlan` | `action`, `targetBranch`, `targetBranchHead`, optional `currentVersion`/`resultingVersion`, `mutations`, `warnings`, `digest` |
+| `ChangePlan` | `action`, `targetBranch`, `targetBranchHead`, optional `currentVersion`/`resultingVersion`, `mutations`, `warnings`, `notices`, `digest` |
 | `PlannedMutation` | one object: `kind`, `operation`, one-line imperative `summary`, optional `detail` |
 | `MutationKind` | `branch`, `commit`, `tag`, `push`, `pull-request`, `github-release` |
 | `MutationOperation` | `create` or `delete`; `mutationOperation(m)` defaults an absent value to `create` |
@@ -216,8 +218,9 @@ assertPlanIsCurrent(await agent.planReleaseVersion(), providedDigest);
 | `StalePlanError` | carries the freshly computed `.plan` so the caller can show what changed |
 
 The digest covers the target branch's `HEAD` — so a push to that branch invalidates the
-plan — and the warnings, because those encode remote facts a sha does not: whether a tag
-already exists, whether a pull request will be updated rather than created.
+plan — and the warnings and notices, because those encode remote facts a sha does not:
+whether a tag already exists, whether a pull request will be updated rather than created.
+Warnings call for a decision before approving; notices only explain the plan.
 
 The protocol both front-ends build on top of this is documented in
 [docs/actions.md](../../../docs/actions.md#the-planconfirm-protocol).

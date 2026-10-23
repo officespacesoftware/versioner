@@ -18,6 +18,7 @@ import { join } from "node:path";
 
 import { GitFlowManager } from "../lib/git-flow.js";
 import { ReleaseAgent } from "../lib/release-agent.js";
+import { ManualDownmergeRequired } from "../lib/manual-downmerge.js";
 
 let repo;
 let origin;
@@ -47,7 +48,7 @@ before(() => {
   commit("VERSION", version("4.124.0"), "To version 4.124.0");
 
   // develop and release/4.125.0 both rewrite VERSION off the same base, so
-  // release → develop takes the conflicting path. develop holds a final version,
+  // release → develop conflicts and hands off rather than planning. develop holds a final version,
   // which is what lets a new release candidate be cut from it.
   git("checkout", "-q", "-b", "develop");
   commit("VERSION", version("4.124.1"), "To version 4.124.1");
@@ -89,13 +90,21 @@ function makeAgent() {
   return new ReleaseAgent(gfm, repo);
 }
 
+// A conflicting downmerge throws its handoff instead of returning a plan. The
+// handoff is built by the same preview, so it is held to the same guarantee.
+const planOrHandoff = (building) =>
+  building.catch((error) => {
+    if (error instanceof ManualDownmergeRequired) return error.handoff;
+    throw error;
+  });
+
 const buildEveryPlan = async (agent) => [
   await agent.planCreateReleaseCandidate("minor"),
   await agent.planCreateHotfix(),
   await agent.planDownmergeMainToDevelop(),
-  await agent.planDownmergeReleaseToDevelop(),
+  await planOrHandoff(agent.planDownmergeReleaseToDevelop()),
   await agent.planDownmergeReleaseToMain(),
-  await agent.planDownmergeHotfixToDevelop(),
+  await planOrHandoff(agent.planDownmergeHotfixToDevelop()),
   await agent.planDownmergeHotfixToMain(),
   // Reverting is the one plan whose apply deletes refs, so its read-only
   // guarantee is the one most worth pinning. Named explicitly because revert
@@ -141,22 +150,14 @@ test("every plan is built from the real repository, not from defaults", async ()
   );
 
   // release/4.125.0 and develop both rewrote VERSION, so merge-tree reports it.
-  assert.match(
-    releaseToDevelop.warnings.join("\n"),
-    /conflicts in 1 file\(s\): VERSION/
-  );
-  assert.ok(
-    releaseToDevelop.mutations.some((m) => m.kind === "branch"),
-    "a conflicting release → develop plans a merge branch"
-  );
+  assert.deepEqual(releaseToDevelop.conflictedFiles, ["VERSION"]);
+  assert.equal(releaseToDevelop.sourceBranch, "release/4.125.0");
 
   assert.equal(releaseToMain.targetBranch, "main");
 
-  assert.equal(hotfixToDevelop.targetBranch, "develop");
-  assert.deepEqual(
-    hotfixToDevelop.mutations.map((m) => m.kind),
-    ["branch", "commit", "push", "pull-request"]
-  );
+  // The hotfix and develop are on different version lines, so VERSION conflicts.
+  assert.deepEqual(hotfixToDevelop.conflictedFiles, ["VERSION"]);
+  assert.equal(hotfixToDevelop.resolutionBase, "develop");
 
   assert.equal(hotfixToMain.targetBranch, "main");
   assert.deepEqual(
@@ -170,8 +171,8 @@ test("the same repository state produces the same digests", async () => {
   const second = await buildEveryPlan(makeAgent());
 
   assert.deepEqual(
-    first.map((p) => p.digest),
-    second.map((p) => p.digest)
+    first.map((p) => p.digest ?? p),
+    second.map((p) => p.digest ?? p)
   );
 });
 

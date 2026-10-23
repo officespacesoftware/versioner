@@ -213,11 +213,12 @@ Three things that are easy to get wrong:
 | `release-version` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`, `own_base_pull_request_action`, `own_base_pull_request_error` |
 | `revert-version` | `branch`, `shape`, `reverted_version`, `resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`, `pull_request_error` |
 | `initialize-versioner` | `version`, `is_release_candidate` |
-| `downmerge …` | `kind`, `pull_request_url`; plus `merge_branch` when a merge branch was used; plus `merge_pr_url`, `build_trigger_pr_url`, `build_trigger_pr_number`, `build_trigger_skipped_reason`, `checks_started`, `conflicted_files` when conflicts were carried |
+| `downmerge …` | `kind`, `pull_request_url`; plus `merge_branch` when a merge branch was used |
 
 `pull_request_action` is `created` or `updated`. `revert-version`'s `shape` is `revert`
-(rewind one version) or `abandon` (delete the branch). A downmerge's `kind` is `direct`,
-`merge-branch`, or `merge-branch-with-conflicts`.
+(rewind one version) or `abandon` (delete the branch). A downmerge's `kind` is `direct` or
+`merge-branch`. A conflicting downmerge creates nothing, prints the steps from
+[manual-downmerge.md](../../../docs/manual-downmerge.md), and exits with the user-error code.
 
 With `--json`, the full result object goes to stdout as one line and every human-facing
 note — progress, apply instructions — goes to stderr, so the document on stdout stays

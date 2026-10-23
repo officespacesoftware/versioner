@@ -139,8 +139,10 @@ test("a hotfix is cut off main at the next patch", async () => {
     "hotfix 4.124.1 to develop"
   );
   // The draft is unmergeable on arrival and the plan has to say so, or it reads as
-  // a second route to production rather than a placeholder.
-  assert.match(plan.warnings[0], /opens as a draft holding only a version bump/);
+  // a second route to production rather than a placeholder. It is expected, so it
+  // is a note: a warning would stop every hotfix.
+  assert.match(plan.notices[0], /opens as a draft holding only a version bump/);
+  assert.deepEqual(plan.warnings, []);
 });
 
 test("an open hotfix pull request into main is reconciled, not duplicated", async () => {
@@ -162,7 +164,8 @@ test("an open hotfix pull request into main is reconciled, not duplicated", asyn
     plan.mutations.at(-2).summary,
     "update PR #31 (hotfix/4.124.1 → main)"
   );
-  assert.match(plan.warnings[0], /#31 is already open/);
+  assert.match(plan.notices[0], /#31 is already open/);
+  assert.ok(!plan.warnings.some((w) => /#31/.test(w)));
 });
 
 test("an existing branch of the same name is a warning", async () => {
@@ -265,11 +268,11 @@ test("the hotfix plan does not consult main/develop synchronization", async () =
     }
   );
 
-  // The throwing stub is what proves the point: reaching it fails the test. The
-  // draft placeholder is the only thing a clean hotfix plan warns about.
-  const { warnings } = await agent.planCreateHotfix();
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /opens as a draft holding only a version bump/);
+  // The throwing stub is what proves the point: reaching it fails the test. A
+  // clean hotfix plan warns about nothing; the draft placeholder is a note.
+  const { warnings, notices } = await agent.planCreateHotfix();
+  assert.deepEqual(warnings, []);
+  assert.match(notices[0], /opens as a draft holding only a version bump/);
 });
 
 test("planning refuses when the base branch has no readable VERSION", async () => {
@@ -295,5 +298,37 @@ test("planning refuses when the base version is not semantic", async () => {
       assert.match(error.message, /not a semantic version/);
       return true;
     }
+  );
+});
+
+test("cutting a release warns about a shipped hotfix develop never received", async () => {
+  const HOTFIX_HEAD = "h".repeat(40);
+  const agent = makeAgent(
+    { [DEVELOP_HEAD]: "4.124.0" },
+    {
+      getBranchHead: async (branch) =>
+        branch === "develop"
+          ? DEVELOP_HEAD
+          : branch === "hotfix/4.123.1"
+          ? HOTFIX_HEAD
+          : MAIN_HEAD,
+      findBranchesOfType: async (type) =>
+        type === "hotfix"
+          ? [{ name: "remotes/origin/hotfix/4.123.1", type: "hotfix" }]
+          : [],
+      // main and develop are in sync; the hotfix is in main only.
+      checkIsAncestor: async (head, base) =>
+        head === HOTFIX_HEAD ? base === MAIN_HEAD : true,
+    }
+  );
+
+  const plan = await agent.planCreateReleaseCandidate("minor");
+
+  assert.ok(
+    plan.warnings.includes(
+      "hotfix/4.123.1 reached main but not develop, so develop is missing a fix " +
+        "already in production. Downmerge it into develop first."
+    ),
+    String(plan.warnings)
   );
 });

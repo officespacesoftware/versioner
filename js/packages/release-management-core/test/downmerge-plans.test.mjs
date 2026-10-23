@@ -3,8 +3,8 @@
 //
 // A downmerge creates no version commit, so its plan carries no version
 // transition; what it must carry is which branch head is being merged into
-// which, and — for release → develop, whose outcome forks on the merge result —
-// only the path that would actually be taken.
+// which. A conflicting downmerge gets no plan at all: it throws the manual
+// handoff instead, because the tools never push a conflicted merge.
 //
 // GitFlowManager is faked wholesale — ReleaseAgent already takes it by constructor.
 
@@ -12,6 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { ReleaseAgent } from "../lib/release-agent.js";
+import { ManualDownmergeRequired } from "../lib/manual-downmerge.js";
 
 const WD = "/tmp/downmerge-plans-test";
 const HEADS = {
@@ -81,7 +82,7 @@ const conflicting = (...files) => ({
 test("main into develop goes through a timestamped merge branch", async () => {
   const plan = await makeAgent().planDownmergeMainToDevelop();
 
-  assert.equal(plan.action, "downmerge_main_to_develop");
+  assert.equal(plan.action, "downmerge main → develop");
   assert.equal(plan.targetBranch, "develop");
   assert.equal(plan.targetBranchHead, HEADS.develop);
   assert.equal(plan.currentVersion, undefined);
@@ -110,15 +111,6 @@ test("release into main goes through a merge branch, never head=release/*", asyn
   ]);
 });
 
-test("a merge-branch downmerge warns that a conflict creates nothing at all", async () => {
-  const plan = await makeAgent(
-    conflicting("VERSION", "src/app.ts")
-  ).planDownmergeReleaseToMain();
-
-  assert.match(plan.warnings[0], /conflicts in 2 file\(s\): VERSION, src\/app\.ts/);
-  assert.match(plan.warnings[0], /creates nothing/);
-});
-
 test("a source already merged into the base is a warning", async () => {
   const plan = await makeAgent({
     checkIsAncestor: async () => true,
@@ -140,43 +132,6 @@ test("a clean release into develop is a single direct pull request", async () =>
   assert.deepEqual(plan.warnings, []);
 });
 
-test("a conflicting release into develop plans the merge branch and the build trigger", async () => {
-  const plan = await makeAgent(
-    conflicting("VERSION")
-  ).planDownmergeReleaseToDevelop();
-
-  assert.deepEqual(summaries(plan), [
-    "branch: release-4.125.0-into-develop-<unix-timestamp> off develop, merging release/4.125.0 at a1b2c3d4e5f",
-    'commit: merge commit "Merge release/4.125.0 into develop (conflicts unresolved — needs manual resolution)" on release-4.125.0-into-develop-<unix-timestamp>',
-    "push: release-4.125.0-into-develop-<unix-timestamp> to origin",
-    "pull-request: open draft release-4.125.0-into-develop-<unix-timestamp> → develop",
-    "pull-request: open release/4.125.0 → develop as a transient build trigger, then close it",
-  ]);
-  assert.equal(plan.mutations[1].detail.files, "VERSION");
-  assert.match(plan.warnings[0], /committed with their markers intact/);
-});
-
-test("an open pull request on the release branch drops the build trigger", async () => {
-  // Opening one would rewrite that PR's title and body through the 422 fallback
-  // and then close it.
-  const plan = await makeAgent({
-    ...conflicting("VERSION"),
-    findOpenPullRequest: async () => ({
-      number: 77,
-      url: "u",
-      title: "t",
-      body: "",
-    }),
-  }).planDownmergeReleaseToDevelop();
-
-  assert.ok(
-    !summaries(plan).some((s) => s.includes("build trigger")),
-    "the build-trigger pull request must not be planned"
-  );
-  assert.match(plan.warnings.at(-1), /#77 is already open/);
-  assert.match(plan.warnings.at(-1), /CI is not re-triggered/);
-});
-
 test("a clean release into develop reports an open pull request as an update", async () => {
   const plan = await makeAgent({
     findOpenPullRequest: async () => ({
@@ -190,6 +145,8 @@ test("a clean release into develop reports an open pull request as an update", a
   assert.deepEqual(summaries(plan), [
     "pull-request: update PR #12 (release/4.125.0 at a1b2c3d4e5f → develop)",
   ]);
+  assert.match(plan.notices[0], /#12 is already open/);
+  assert.deepEqual(plan.warnings, []);
 });
 
 test("hotfix into develop goes through a merge branch, never head=hotfix/*", async () => {
@@ -209,44 +166,6 @@ test("hotfix into develop goes through a merge branch, never head=hotfix/*", asy
   );
 });
 
-test("a conflicting hotfix into develop commits the markers for resolution", async () => {
-  // A hotfix and develop have both moved VERSION on by the time this runs, so
-  // conflicting is the ordinary case. It resolves the same way release → develop
-  // does: markers committed, draft pull request opened.
-  const plan = await makeAgent(
-    conflicting("VERSION")
-  ).planDownmergeHotfixToDevelop();
-
-  assert.deepEqual(summaries(plan), [
-    "branch: hotfix-4.124.1-into-develop-<unix-timestamp> off develop, merging hotfix/4.124.1 at 9876543210a",
-    'commit: merge commit "Merge hotfix/4.124.1 into develop (conflicts unresolved — needs manual resolution)" on hotfix-4.124.1-into-develop-<unix-timestamp>',
-    "push: hotfix-4.124.1-into-develop-<unix-timestamp> to origin",
-    "pull-request: open draft hotfix-4.124.1-into-develop-<unix-timestamp> → develop",
-  ]);
-  assert.equal(plan.mutations[1].detail.files, "VERSION");
-  assert.equal(
-    plan.mutations.at(-1).detail.title,
-    "Hotfix 4.124.1 to develop (conflict resolution)"
-  );
-  assert.match(plan.warnings[0], /markers intact/);
-  assert.doesNotMatch(plan.warnings[0], /creates nothing/);
-
-  // No build-trigger pull request: the hotfix is already deployed.
-  assert.ok(!summaries(plan).some((s) => s.includes("build trigger")));
-});
-
-test("release into main still abandons a conflicting merge", async () => {
-  const plan = await makeAgent(
-    conflicting("VERSION")
-  ).planDownmergeReleaseToMain();
-
-  assert.match(plan.warnings[0], /creates nothing/);
-  assert.equal(
-    plan.mutations.at(-1).summary,
-    "open release-4.125.0-into-main-<unix-timestamp> → main"
-  );
-});
-
 test("hotfix into main is a pull request and nothing else", async () => {
   const plan = await makeAgent().planDownmergeHotfixToMain();
 
@@ -255,19 +174,6 @@ test("hotfix into main is a pull request and nothing else", async () => {
     "pull-request: open hotfix/4.124.1 at 9876543210a → main",
   ]);
   assert.equal(plan.mutations[0].detail.title, "Release 4.124.1 to main");
-});
-
-test("a conflicting hotfix still opens its pull request", async () => {
-  // This one is production-critical and GitHub reports the conflict on the PR,
-  // so a conflict is information rather than a blocker.
-  const plan = await makeAgent(
-    conflicting("VERSION")
-  ).planDownmergeHotfixToMain();
-
-  assert.deepEqual(summaries(plan), [
-    "pull-request: open hotfix/4.124.1 at 9876543210a → main",
-  ]);
-  assert.match(plan.warnings[0], /The pull request still opens/);
 });
 
 test("a moved source branch invalidates the digest even though the base has not moved", async () => {
@@ -292,4 +198,96 @@ test("an unknown version is refused rather than falling back to the newest branc
     () => makeAgent().planDownmergeHotfixToMain("9.9.9"),
     /Hotfix branch for version 9\.9\.9 not found/
   );
+});
+
+const handoffOf = async (planning) => {
+  try {
+    await planning;
+  } catch (error) {
+    assert.ok(error instanceof ManualDownmergeRequired, String(error));
+    return error.handoff;
+  }
+  assert.fail("expected a manual downmerge handoff, got a plan");
+};
+
+test("a conflict into develop hands off a merge branch off develop", async () => {
+  const handoff = await handoffOf(
+    makeAgent(conflicting("VERSION", "src/app.ts")).planDownmergeReleaseToDevelop()
+  );
+
+  assert.deepEqual(handoff.route, { source: "release", target: "develop" });
+  assert.equal(handoff.sourceBranch, "release/4.125.0");
+  assert.equal(handoff.version, "4.125.0");
+  assert.deepEqual(handoff.conflictedFiles, ["VERSION", "src/app.ts"]);
+  assert.equal(
+    handoff.resolutionBranch,
+    "release-4.125.0-into-develop-<unix-timestamp>"
+  );
+  assert.equal(handoff.resolutionBase, "develop");
+  assert.equal(handoff.pullRequestTitle, "Release 4.125.0 to develop");
+  assert.match(handoff.steps.join("\n"), /Keep develop's VERSION/);
+});
+
+test("a conflicting hotfix into develop also closes the draft tracking PR", async () => {
+  const handoff = await handoffOf(
+    makeAgent(conflicting("VERSION")).planDownmergeHotfixToDevelop()
+  );
+
+  assert.equal(handoff.pullRequestTitle, "Hotfix 4.124.1 to develop");
+  assert.match(handoff.steps.at(-1), /Close the draft hotfix\/4\.124\.1 → develop/);
+});
+
+test("a conflict into main is a decision, never a merge into the source", async () => {
+  // main mirrors production. Merging it into the release branch would deploy to
+  // the release servers without a new candidate, so a human chooses instead.
+  const release = await handoffOf(
+    makeAgent(conflicting("VERSION")).planDownmergeReleaseToMain()
+  );
+  assert.equal(release.requiresDecision, true);
+  assert.equal(release.resolutionBase, "main");
+  assert.equal(release.pullRequestTitle, "Release 4.125.0 to main");
+  assert.equal(release.steps.length, 2);
+  assert.match(release.steps[0], /create_release_candidate with releaseType patch/);
+  assert.match(release.steps[1], /main will then differ from what production runs/);
+
+  const hotfix = await handoffOf(
+    makeAgent(conflicting("VERSION")).planDownmergeHotfixToMain()
+  );
+  assert.equal(hotfix.requiresDecision, true);
+  assert.match(hotfix.steps[0], /Run create_hotfix/);
+});
+
+test("a conflict into develop is carried out, not decided", async () => {
+  const handoff = await handoffOf(
+    makeAgent(conflicting("VERSION")).planDownmergeHotfixToDevelop()
+  );
+
+  assert.equal(handoff.requiresDecision, false);
+});
+
+test("main into develop hands off with the title the clean merge would use", async () => {
+  const handoff = await handoffOf(
+    makeAgent(conflicting("VERSION")).planDownmergeMainToDevelop()
+  );
+
+  assert.equal(handoff.sourceBranch, "main");
+  assert.equal(handoff.version, undefined);
+  assert.equal(handoff.resolutionBranch, "main-into-develop-<unix-timestamp>");
+  assert.equal(handoff.pullRequestTitle, "Release 4.124.0 to develop");
+});
+
+test("planDownmerge dispatches each route to its plan", async () => {
+  const agent = makeAgent();
+
+  for (const [source, target] of [
+    ["main", "develop"],
+    ["release", "develop"],
+    ["release", "main"],
+    ["hotfix", "develop"],
+    ["hotfix", "main"],
+  ]) {
+    const plan = await agent.planDownmerge({ source, target });
+    assert.equal(plan.action, `downmerge ${source} → ${target}`);
+    assert.equal(plan.targetBranch, target);
+  }
 });

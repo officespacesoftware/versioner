@@ -2,6 +2,7 @@ import {
   GitFlowManager,
   ReleaseAgent,
   BranchSelectionError,
+  ManualDownmergeRequired,
   MergeConflictError,
   StalePlanError,
 } from "@officespacesoftware/release-management-core";
@@ -96,10 +97,11 @@ export function classifyError(error: unknown, message: string): ExitCode {
   if (error instanceof UsageError || error instanceof StalePlanError) {
     return ExitCode.UserError;
   }
-  // A conflict needs a human to resolve it; it is not an environment fault. The
-  // downmerges reshape theirs into a plain Error before this point, so this
-  // reaches only callers that let it through.
-  if (error instanceof MergeConflictError) {
+  // A conflict needs a human to resolve it; it is not an environment fault.
+  if (
+    error instanceof MergeConflictError ||
+    error instanceof ManualDownmergeRequired
+  ) {
     return ExitCode.UserError;
   }
   const lower = message.toLowerCase();
