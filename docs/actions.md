@@ -369,10 +369,14 @@ CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
 **Target selection** is identical to `increment_release_candidate`.
 
 **Preflight.** The plan rehearses the merge this branch will eventually make into `main`
-and warns about two things, refusing neither.
+and warns about three things, refusing none.
 
-A conflict is reported with its files, since the release → main `downmerge` will hand the
-merge over for manual resolution — after the tag is already cut.
+A conflict is reported with its files, since the release → main `downmerge` will stop for
+a human decision — after the tag is already cut.
+
+A hotfix whose branch is already in `main` but not in this release branch is named. It is
+a fix already in production that the release would undo. `increment_release_candidate`
+reports it too, and `create_release_candidate` reports the same for `develop`.
 
 `main` holding commits the branch does not is reported more quietly, and is not a merge
 failure at all: the merge combines both histories faithfully. The problem is that the
@@ -385,7 +389,8 @@ carry the same content under a different commit) or under-report to nothing (bot
 routinely edit one file in different places). The files those commits touch are listed as
 context, not as a claim about which side wins.
 
-The remedy in both cases is to merge `main` into the release branch before promoting.
+The remedy in every case is to merge `main` into the release branch and cut a new
+release candidate before promoting, so the change is deployed and tested like any other.
 Whether to promote anyway is the operator's call. A check that could not run is reported as
 such rather than passing silently. All of it is read-only: `merge-tree --write-tree`,
 `rev-list` and `diff`.
@@ -583,9 +588,11 @@ five routes:
 | `workingDirectory` / `--working-directory` | current directory |
 
 **Clean or conflicting.** The plan previews the merge with `merge-tree`. Only a clean
-merge gets a plan. A conflicting one creates nothing and returns a manual downmerge
-handoff instead: the conflicted files, the branch to resolve them on, the pull request
-title, and numbered steps from [manual-downmerge.md](manual-downmerge.md). The CLI prints
+merge gets a plan. A conflicting one creates nothing and returns a handoff instead,
+following [manual-downmerge.md](manual-downmerge.md). Into `develop` it is "Manual
+downmerge needed": the conflicted files, the branch to resolve them on, the pull request
+title, and numbered steps. Into `main` it is "Decision needed": `main` mirrors
+production, so the handoff resolves nothing and lists two options for a human. The CLI prints
 the handoff and exits with the user-error code. The tools never push a conflicted merge,
 and the apply re-checks: a conflict that appears between plan and apply aborts the merge,
 deletes the local branch, and returns the same handoff.

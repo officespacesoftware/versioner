@@ -68,6 +68,11 @@ export function downmergePullRequestTitle(
 
 export interface ManualDownmerge {
   route: DownmergeRoute;
+  /**
+   * True into main: the drift between main and the source is a decision for a
+   * human, so the steps are options to choose from, not instructions to carry out.
+   */
+  requiresDecision: boolean;
   /** The branch being merged, e.g. `release/4.125.0` or `main`. */
   sourceBranch: string;
   /** The version a release or hotfix branch carries; absent for main. */
@@ -75,7 +80,8 @@ export interface ManualDownmerge {
   conflictedFiles: string[];
   /**
    * The branch to resolve the conflicts on, named by its pattern because it
-   * carries a timestamp, and the branch its pull request goes into.
+   * carries a timestamp, and the branch its pull request goes into. Into main
+   * these describe the second option, the one that accepts drift.
    */
   resolutionBranch: string;
   resolutionBase: string;
@@ -91,7 +97,9 @@ export class ManualDownmergeRequired extends Error {
       `${handoff.sourceBranch} conflicts with ${handoff.route.target} in ` +
         `${handoff.conflictedFiles.length} file(s): ` +
         `${handoff.conflictedFiles.join(", ")}. Nothing was created; ` +
-        `follow ${MANUAL_DOWNMERGE_DOC} to downmerge by hand.`
+        (handoff.requiresDecision
+          ? `a human has to choose how to proceed, see ${MANUAL_DOWNMERGE_DOC}.`
+          : `follow ${MANUAL_DOWNMERGE_DOC} to downmerge by hand.`)
     );
     this.name = "ManualDownmergeRequired";
     this.handoff = handoff;
@@ -106,9 +114,13 @@ function slug(sourceBranch: string): string {
  * Describe the manual downmerge for a conflicting route.
  *
  * Into develop, the conflicts are resolved on a branch cut off develop, the same
- * shape the tools use for a clean merge. Into main they are not: main has to end
- * up holding what was deployed, so main is merged into the source branch instead,
- * and the downmerge is re-run once that lands and the merge is clean.
+ * shape the tools use for a clean merge.
+ *
+ * Into main nothing is resolved. main mirrors production, so a conflict means
+ * main holds changes the source never received, usually a hotfix that was not
+ * downmerged into the release. Merging main into the source would deploy it to
+ * the release servers without a new release candidate, so a human chooses
+ * between taking main's changes through a new candidate and accepting drift.
  */
 export function describeManualDownmerge(opts: {
   route: DownmergeRoute;
@@ -122,26 +134,32 @@ export function describeManualDownmerge(opts: {
   const files = conflictedFiles.join(", ");
 
   if (route.target === "main") {
-    const resolutionBranch = `main-into-${slug(sourceBranch)}-<unix-timestamp>`;
+    const resolutionBranch = `${slug(sourceBranch)}-into-main-<unix-timestamp>`;
+    const takeMain =
+      route.source === "release"
+        ? `Run create_release_candidate with releaseType patch, merge origin/main ` +
+          `into the new release branch, promote it with release_version, have Ops ` +
+          `deploy it to every production host, then downmerge that release into ` +
+          `main, which is clean by then.`
+        : `Run create_hotfix, which cuts a new hotfix off main and so already holds ` +
+          `main's changes, bring the fix from ${sourceBranch} over, promote it with ` +
+          `release_version, have Ops deploy it to every production host, then ` +
+          `downmerge that hotfix into main, which is clean by then.`;
     return {
       route,
+      requiresDecision: true,
       sourceBranch,
       ...(version === undefined ? {} : { version }),
       conflictedFiles,
       resolutionBranch,
-      resolutionBase: sourceBranch,
-      pullRequestTitle: `Merge main into ${sourceBranch}`,
+      resolutionBase: "main",
+      pullRequestTitle: opts.pullRequestTitle,
       steps: [
-        `Cut ${resolutionBranch} off origin/${sourceBranch} and merge origin/main into it.`,
-        `Resolve the conflicts in ${files}. Keep ${sourceBranch}'s VERSION.`,
-        `Push ${resolutionBranch} and open a pull request into ${sourceBranch} ` +
-          `titled "Merge main into ${sourceBranch}", listing each resolved file ` +
-          `with a one-line reason.`,
-        `Say in the pull request that ${sourceBranch} changes after it was ` +
-          `tagged, so a human decides whether a new release candidate is needed ` +
-          `before it reaches production.`,
-        `Once it merges, run the ${route.source} → main downmerge again; it is ` +
-          `clean now and opens "${opts.pullRequestTitle}".`,
+        `Option 1, take main's changes into a new candidate (usually right): ${takeMain}`,
+        `Option 2, leave them out of ${sourceBranch}: cut ${resolutionBranch} off ` +
+          `origin/main, merge origin/${sourceBranch} into it, resolve ${files}, and ` +
+          `open a pull request into main titled "${opts.pullRequestTitle}". Say in ` +
+          `it that main will then differ from what production runs.`,
       ],
     };
   }
@@ -165,6 +183,7 @@ export function describeManualDownmerge(opts: {
 
   return {
     route,
+    requiresDecision: false,
     sourceBranch,
     ...(version === undefined ? {} : { version }),
     conflictedFiles,
@@ -176,13 +195,23 @@ export function describeManualDownmerge(opts: {
 }
 
 export function renderManualDownmerge(handoff: ManualDownmerge): string {
+  const target = handoff.route.target;
   return [
-    `Manual downmerge needed: ${handoff.sourceBranch} → ${handoff.route.target}`,
+    handoff.requiresDecision
+      ? `Decision needed: ${handoff.sourceBranch} → ${target} conflicts`
+      : `Manual downmerge needed: ${handoff.sourceBranch} → ${target}`,
     "",
     "The merge conflicts, so nothing was created. Conflicted files:",
     ...handoff.conflictedFiles.map((f) => `  - ${f}`),
     "",
-    "Steps:",
+    ...(handoff.requiresDecision
+      ? [
+          `${target} mirrors production and holds changes ${handoff.sourceBranch} ` +
+            `never received. Do not resolve this or merge ${target} into ` +
+            `${handoff.sourceBranch}: that would deploy it to the release servers ` +
+            `without a new release candidate. A human chooses one option:`,
+        ]
+      : ["Steps:"]),
     ...handoff.steps.map((step, i) => `  ${i + 1}. ${step}`),
     "",
     `The full procedure is ${MANUAL_DOWNMERGE_DOC} in the versioner repository ` +

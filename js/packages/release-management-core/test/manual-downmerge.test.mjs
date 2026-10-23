@@ -44,6 +44,24 @@ test("the rendering lists the files, numbers the steps and points at the doc", (
   assert.ok(text.includes(MANUAL_DOWNMERGE_DOC));
 });
 
+test("a decision into main says not to resolve it and lists the options", () => {
+  const text = renderManualDownmerge(
+    describeManualDownmerge({
+      route: { source: "release", target: "main" },
+      sourceBranch: "release/4.125.0",
+      version: "4.125.0",
+      conflictedFiles: ["VERSION"],
+      pullRequestTitle: "Release 4.125.0 to main",
+    })
+  );
+
+  assert.match(text, /^Decision needed: release\/4\.125\.0 → main conflicts/);
+  assert.match(text, /Do not resolve this or merge main into release\/4\.125\.0/);
+  assert.match(text, /  1\. Option 1, take main's changes/);
+  assert.match(text, /  2\. Option 2, leave them out/);
+  assert.doesNotMatch(text, /^Steps:/m);
+});
+
 test("the error carries the handoff and says nothing was created", () => {
   const error = new ManualDownmergeRequired(handoff);
 

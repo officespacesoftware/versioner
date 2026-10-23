@@ -184,7 +184,10 @@ test("promoting warns when main holds commits the release branch does not", asyn
   assert.ok(warning, `expected a divergence warning, got: ${plan.warnings}`);
   assert.match(warning, /config\/initializers\/sidekiq\.rb/);
   assert.match(warning, /will not match what was deployed/);
-  assert.match(warning, /Merge main into release\/1\.4\.0 before promoting/);
+  assert.match(
+    warning,
+    /Merge main into release\/1\.4\.0 and cut a new release candidate before promoting/
+  );
 });
 
 test("promoting warns when the merge into main would conflict", async () => {
@@ -203,7 +206,7 @@ test("promoting warns when the merge into main would conflict", async () => {
   const warning = plan.warnings.find((w) => /conflicts in 1 file/.test(w));
   assert.ok(warning, `expected a conflict warning, got: ${plan.warnings}`);
   assert.match(warning, /VERSION/);
-  assert.match(warning, /downmerge into main will create nothing/);
+  assert.match(warning, /downmerge into main will create nothing and stop for/);
 });
 
 // A check that silently did not run reads as a clean bill of health.
@@ -251,4 +254,35 @@ test("planning refuses on a branch that is not holding a release candidate", asy
       return true;
     }
   );
+});
+
+// A hotfix that reached main but never this release would be undone by promoting
+// it, and main would drift from production once the release merges.
+test("a shipped hotfix missing from the release branch is a warning", async () => {
+  const heads = {
+    main: "m".repeat(40),
+    "release/1.5.0": "r".repeat(40),
+    "hotfix/1.4.1": "h".repeat(40),
+    "hotfix/1.4.2": "p".repeat(40),
+  };
+  const agent = makeAgent(
+    {
+      "release/1.5.0": "1.5.0-RC.1\nabc1234",
+      "hotfix/1.4.1": "1.4.1\nabc1234",
+      "hotfix/1.4.2": "1.4.2-RC.0\nabc1234",
+    },
+    {
+      getBranchHead: async (branch) => heads[branch],
+      // hotfix/1.4.1 shipped; hotfix/1.4.2 is still in progress, so not in main.
+      checkIsAncestor: async (head, base) =>
+        head === heads["hotfix/1.4.1"] && base === heads.main,
+    }
+  );
+
+  const plan = await agent.planIncrementRC("1.5.0");
+
+  assert.deepEqual(plan.warnings, [
+    "hotfix/1.4.1 reached main but not release/1.5.0, so release/1.5.0 is " +
+      "missing a fix already in production. Downmerge it into release/1.5.0 first.",
+  ]);
 });

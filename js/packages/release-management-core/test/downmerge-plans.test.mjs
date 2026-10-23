@@ -237,22 +237,32 @@ test("a conflicting hotfix into develop also closes the draft tracking PR", asyn
   assert.match(handoff.steps.at(-1), /Close the draft hotfix\/4\.124\.1 → develop/);
 });
 
-test("a conflict into main is resolved on the source branch, not on main", async () => {
-  // main has to end up holding what was deployed, so the fix goes into the
-  // release branch and the downmerge is re-run once it is clean.
-  for (const planning of [
-    makeAgent(conflicting("VERSION")).planDownmergeReleaseToMain(),
-    makeAgent(conflicting("VERSION")).planDownmergeHotfixToMain(),
-  ]) {
-    const handoff = await handoffOf(planning);
-    assert.equal(handoff.route.target, "main");
-    assert.equal(handoff.resolutionBase, handoff.sourceBranch);
-    assert.equal(
-      handoff.pullRequestTitle,
-      `Merge main into ${handoff.sourceBranch}`
-    );
-    assert.match(handoff.steps.at(-1), /run the .* → main downmerge again/);
-  }
+test("a conflict into main is a decision, never a merge into the source", async () => {
+  // main mirrors production. Merging it into the release branch would deploy to
+  // the release servers without a new candidate, so a human chooses instead.
+  const release = await handoffOf(
+    makeAgent(conflicting("VERSION")).planDownmergeReleaseToMain()
+  );
+  assert.equal(release.requiresDecision, true);
+  assert.equal(release.resolutionBase, "main");
+  assert.equal(release.pullRequestTitle, "Release 4.125.0 to main");
+  assert.equal(release.steps.length, 2);
+  assert.match(release.steps[0], /create_release_candidate with releaseType patch/);
+  assert.match(release.steps[1], /main will then differ from what production runs/);
+
+  const hotfix = await handoffOf(
+    makeAgent(conflicting("VERSION")).planDownmergeHotfixToMain()
+  );
+  assert.equal(hotfix.requiresDecision, true);
+  assert.match(hotfix.steps[0], /Run create_hotfix/);
+});
+
+test("a conflict into develop is carried out, not decided", async () => {
+  const handoff = await handoffOf(
+    makeAgent(conflicting("VERSION")).planDownmergeHotfixToDevelop()
+  );
+
+  assert.equal(handoff.requiresDecision, false);
 });
 
 test("main into develop hands off with the title the clean merge would use", async () => {

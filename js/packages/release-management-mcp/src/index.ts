@@ -465,10 +465,14 @@ merge-tree, which touches neither the index nor the working tree.
   that digest back as 'confirm', with the same source, target and version, to
   apply. If either branch moved in between, the digest no longer matches and it
   refuses, returning a fresh plan.
-- Conflicting merge: returns a manual downmerge handoff instead of a plan, and
-  creates nothing. It lists the conflicted files and the steps to finish the
-  downmerge by hand, following docs/manual-downmerge.md in the versioner
-  repository. The tools never push a conflicted merge.`,
+- Conflicting merge: returns a handoff instead of a plan, and creates nothing.
+  The tools never push a conflicted merge.
+  - Into develop, "Manual downmerge needed": the conflicted files and the steps
+    to resolve them on a branch off develop and open the pull request, following
+    docs/manual-downmerge.md in the versioner repository.
+  - Into main, "Decision needed": main mirrors production, so the drift is not
+    resolved. The handoff gives two options for a human to choose from; carry
+    out neither until one is chosen.`,
             inputSchema: {
               type: "object",
               properties: {

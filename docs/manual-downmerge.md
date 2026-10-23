@@ -3,7 +3,8 @@
 The `downmerge` tool and the CLI's `downmerge` commands only push merges that apply
 cleanly. When the merge conflicts they create nothing and return a handoff: the
 conflicted files, the branch to resolve them on, the pull request title, and numbered
-steps. This document is the procedure behind those steps. It is written for an agent
+steps. This document is the procedure behind those steps. Into `develop` the handoff is
+work to carry out; into `main` it is a decision for a human. It is written for an agent
 carrying out the handoff, and works the same for a person.
 
 Follow the handoff's names exactly. They match the ones the tools use for a clean merge,
@@ -56,28 +57,34 @@ has one open pull request for the hotfix.
 opened stays open. GitHub marks it merged once your pull request lands, because its head
 is then contained in `develop`.
 
-## Into `main`
+## Into `main`: a decision, not a resolution
 
 Routes: `release` → `main`, `hotfix` → `main`.
 
-`main` has to end up holding exactly what was deployed, so do not resolve on a branch cut
-off `main`. Bring `main` into the source branch instead, then run the downmerge again.
+`main` mirrors production. If the source conflicts with it, `main` holds changes the
+source never received, almost always a hotfix that shipped while the release was being
+prepared and was never downmerged into it. Do not resolve this, and do not merge `main`
+into the source branch: any change to a release branch goes out as a new release
+candidate, and a merge would deploy to the release servers without one.
 
-```sh
-git fetch origin
-git switch -c <resolution-branch> origin/<source-branch>
-git merge --no-ff origin/main
-# resolve the listed files, keeping the source branch's VERSION
-git add <files>
-git commit --no-edit
-git push -u origin <resolution-branch>
-```
+The handoff starts with "Decision needed". Post it and stop. A human picks one option:
 
-Open a pull request from `<resolution-branch>` into the source branch, titled
-`Merge main into <source-branch>`. Say in its body that the source branch changes after
-it was tagged, so a human decides whether a new release candidate is needed before it
-reaches production. Once it merges, run the downmerge into `main` again. It is clean now,
-and opens the pull request the handoff named.
+1. **Take `main`'s changes into a new candidate.** Usually the right answer.
+   - For a release: `create_release_candidate` with `releaseType: patch`, merge
+     `origin/main` into the new release branch, promote it with `release_version`, have
+     Ops deploy it to every production host, then downmerge that release into `main`.
+   - For a hotfix: `create_hotfix` cuts a new hotfix off `main`, which already holds
+     `main`'s changes. Bring the fix over, promote, deploy, then downmerge.
+   - The downmerge into `main` is clean by then, and `main` matches production again.
+2. **Leave them out of the source.** For when the source fixed the same problem a
+   different way. Cut the handoff's branch off `origin/main`, merge the source into it,
+   resolve the listed files, and open a pull request into `main` with the handoff's
+   title. Say in the pull request that `main` will then differ from what production
+   runs. This is drift, and only a human accepts it.
+
+The way to never reach this point is to downmerge every hotfix into the release in
+flight. `create_release_candidate`, `increment_release_candidate` and `release_version`
+warn when a hotfix that is already in `main` is missing from the branch they act on.
 
 ## Reporting back
 

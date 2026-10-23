@@ -298,3 +298,35 @@ test("planning refuses when the base version is not semantic", async () => {
     }
   );
 });
+
+test("cutting a release warns about a shipped hotfix develop never received", async () => {
+  const HOTFIX_HEAD = "h".repeat(40);
+  const agent = makeAgent(
+    { [DEVELOP_HEAD]: "4.124.0" },
+    {
+      getBranchHead: async (branch) =>
+        branch === "develop"
+          ? DEVELOP_HEAD
+          : branch === "hotfix/4.123.1"
+          ? HOTFIX_HEAD
+          : MAIN_HEAD,
+      findBranchesOfType: async (type) =>
+        type === "hotfix"
+          ? [{ name: "remotes/origin/hotfix/4.123.1", type: "hotfix" }]
+          : [],
+      // main and develop are in sync; the hotfix is in main only.
+      checkIsAncestor: async (head, base) =>
+        head === HOTFIX_HEAD ? base === MAIN_HEAD : true,
+    }
+  );
+
+  const plan = await agent.planCreateReleaseCandidate("minor");
+
+  assert.ok(
+    plan.warnings.includes(
+      "hotfix/4.123.1 reached main but not develop, so develop is missing a fix " +
+        "already in production. Downmerge it into develop first."
+    ),
+    String(plan.warnings)
+  );
+});
