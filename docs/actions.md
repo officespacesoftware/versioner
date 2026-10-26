@@ -459,18 +459,21 @@ newest release candidate across all branches; reverting does not, because guessi
 branch to delete tags and branches from is not a risk worth taking to save typing a
 version.
 
-**Two shapes.** Which one applies is decided by whether the bump commit's parent is
-already in the branch's base:
+**Two shapes.** Which one applies is decided by the `VERSION` in the bump commit's
+parent:
 
-- **Revert** — the branch has earlier history of its own, so `VERSION` goes back one step
-  (`RC.2` → `RC.1`, or a final back to the RC it was promoted from) and the branch
-  survives. A revert commit is used, never a reset, because protected branches commonly
-  forbid the force-push a reset would need.
-- **Abandon** — the bump sits directly on the base branch, so it is the branch's first
-  version and there is nothing to rewind to; reverting would leave the branch
-  indistinguishable from its base. The branch is deleted instead. Note this is *not* the
-  same as "the parent has no `VERSION`": a release branch is cut from `develop`, so the
-  parent carries `develop`'s version.
+- **Revert** — the parent carries an earlier version of the same release (`RC.1` under
+  `RC.2`, or the RC a final was promoted from), so `VERSION` goes back one step and the
+  branch survives. This holds even when that earlier bump is already in the base,
+  as it is once a release candidate's pull request into `develop` is merged. A revert
+  commit is used, never a reset, because protected branches commonly forbid the
+  force-push a reset would need.
+- **Abandon** — the parent carries another release's version, or none, so this is the
+  branch's first version and there is nothing to rewind to; reverting would leave the
+  branch indistinguishable from its base. The branch is deleted instead.
+
+Every line the plan adds is a note, not a warning: a revert always needs approval, and
+the notes say what it destroys.
 
 **Refusals.** Each of these aborts rather than warning:
 
@@ -516,7 +519,7 @@ undone with `git branch <name> <sha>` until it is garbage collected.
 | Pull request (abandon shape) | the open PR closed, with a comment naming the version, the deleted tag and the recovery command |
 | Branch deletion (abandon shape) | `<target branch>` removed on origin and locally |
 
-A missing tag is reported as a warning rather than treated as a failure — a revert should
+A missing tag is reported as a note rather than treated as a failure — a revert should
 not abort because the thing it wanted gone was already gone. A failure in the pull-request
 step does not fail the action: the git side has already happened, so the error is reported
 alongside the result.
