@@ -39,6 +39,7 @@ function makeAgent(versions, overrides = {}) {
     getBranchHead: async (branch) =>
       branch === "develop" ? DEVELOP_HEAD : MAIN_HEAD,
     readBranchVersion: async (ref) => versions[ref] ?? null,
+    readFileAtRef: async () => null,
     findBranchesOfType: async () => [],
     tagExistsLocally: async () => false,
     tagExistsRemotely: async () => false,
@@ -168,7 +169,7 @@ test("an open hotfix pull request into main is reconciled, not duplicated", asyn
   assert.ok(!plan.warnings.some((w) => /#31/.test(w)));
 });
 
-test("an existing branch of the same name is a warning", async () => {
+test("an existing branch of the same name is refused", async () => {
   const agent = makeAgent(
     { [DEVELOP_HEAD]: "4.124.0" },
     {
@@ -179,11 +180,10 @@ test("an existing branch of the same name is a warning", async () => {
     }
   );
 
-  const plan = await agent.planCreateReleaseCandidate("minor");
-
-  assert.deepEqual(plan.warnings, [
-    "Branch release/4.125.0 already exists; creating it will fail.",
-  ]);
+  await assert.rejects(agent.planCreateReleaseCandidate("minor"), {
+    name: "BranchSelectionError",
+    message: /Branch release\/4\.125\.0 already exists/,
+  });
 });
 
 test("a remote-only branch of the same name is still recognised", async () => {
@@ -196,25 +196,35 @@ test("a remote-only branch of the same name is still recognised", async () => {
     }
   );
 
-  const plan = await agent.planCreateHotfix();
-
-  assert.match(plan.warnings[0], /hotfix\/4\.124\.1 already exists/);
+  await assert.rejects(agent.planCreateHotfix(), {
+    message: /hotfix\/4\.124\.1 already exists/,
+  });
 });
 
-test("a tag on origin takes precedence over the same tag held only locally", async () => {
+test("a tag already on origin is refused", async () => {
   const agent = makeAgent(
     { [DEVELOP_HEAD]: "4.124.0" },
     { tagExistsRemotely: async () => true, tagExistsLocally: async () => true }
   );
 
-  const plan = await agent.planCreateReleaseCandidate("minor");
-
-  assert.deepEqual(plan.warnings, [
-    "Tag 4.125.0-RC.0 already exists on origin; pushing it will fail.",
-  ]);
+  await assert.rejects(agent.planCreateReleaseCandidate("minor"), {
+    message: /Tag 4\.125\.0-RC\.0 already exists on origin/,
+  });
 });
 
-test("main holding content that develop does not is a warning on the release plan", async () => {
+test("a tag held only locally is left for the apply to drop", async () => {
+  const agent = makeAgent(
+    { [DEVELOP_HEAD]: "4.124.0" },
+    { tagExistsRemotely: async () => false, tagExistsLocally: async () => true }
+  );
+
+  const plan = await agent.planCreateReleaseCandidate("minor");
+
+  assert.deepEqual(plan.warnings, []);
+  assert.deepEqual(plan.notices, []);
+});
+
+test("main holding content that develop does not refuses the release plan", async () => {
   const agent = makeAgent(
     { [DEVELOP_HEAD]: "4.124.0" },
     {
@@ -229,10 +239,9 @@ test("main holding content that develop does not is a warning on the release pla
     }
   );
 
-  const plan = await agent.planCreateReleaseCandidate("minor");
-
-  assert.match(plan.warnings[0], /3 commit\(s\)/);
-  assert.match(plan.warnings[0], /aborts the action/);
+  await assert.rejects(agent.planCreateReleaseCandidate("minor"), {
+    message: /3 commit\(s\).*Downmerge main into develop first/s,
+  });
 });
 
 test("commits on main whose content is already in develop are not a warning", async () => {

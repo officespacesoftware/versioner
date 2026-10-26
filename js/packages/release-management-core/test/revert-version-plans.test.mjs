@@ -92,7 +92,7 @@ test("a final version rewinds to the release candidate it was promoted from", as
 
   assert.equal(plan.resultingVersion, "1.4.0-RC.7");
   assert.ok(
-    plan.notices.some((w) => /is a FINAL version/.test(w)),
+    plan.warnings.some((w) => /is a FINAL version/.test(w)),
     "reverting a final should be called out"
   );
 });
@@ -135,7 +135,7 @@ test("an RC.0 with no predecessor abandons the branch instead of rewinding it", 
   // No revert commit and no push: there is nothing to rewind to.
   assert.ok(!kinds(plan).some((k) => k.endsWith(":commit")));
   assert.ok(
-    plan.notices.some((w) => /first version on release\/1\.5\.0/.test(w))
+    plan.warnings.some((w) => /first version on release\/1\.5\.0/.test(w))
   );
 });
 

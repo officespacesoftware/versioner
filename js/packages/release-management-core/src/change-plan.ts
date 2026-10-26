@@ -61,7 +61,18 @@ export interface ChangePlan {
    * on before approving.
    */
   notices: string[];
+  /**
+   * What a failing pre-version check printed, for the approver to read. Left out of
+   * the digest: output carries timings and download progress that differ between
+   * two runs of the same check, and the warning naming the failure is covered.
+   */
+  checkOutput?: CheckOutput[];
   digest: string;
+}
+
+export interface CheckOutput {
+  name: string;
+  output: string;
 }
 
 export type ChangePlanInput = Omit<
@@ -206,6 +217,13 @@ export function renderChangePlan(plan: ChangePlan): string {
     lines.push("", "Notes:");
     for (const notice of plan.notices) {
       lines.push(`  - ${notice}`);
+    }
+  }
+
+  for (const check of plan.checkOutput ?? []) {
+    lines.push("", `Output of ${check.name}:`);
+    for (const line of check.output.split("\n")) {
+      lines.push(`  ${line}`);
     }
   }
 
