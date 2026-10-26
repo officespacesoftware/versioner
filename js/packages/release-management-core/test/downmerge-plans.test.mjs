@@ -111,12 +111,11 @@ test("release into main goes through a merge branch, never head=release/*", asyn
   ]);
 });
 
-test("a source already merged into the base is a warning", async () => {
-  const plan = await makeAgent({
-    checkIsAncestor: async () => true,
-  }).planDownmergeMainToDevelop();
-
-  assert.match(plan.warnings[0], /main is already merged into develop/);
+test("a source already merged into the base is refused", async () => {
+  await assert.rejects(
+    makeAgent({ checkIsAncestor: async () => true }).planDownmergeMainToDevelop(),
+    { message: /main is already merged into develop, so there is nothing to downmerge/ }
+  );
 });
 
 test("a clean release into develop is a single direct pull request", async () => {

@@ -44,6 +44,7 @@ function makeAgent(branches, overrides = {}) {
     tagExistsLocally: async () => false,
     tagExistsRemotely: async () => false,
     findOpenPullRequest: async () => null,
+    readFileAtRef: async () => null,
     commitsNotIn: async () => [],
     filesChangedSinceFork: async () => [],
     previewMergeConflicts: async () => ({

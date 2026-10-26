@@ -87,8 +87,9 @@ Every mutating action except `initialize_versioner` is two-phase.
 | `targetBranchHead` | that branch's HEAD commit when the plan was computed |
 | `currentVersion` → `resultingVersion` | the version transition, absent for the downmerges, which create no version commit |
 | `mutations` | the ordered list of objects the action would touch, each with a kind (`branch`, `commit`, `tag`, `push`, `pull-request`, `github-release`), an `operation` of `create` or `delete` (absent means `create`), and a one-line summary. `renderChangePlan` groups them under "Would create:" and "Would delete:" |
-| `warnings` | conditions that do not block planning but change the outcome |
+| `warnings` | conditions a human should weigh before approving; a plan with warnings is still applied when its digest is confirmed |
 | `notices` | facts that shape the plan without putting the outcome at risk, such as a pull request being updated rather than opened; rendered under "Notes:" |
+| `checkOutput` | what each failing pre-version check printed, rendered after the plan; not covered by the digest, since output varies between runs |
 | `digest` | the confirmation token |
 
 Every fact in a plan comes from read-only primitives: branch selection, `git rev-parse` for
@@ -105,18 +106,56 @@ it by its pattern — `release-X.Y.Z-into-main-<unix-timestamp>` — and puts th
 branch's head commit in a mutation summary, so a push to either side of the merge
 invalidates the digest.
 
-A plan refuses to be built at all when the action cannot happen, rather than describing a
-transition that cannot be made: a version bump refuses when the target branch is not
-holding a release candidate, and cutting a new branch refuses when the base branch has no
-readable, semantic `VERSION`.
+A plan refuses to be built at all when applying it could only fail, rather than
+describing a transition that cannot be made, and an approval cannot get past a refusal. It
+refuses when:
 
-Where the action can happen but a condition changes the outcome, that condition is a
-warning: the resulting tag already exists on origin or locally, a pull request for that
-head/base pair is already open, the branch about to be created already exists, the source
-of a merge is already an ancestor of its base so the merge would be empty, the merge
-conflicts, or `main` holds content that `origin/develop` does not. The comparisons against
-origin use the remote-tracking refs as they currently stand, because planning does not
-fetch; the actions fetch them themselves before applying.
+- a version bump targets a branch that is not holding a release candidate;
+- the base for a new branch has no readable, semantic `VERSION`;
+- the tag to be created already exists on origin;
+- the branch to be created already exists;
+- creating a release candidate while `main` holds content that `origin/develop` does not;
+- the source of a downmerge is already merged into its target.
+
+A tag that exists only locally does not stop a plan: the apply deletes it before tagging,
+since a clone keeps tags that origin has since deleted, such as a reverted version's.
+
+Where the action can happen but a human should weigh a condition first, that condition is
+a warning: a shipped hotfix is missing from the branch, `main` holds commits a release
+does not, the release would conflict when merged into `main`, a pre-version check failed,
+or a check could not run. Facts that shape the plan without putting it at risk, such as a
+pull request being updated rather than opened, are notes. The comparisons against origin
+use the remote-tracking refs as they currently stand, because planning does not fetch; the
+actions fetch them themselves before applying.
+
+### Pre-version checks
+
+A repository can ask for commands to run before a version is cut, in
+`.release-management.json` at its root:
+
+```json
+{
+  "checks": [
+    {
+      "name": "bundle-audit",
+      "run": "bundle exec bundle-audit check --update",
+      "on": ["create_release_candidate", "increment_release_candidate",
+             "release_version", "create_hotfix"],
+      "timeoutSeconds": 300
+    }
+  ]
+}
+```
+
+`on` defaults to all four actions and `timeoutSeconds` to 300. The file is read from the
+commit that will be versioned: `develop`'s head for a release candidate, `main`'s for a
+hotfix, the branch head for an increment or a promotion. Each check runs with bash in a
+temporary detached checkout of that commit, which is removed afterwards, so the working
+directory and its branch are never touched. A check that exits non-zero, runs past its
+timeout, or cannot run at all becomes a warning; the tail of its output follows the plan.
+An invalid configuration is a warning too, never a silent pass. Checks run again when the
+plan is rebuilt to confirm a digest, so a check that starts failing in between makes the
+plan stale.
 
 **Applying requires passing that plan's digest back.** The digest is the first 12 hex
 characters of a SHA-256 over a canonical serialisation of the action, the target branch,
@@ -472,8 +511,8 @@ parent:
   branch's first version and there is nothing to rewind to; reverting would leave the
   branch indistinguishable from its base. The branch is deleted instead.
 
-Every line the plan adds is a note, not a warning: a revert always needs approval, and
-the notes say what it destroys.
+Reverting a final version and abandoning a branch are warnings, since they destroy a
+GitHub release or a branch; the rest of what a revert plan says is notes.
 
 **Refusals.** Each of these aborts rather than warning:
 
@@ -605,8 +644,8 @@ deletes the local branch, and returns the same handoff.
 1. Resolve the release or hotfix branch, by exact version or as the newest one.
 2. Fetch, check out and pull the target and the source.
 3. Merge-branch routes: create the merge branch off the target, merge the source in with
-   `git merge --no-ff`, and push. A source already merged into the target produces no
-   commit, so the action refuses rather than pushing an empty branch.
+   `git merge --no-ff`, and push. A source already merged into the target is refused
+   at planning time, since the merge would produce no commit.
 4. Open or update the pull request into the target.
 5. `hotfix` → `develop` only: close the draft `hotfix/X.Y.Z` → `develop` pull request that
    `create_hotfix` opened, with a comment linking the new one. Failing to close it is

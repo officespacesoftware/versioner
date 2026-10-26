@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { GitFlowManager } from "../lib/git-flow.js";
-import { ReleaseAgent } from "../lib/release-agent.js";
+import { ReleaseAgent, BranchSelectionError } from "../lib/release-agent.js";
 import { ManualDownmergeRequired } from "../lib/manual-downmerge.js";
 
 let repo;
@@ -98,9 +98,17 @@ const planOrHandoff = (building) =>
     throw error;
   });
 
+// A plan that could only fail is refused instead. The refusal comes from the same
+// read-only inspection, so it too must leave the repository untouched.
+const planOrRefusal = (building) =>
+  building.catch((error) => {
+    if (error instanceof BranchSelectionError) return { refused: error.message };
+    throw error;
+  });
+
 const buildEveryPlan = async (agent) => [
-  await agent.planCreateReleaseCandidate("minor"),
-  await agent.planCreateHotfix(),
+  await planOrRefusal(agent.planCreateReleaseCandidate("minor")),
+  await planOrRefusal(agent.planCreateHotfix()),
   await agent.planDownmergeMainToDevelop(),
   await planOrHandoff(agent.planDownmergeReleaseToDevelop()),
   await agent.planDownmergeReleaseToMain(),
@@ -131,17 +139,9 @@ test("every plan is built from the real repository, not from defaults", async ()
     hotfixToMain,
   ] = await buildEveryPlan(makeAgent());
 
-  assert.equal(rc.resultingVersion, "4.125.0-RC.0");
-  assert.match(
-    rc.warnings.join("\n"),
-    /Branch release\/4\.125\.0 already exists/
-  );
-
-  assert.equal(hotfix.resultingVersion, "4.124.1-RC.0");
-  assert.match(
-    hotfix.warnings.join("\n"),
-    /Branch hotfix\/4\.124\.1 already exists/
-  );
+  // main holds content develop does not, and release/4.125.0 already exists.
+  assert.match(rc.refused, /synchronization check/);
+  assert.match(hotfix.refused, /Branch hotfix\/4\.124\.1 already exists/);
 
   assert.equal(mainToDevelop.targetBranch, "develop");
   assert.match(

@@ -235,3 +235,20 @@ test("a failure refreshing the develop PR is reported, not thrown", async () => 
     "completed"
   );
 });
+
+test("a stale local tag of the version is dropped before tagging", async () => {
+  releaseBranchAtRC1();
+  // A clone that saw 1.4.0 before it was reverted keeps the tag after origin
+  // deletes it, and the new tag would then fail to create.
+  git("tag", "1.4.0", "-a", "-m", "Release version 1.4.0", "HEAD~1");
+  const { agent } = makeAgent();
+
+  const result = await agent.executeReleaseWorkflow(repo, undefined, false);
+
+  assert.equal(result.targetVersion.version, "1.4.0");
+  assert.equal(git("rev-parse", "1.4.0^{commit}"), git("rev-parse", "release/1.4.0"));
+  assert.match(
+    execFileSync("git", ["ls-remote", "--tags", origin], { encoding: "utf8" }),
+    /refs\/tags\/1\.4\.0\n/
+  );
+});
