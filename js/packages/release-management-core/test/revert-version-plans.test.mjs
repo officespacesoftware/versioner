@@ -92,7 +92,7 @@ test("a final version rewinds to the release candidate it was promoted from", as
 
   assert.equal(plan.resultingVersion, "1.4.0-RC.7");
   assert.ok(
-    plan.warnings.some((w) => /is a FINAL version/.test(w)),
+    plan.notices.some((w) => /is a FINAL version/.test(w)),
     "reverting a final should be called out"
   );
 });
@@ -135,7 +135,7 @@ test("an RC.0 with no predecessor abandons the branch instead of rewinding it", 
   // No revert commit and no push: there is nothing to rewind to.
   assert.ok(!kinds(plan).some((k) => k.endsWith(":commit")));
   assert.ok(
-    plan.warnings.some((w) => /first version on release\/1\.5\.0/.test(w))
+    plan.notices.some((w) => /first version on release\/1\.5\.0/.test(w))
   );
 });
 
@@ -158,6 +158,24 @@ test("an RC.0 whose parent carries develop's version still abandons", async () =
   assert.equal(plan.resultingVersion, undefined);
   assert.ok(kinds(plan).includes("delete:branch"));
   assert.ok(!kinds(plan).some((k) => k.endsWith(":commit")));
+});
+
+test("an RC above zero rewinds even when its predecessor is already in develop", async () => {
+  // A release candidate's pull request into develop is often merged, which puts the
+  // RC.0 bump in develop's history. That bump is still this branch's own version.
+  const agent = makeAgent(
+    "release/1.5.0",
+    { [HEAD]: "1.5.0-RC.1", [`${HEAD}^`]: "1.5.0-RC.0" },
+    {
+      checkIsAncestor: async (ancestor, descendant) =>
+        ancestor === `${HEAD}^` && descendant === "origin/develop",
+    }
+  );
+
+  const plan = await agent.planRevertVersion();
+
+  assert.equal(plan.resultingVersion, "1.5.0-RC.0");
+  assert.ok(!kinds(plan).includes("delete:branch"));
 });
 
 test("abandoning names a recovery command, since deleting a branch is the least reversible step", async () => {
@@ -288,10 +306,10 @@ test("a missing tag is reported rather than planned as a deletion", async () => 
   const plan = await agent.planRevertVersion();
 
   assert.ok(!kinds(plan).includes("delete:tag"));
-  assert.ok(plan.warnings.some((w) => /No tag 1\.4\.0-RC\.3 exists/.test(w)));
+  assert.ok(plan.notices.some((w) => /No tag 1\.4\.0-RC\.3 exists/.test(w)));
 });
 
-test("every plan warns that deleting a tag does not undo a deployment", async () => {
+test("every plan notes that deleting a tag does not undo a deployment, without blocking", async () => {
   const agent = makeAgent("release/1.4.0", {
     [HEAD]: "1.4.0-RC.3",
     [`${HEAD}^`]: "1.4.0-RC.2",
@@ -300,6 +318,7 @@ test("every plan warns that deleting a tag does not undo a deployment", async ()
   const plan = await agent.planRevertVersion();
 
   assert.ok(
-    plan.warnings.some((w) => /does not undo a build or deployment/.test(w))
+    plan.notices.some((w) => /does not undo a build or deployment/.test(w))
   );
+  assert.deepEqual(plan.warnings, []);
 });

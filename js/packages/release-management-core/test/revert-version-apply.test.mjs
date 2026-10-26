@@ -171,6 +171,26 @@ test("reverting a final version deletes its GitHub release", async () => {
   assert.ok(!remoteTags().includes("refs/tags/1.4.0\n"));
 });
 
+test("a final whose RC was merged into develop rewinds to that RC", async () => {
+  releaseBranchAtRC0();
+  git("checkout", "-q", "develop");
+  git("merge", "-q", "--no-ff", "-m", "Merge release/1.5.0", "release/1.5.0");
+  git("push", "-q", "origin", "develop");
+  git("checkout", "-q", "release/1.5.0");
+  commit("VERSION", version("1.5.0"), "To version 1.5.0");
+  tagVersion("1.5.0");
+  git("push", "-q", "origin", "release/1.5.0", "1.5.0");
+  const { agent } = makeAgent();
+
+  const result = await agent.executeRevertVersionWorkflow(repo, undefined, false);
+
+  assert.equal(result.shape, "revert");
+  assert.equal(result.resultingVersion, "1.5.0-RC.0");
+  assert.ok(remoteHeads().includes("refs/heads/release/1.5.0"));
+  assert.ok(remoteTags().includes("refs/tags/1.5.0-RC.0"));
+  assert.equal(git("show", "HEAD:VERSION").split("\n")[0], "1.5.0-RC.0");
+});
+
 test("abandoning an RC.0 deletes the branch on origin and locally", async () => {
   releaseBranchAtRC0();
   const { agent } = makeAgent({
