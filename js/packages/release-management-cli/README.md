@@ -74,7 +74,7 @@ release-management downmerge hotfix-to-main      [--version <version>]
 | `release-version` | Promotes an RC to a final version, tags it, and creates the GitHub release. |
 | `revert-version` | Undoes the most recent version bump and deletes the tag it created. |
 | `initialize-versioner` | Creates the `VERSION` file and its initial tag. Defaults to `0.1.0-RC.0`. |
-| `downmerge …` | Opens the pull request that carries one branch's changes into another. |
+| `downmerge …` | Opens the pull request that carries one branch's changes into another. Applies immediately; the pull request is the review. |
 
 Where `--version` is omitted, the newest matching branch on the upstream repository is
 selected. `docs/actions.md` records the ordered steps and the exact git objects for each of
@@ -82,8 +82,8 @@ these — see [Related documentation](#related-documentation).
 
 ## Planning before applying
 
-Every mutating command describes what it would do and stops. It applies only when you hand
-back the digest of a plan you have seen.
+Every mutating command except the `downmerge` subcommands describes what it would do and
+stops. It applies only when you hand back the digest of a plan you have seen.
 
 ```sh
 # 1. plan — touches nothing
@@ -119,6 +119,11 @@ cannot be combined with `--yes`; each contradiction is rejected before anything 
 
 Two commands take no plan flags, because they have nothing to plan:
 `list-versions` is read-only, and `initialize-versioner` is purely local and pushes nothing.
+The `downmerge` subcommands apply immediately, because the pull request they open is the
+review. They still refuse a source already merged into the target, and stop on a conflict
+without creating anything. They accept `--confirm` and `--yes` and ignore them, so existing
+scripts keep working, and reject `--plan` rather than apply a downmerge you only meant to
+see. Their output, and their `--json` document, include the plan's `warnings` and `notices`.
 `--dry-run` exists on the five version workflows (`create-rc`, `create-hotfix`,
 `increment-rc`, `release-version`, `revert-version`) but not on the `downmerge`
 subcommands.

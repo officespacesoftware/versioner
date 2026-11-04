@@ -1,12 +1,25 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import {
   DOWNMERGE_ROUTES,
+  ensureGitRepository,
+  ensureNoStagedChanges,
+  ManualDownmergeRequired,
+  renderManualDownmerge,
   type DownmergeResult,
   type DownmergeRoute,
 } from "@officespacesoftware/release-management-core";
 import { emit, writeGithubOutput } from "../output.js";
-import { runPlanAwareCommand } from "../plan.js";
-import { resolveBaseOptions } from "../run.js";
+import {
+  createGitFlowManager,
+  createReleaseAgent,
+  resolveBaseOptions,
+  runCommand,
+} from "../run.js";
+
+type DownmergeOutcome = DownmergeResult & {
+  warnings: string[];
+  notices: string[];
+};
 
 const DESCRIPTIONS: Record<string, string> = {
   "main-to-develop": "PR main → develop via a merge branch",
@@ -20,7 +33,8 @@ export function registerDownmerge(parent: Command): void {
   const dm = parent
     .command("downmerge")
     .description(
-      "Downmerge workflows. A conflicting merge creates nothing and prints the " +
+      "Downmerge workflows. Each applies immediately: the pull request it opens " +
+        "is the review. A conflicting merge creates nothing and prints the " +
         "steps to finish it by hand."
     );
 
@@ -39,9 +53,8 @@ function registerRoute(
     .command(name)
     .description(DESCRIPTIONS[name] ?? name)
     .option("--working-directory <path>", "Repo root (defaults to cwd)")
-    .option("--plan", "Describe the change and exit; touches nothing (the default when no apply flag is given)")
-    .option("--confirm <digest>", "Apply the plan carrying this digest, as printed by --plan")
-    .option("--yes", "Apply without a digest, printing the plan for the record (for automation)");
+    .addOption(new Option("--confirm <digest>").hideHelp())
+    .addOption(new Option("--yes").hideHelp());
   if (route.source !== "main") {
     command.option(
       "--version <version>",
@@ -49,20 +62,32 @@ function registerRoute(
     );
   }
 
+  // --confirm and --yes are accepted and ignored so scripts written for the
+  // plan/confirm protocol keep working. --plan is gone rather than ignored:
+  // ignoring it would apply what the caller asked only to see.
   command.action(async (cmdOpts) => {
     const opts = resolveBaseOptions({ ...parent.opts(), ...cmdOpts });
-    await runPlanAwareCommand({
-      commandName: `downmerge ${name}`,
-      opts,
-      flags: cmdOpts,
-      requiresVersioner: false,
-      buildPlan: (agent) => agent.planDownmerge(route, cmdOpts.version),
-      execute: (_agent, gfm) => gfm.downmerge(route, cmdOpts.version),
-      onExecuted: (result) => {
-        writeDownmergeOutputs(result);
-        emit(result, opts, renderDownmerge);
+    await runCommand<DownmergeOutcome>(
+      async () => {
+        const gfm = createGitFlowManager(opts);
+        await ensureGitRepository(gfm, opts.workingDirectory);
+        await ensureNoStagedChanges(gfm);
+        const agent = await createReleaseAgent(gfm, opts, { initialize: false });
+        const { result, warnings, notices } = await agent.applyDownmerge(
+          route,
+          cmdOpts.version
+        );
+        return { ...result, warnings, notices };
       },
-    });
+      (outcome) => {
+        writeDownmergeOutputs(outcome);
+        emit(outcome, opts, renderDownmerge);
+      },
+      (error) =>
+        error instanceof ManualDownmergeRequired
+          ? renderManualDownmerge(error.handoff)
+          : undefined
+    );
   });
 }
 
@@ -84,14 +109,18 @@ function writeDownmergeOutputs(result: DownmergeResult): void {
   }
 }
 
-function renderDownmerge(r: DownmergeResult): string {
-  switch (r.kind) {
-    case "direct":
-      return `Pull Request: ${r.pullRequestUrl}`;
-    case "merge-branch":
-      return [
-        `Merge branch: ${r.mergeBranchName}`,
-        `Pull Request: ${r.pullRequestUrl}`,
-      ].join("\n");
+function renderDownmerge(r: DownmergeOutcome): string {
+  const lines =
+    r.kind === "merge-branch"
+      ? [`Merge branch: ${r.mergeBranchName}`, `Pull Request: ${r.pullRequestUrl}`]
+      : [`Pull Request: ${r.pullRequestUrl}`];
+  for (const [title, items] of [
+    ["Warnings:", r.warnings],
+    ["Notes:", r.notices],
+  ] as const) {
+    if (items.length > 0) {
+      lines.push("", title, ...items.map((item) => `  - ${item}`));
+    }
   }
+  return lines.join("\n");
 }

@@ -290,3 +290,83 @@ test("planDownmerge dispatches each route to its plan", async () => {
     assert.equal(plan.targetBranch, target);
   }
 });
+
+// A downmerge applies with no digest: the pull request it opens is the review.
+// The plan still runs first, so refusals and conflicts stop it before anything
+// is created.
+const recordingDownmerge = (calls) => ({
+  downmerge: async (route, version) => {
+    calls.push({ route, version });
+    return { kind: "direct", pullRequestUrl: "https://example.test/pull/7" };
+  },
+});
+
+test("a downmerge with no confirm creates the pull request", async () => {
+  const calls = [];
+  const outcome = await makeAgent(recordingDownmerge(calls)).applyDownmerge(
+    { source: "release", target: "develop" },
+    "4.125.0"
+  );
+
+  assert.deepEqual(calls, [
+    { route: { source: "release", target: "develop" }, version: "4.125.0" },
+  ]);
+  assert.deepEqual(outcome, {
+    result: { kind: "direct", pullRequestUrl: "https://example.test/pull/7" },
+    warnings: [],
+    notices: [],
+  });
+});
+
+test("an applied downmerge still reports the plan's notes", async () => {
+  const outcome = await makeAgent({
+    ...recordingDownmerge([]),
+    findOpenPullRequest: async () => ({
+      number: 12,
+      url: "u",
+      title: "t",
+      body: "",
+    }),
+  }).applyDownmerge({ source: "hotfix", target: "main" });
+
+  assert.match(outcome.notices[0], /#12 is already open/);
+});
+
+test("a source already merged is refused before anything is created", async () => {
+  const calls = [];
+  await assert.rejects(
+    makeAgent({
+      ...recordingDownmerge(calls),
+      checkIsAncestor: async () => true,
+    }).applyDownmerge({ source: "main", target: "develop" }),
+    { message: /main is already merged into develop/ }
+  );
+  assert.deepEqual(calls, []);
+});
+
+test("a conflict into main stops for a decision and creates nothing", async () => {
+  const calls = [];
+  const handoff = await handoffOf(
+    makeAgent({
+      ...recordingDownmerge(calls),
+      ...conflicting("VERSION"),
+    }).applyDownmerge({ source: "release", target: "main" })
+  );
+
+  assert.equal(handoff.requiresDecision, true);
+  assert.deepEqual(calls, []);
+});
+
+test("a conflict into develop hands off the manual downmerge and creates nothing", async () => {
+  const calls = [];
+  const handoff = await handoffOf(
+    makeAgent({
+      ...recordingDownmerge(calls),
+      ...conflicting("VERSION"),
+    }).applyDownmerge({ source: "hotfix", target: "develop" })
+  );
+
+  assert.equal(handoff.requiresDecision, false);
+  assert.equal(handoff.resolutionBase, "develop");
+  assert.deepEqual(calls, []);
+});

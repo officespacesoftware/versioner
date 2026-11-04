@@ -5,7 +5,9 @@
  * release management.
  *
  * Mutating actions follow a plan/confirm protocol: called without a confirmation
- * digest they describe the git objects they would create and change nothing.
+ * digest they describe the git objects they would create and change nothing. The
+ * downmerge is the exception: it opens its pull request straight away, because
+ * the pull request is the review.
  */
 
 import { createRequire } from "node:module";
@@ -77,6 +79,14 @@ To apply this one instead, call ${toolName} with:
   confirm: "${error.plan.digest}"`;
 }
 
+/** A titled bullet list followed by a blank line, or nothing when there are no items. */
+function renderBullets(title: string, items: string[]): string {
+  if (items.length === 0) {
+    return "";
+  }
+  return `\n${title}\n${items.map((item) => `  - ${item}`).join("\n")}\n`;
+}
+
 /**
  * Release Management MCP Server
  *
@@ -123,11 +133,11 @@ class ReleaseManagementMCPServer {
   }
 
   /**
-   * A ReleaseAgent for planning a downmerge. Not initialized, because a downmerge
+   * A ReleaseAgent for running a downmerge. Not initialized, because a downmerge
    * reads git and GitHub and never rewrites VERSION; requiring the versioner
-   * library to have loaded would refuse a plan it does not need.
+   * library to have loaded would refuse a downmerge that does not need it.
    */
-  private planningAgent(): ReleaseAgent {
+  private downmergeAgent(): ReleaseAgent {
     return new ReleaseAgent(this.gitFlowManager!, this.boundWorkingDirectory!);
   }
 
@@ -459,14 +469,15 @@ Routes (source → target):
 
 Pull requests into main carry a warning to merge them only after the deploy.
 
-Called WITHOUT 'confirm', this changes nothing. It previews the merge with git
-merge-tree, which touches neither the index nor the working tree.
-- Clean merge: returns a plan listing what it would create, plus a digest. Pass
-  that digest back as 'confirm', with the same source, target and version, to
-  apply. If either branch moved in between, the digest no longer matches and it
-  refuses, returning a fresh plan.
-- Conflicting merge: returns a handoff instead of a plan, and creates nothing.
-  The tools never push a conflicted merge.
+This applies immediately, with no plan to confirm: the pull request it opens is
+the review, and closing it unmerged rejects the downmerge. Before creating
+anything it previews the merge with git merge-tree, which touches neither the
+index nor the working tree.
+- Clean merge: creates the merge branch where the route uses one, opens or
+  updates the pull request, and returns its URL with any warnings and notes.
+- Source already merged into the target: refuses and creates nothing.
+- Conflicting merge: returns a handoff instead, and creates nothing. The tools
+  never push a conflicted merge.
   - Into develop, "Manual downmerge needed": the conflicted files and the steps
     to resolve them on a branch off develop and open the pull request, following
     docs/manual-downmerge.md in the versioner repository.
@@ -485,16 +496,6 @@ merge-tree, which touches neither the index nor the working tree.
                   type: "string",
                   enum: ["develop", "main"],
                   description: "The branch it is merged into.",
-                },
-                confirm: {
-                  type: "string",
-                  description:
-                    "Digest of the plan you are approving, taken from a previous call made without this parameter. " +
-                    "Omit to receive a plan without changing anything. " +
-                    "This value must be entered by a human user. An agent must not carry a digest straight from a " +
-                    "plan call into an apply call: present the plan, end the turn, and let a human send the digest " +
-                    "back. The round trip is the approval — it is what makes the digest a gate and not just a " +
-                    "staleness check.",
                 },
                 version: {
                   type: "string",
@@ -827,57 +828,38 @@ ${candidates.length} release candidate(s) available.
   private async handleDownmerge(args: any): Promise<string> {
     const version: string | undefined = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
-    const confirm: string | undefined = args?.confirm;
 
     try {
       const route = parseDownmergeRoute(args?.source, args?.target);
-      const toolCall = `downmerge (source: "${route.source}", target: "${route.target}"${
-        version ? `, version: "${version}"` : ""
-      })`;
 
-      try {
-        await this.bindWorkingDirectory(workingDirectory);
+      await this.bindWorkingDirectory(workingDirectory);
 
-        const isGitRepo = await this.gitFlowManager!.isGitRepository();
-        if (!isGitRepo) {
-          throw new Error(
-            `Directory '${workingDirectory}' is not a Git repository`
-          );
-        }
+      const isGitRepo = await this.gitFlowManager!.isGitRepository();
+      if (!isGitRepo) {
+        throw new Error(`Directory '${workingDirectory}' is not a Git repository`);
+      }
 
-        await this.gitFlowManager!.validateNoStagedChanges();
+      await this.gitFlowManager!.validateNoStagedChanges();
 
-        // Without a confirmation digest, describe the change and stop.
-        const plan = await this.planningAgent().planDownmerge(route, version);
-        if (!confirm) {
-          return renderPlanForApproval(plan, toolCall);
-        }
-        assertPlanIsCurrent(plan, confirm);
+      const { result, warnings, notices } =
+        await this.downmergeAgent().applyDownmerge(route, version);
 
-        const result = await this.gitFlowManager!.downmerge(route, version);
-
-        const nextSteps =
-          route.target === "main"
-            ? `📋 Next Steps:
-1. Review the pull request
+      const nextSteps =
+        route.target === "main"
+          ? `📋 Next Steps:
+1. Review the pull request, or close it to reject the downmerge
 2. Merge it only after the ${route.source} has been deployed to production`
-            : `📋 Next Steps:
-1. Review the pull request and CI checks
+          : `📋 Next Steps:
+1. Review the pull request and CI checks, or close it to reject the downmerge
 2. Merge once green`;
 
-        return `🚀 Downmerge ${route.source} → ${route.target} completed
+      return `🚀 Downmerge ${route.source} → ${route.target} completed
 
 📁 Working Directory: ${workingDirectory}
 
 ${this.formatDownmergeResult(result)}
-
+${renderBullets("⚠️  Warnings:", warnings)}${renderBullets("📝 Notes:", notices)}
 ${nextSteps}`;
-      } catch (error) {
-        if (error instanceof StalePlanError) {
-          return renderStalePlan(error, toolCall);
-        }
-        throw error;
-      }
     } catch (error) {
       if (error instanceof ManualDownmergeRequired) {
         return `⚠️  ${renderManualDownmerge(error.handoff)}`;
@@ -916,7 +898,8 @@ Common issues:
       timestamp: new Date().toISOString(),
       capabilities: [
         "Plan/confirm protocol: mutating tools describe their git objects and " +
-          "change nothing until a plan digest is confirmed",
+          "change nothing until a plan digest is confirmed; downmerges apply " +
+          "immediately, because the pull request is the review",
         "Release candidate creation off develop (major, minor or patch)",
         "Hotfix creation off the production branch",
         "Release candidate increment and promotion to a final version",
