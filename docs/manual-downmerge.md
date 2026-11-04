@@ -50,7 +50,8 @@ source are on different version lines, so this conflict is expected after every 
 and never means the merge is wrong.
 
 **Hotfix source.** `create_hotfix` opened a draft `hotfix/X.Y.Z` → `develop` pull
-request as a reminder. Close it with a comment linking the new pull request, so `develop`
+request as a reminder, and `release_version` rewrote it (or opened a non-draft one if the
+draft had been closed). Close it with a comment linking the new pull request, so `develop`
 has one open pull request for the hotfix.
 
 **Release source.** The `release/X.Y.Z` → `develop` pull request that `release_version`
@@ -83,8 +84,11 @@ The handoff starts with "Decision needed". Post it and stop. A human picks one o
    runs. This is drift, and only a human accepts it.
 
 The way to never reach this point is to downmerge every hotfix into the release in
-flight. `create_release_candidate`, `increment_release_candidate` and `release_version`
-warn when a hotfix that is already in `main` is missing from the branch they act on.
+flight. There is no downmerge route into a release branch: open a pull request from the
+hotfix branch into the release branch by hand, then cut a new release candidate.
+`create_release_candidate` warns when a hotfix that is already in `main` is missing from
+`develop`, and `increment_release_candidate` and `release_version` warn when one is missing
+from the release branch they act on (W1 in [messages.md](messages.md#plan-warnings)).
 
 ## Reporting back
 

@@ -156,7 +156,8 @@ the JS `options` module.
 a token in this order and uses the first non-empty result:
 
 1. `GH_TOKEN` environment variable
-2. `GITHUB_TOKEN` environment variable
+2. `GITHUB_TOKEN` environment variable, consulted only when `GH_TOKEN` is unset (an empty
+   `GH_TOKEN` skips both)
 3. the output of `gh auth token`
 4. `~/.config/gh/hosts.yml` → `github.com.oauth_token`
 
@@ -184,6 +185,11 @@ sequenceDiagram
 
   Op->>FE: release version
   FE->>GFM: is git repo? no staged changes?
+  FE->>RA: planReleaseVersion
+  RA-->>FE: plan and digest
+  FE-->>Op: plan, nothing changed
+  Op->>FE: release version, confirm digest
+  FE->>RA: planReleaseVersion again, compare digests
   FE->>RA: executeReleaseWorkflow
   RA->>GFM: select target release/hotfix branch
   RA->>GFM: checkout + pull branch
@@ -193,11 +199,14 @@ sequenceDiagram
   RA->>GFM: push tag
   RA->>GH: open or update PR to main
   RA->>GH: create GitHub release with generated notes
+  RA->>GH: open or update PR to develop
+  RA->>GH: any open PR from the branch? if none, run the pipeline trigger
   RA-->>FE: workflow context
   FE-->>Op: version, PR url, release url
 ```
 
-`docs/actions.md` records the ordered steps and the exact git objects for every action.
+[actions.md](actions.md) records the ordered steps and the exact git objects for every action, and
+[docs/README.md](README.md) indexes the rest of the reference.
 
 ## Build and test topology
 

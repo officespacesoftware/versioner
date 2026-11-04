@@ -10,7 +10,11 @@ CLI and an MCP server.
 | Documentation | |
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Components, dependency direction, layers, `VERSION` contract, GitHub token resolution |
-| [docs/actions.md](docs/actions.md) | Every action, its ordered steps, and the exact git objects it creates |
+| [docs/README.md](docs/README.md) | Index of the release-management reference, and the checklist for keeping it accurate |
+| [docs/actions.md](docs/actions.md) | Every action: inputs, steps in order, git and GitHub effects, decision tables, partial-failure recovery |
+| [docs/messages.md](docs/messages.md) | Every refusal, warning, note, handoff and pipeline message, with its exact text and condition |
+| [docs/flows.md](docs/flows.md) | Diagrams of the release and hotfix lifecycles, plan/confirm, downmerge and revert decisions |
+| [docs/configuration.md](docs/configuration.md) | `.release-management.json`, GitHub token resolution, environment variables |
 | [docs/manual-downmerge.md](docs/manual-downmerge.md) | How to finish a downmerge by hand when the merge conflicts |
 | [js/README.md](js/README.md) | The JavaScript workspace: packages, registry, workspace commands, publishing |
 | [js/packages/versioner/README.md](js/packages/versioner/README.md) | The `@officespacesoftware/versioner` CLI and library |
@@ -29,7 +33,8 @@ js/                                      pnpm workspace
   packages/release-management-core       @officespacesoftware/release-management-core
   packages/release-management-cli        @officespacesoftware/release-management-cli
   packages/release-management-mcp        @officespacesoftware/release-management-mcp
-docs/                                    architecture.md, actions.md, manual-downmerge.md
+docs/                                    README.md (index), actions.md, messages.md, flows.md,
+                                         configuration.md, manual-downmerge.md, architecture.md
 ```
 
 ## The VERSION file

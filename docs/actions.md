@@ -1,36 +1,72 @@
 # Actions
 
-Every action the release-management stack exposes, what it does, and exactly which git
-objects and remote effects it produces.
+Every action the release-management stack exposes: its inputs, how it picks the branch it
+acts on, whether it waits for a confirmation, the exact git and GitHub effects in order,
+every message it can show, and what is left behind when a step fails.
 
-Each action is reachable two ways with the same underlying implementation in
+Each action is reachable two ways, over one implementation in
 `@officespacesoftware/release-management-core`:
 
-- as an MCP tool from `js/packages/release-management-mcp/src/index.ts`
-- as a CLI subcommand from `js/packages/release-management-cli/src/cli.ts`
+- as an MCP tool, from `js/packages/release-management-mcp/src/index.ts`;
+- as a CLI subcommand, from `js/packages/release-management-cli/src/cli.ts`.
 
-`health_check` exists only as an MCP tool. Everything else has both surfaces.
+`health_check` exists only as an MCP tool.
+
+Related documents: [messages.md](messages.md) catalogues every message by ID (G1, P2, W3…,
+used below); [flows.md](flows.md) has the lifecycle diagrams;
+[configuration.md](configuration.md) covers `.release-management.json`, tokens and
+environment variables; [manual-downmerge.md](manual-downmerge.md) is the procedure behind
+a conflicting downmerge.
 
 ## Summary
 
-| Action | MCP tool | CLI command | Mutates? | Creates |
+| Action | MCP tool | CLI command | Mode | Creates or changes |
 | --- | --- | --- | --- | --- |
-| Health check | `health_check` | — | No | Nothing |
-| List versions | `list_versions` | `list-versions` | No | Nothing |
-| Create release candidate | `create_release_candidate` | `create-rc` | Yes | Branch, commit, annotated tag, 2 pushes, PR → `develop` |
-| Create hotfix | `create_hotfix` | `create-hotfix` | Yes | Branch, commit, annotated tag, 2 pushes, PR → `main` |
-| Increment release candidate | `increment_release_candidate` | `increment-rc` | Yes | Commit, annotated tag, 2 pushes, PR → the branch's own base |
-| Release version | `release_version` | `release-version` | Yes | Commit, annotated tag, 2 pushes, PR → `main`, GitHub release |
-| Revert version | `revert_version` | `revert-version` | Yes | Revert commit, 1 push, PR update — **deletes** the tag locally and on origin, the GitHub release for a final version, and the branch when abandoning |
-| Initialize versioner | `initialize_versioner` | `initialize-versioner` | Yes (local only) | `VERSION` file, commit, annotated tag |
-| Downmerge | `downmerge` | `downmerge <source>-to-<target>` | Yes | Clean merge: PR → the target, through a merge branch on three of the five routes. Conflicting merge: nothing; returns a [manual downmerge](manual-downmerge.md) handoff |
-
-Read-only actions are `health_check` and `list_versions`.
+| Health check | `health_check` | — | read-only | Nothing |
+| List versions | `list_versions` | `list-versions` | read-only | Nothing |
+| Create release candidate | `create_release_candidate` | `create-rc` | plan → confirm | Branch `release/X.Y.Z`, commit, tag `X.Y.Z-RC.0`, two pushes, PR → `develop` |
+| Create hotfix | `create_hotfix` | `create-hotfix` | plan → confirm | Branch `hotfix/X.Y.Z`, commit, tag `X.Y.Z-RC.0`, two pushes, PR → `main`, draft PR → `develop` |
+| Increment release candidate | `increment_release_candidate` | `increment-rc` | plan → confirm | Commit, tag `X.Y.Z-RC.n`, two pushes, PR → the branch's base |
+| Release version | `release_version` | `release-version` | plan → confirm | Commit, tag `X.Y.Z`, two pushes, PR → `main`, GitHub release, PR → `develop` |
+| Revert version | `revert_version` | `revert-version` | plan → confirm | Revert: revert commit, push, tag deleted, GitHub release deleted for a final, PR updated. Abandon: tag deleted, PR closed, branch deleted |
+| Initialize versioner | `initialize_versioner` | `initialize-versioner` | immediate, local only | `VERSION` file, commit, tag |
+| Downmerge | `downmerge` | `downmerge <source>-to-<target>` | immediate; the PR is the review | Clean: a PR into the target, through a merge branch on three of the five routes. Conflicting: nothing; a [handoff](#downmerge-conflicts) |
 
 ## Conventions shared by every action
 
-**Version commits and tags.** Whenever a version changes, the mutation happens inside
-`@officespacesoftware/versioner`, whose `performGitOperations` runs exactly three commands:
+### Preconditions
+
+Checked before anything else, in this order.
+
+| Check | Message | `list_versions` | `initialize_versioner` | `downmerge` | `revert_version` | the other four |
+| --- | --- | --- | --- | --- | --- | --- |
+| Working directory is a git repository | G1 | yes | yes | yes | yes | yes |
+| Nothing is staged | G2 | — | yes | yes | yes | yes |
+| Versioner library available | G4, G5 | — | — (loads it to run) | — | CLI only | yes |
+
+Unstaged and untracked changes are not refused by these checks. Actions that check out
+other branches carry tracked modifications along or fail on them in git; the
+`release` → `develop` downmerge refuses them explicitly (A29). Start from a clean working
+tree.
+
+### Remote state
+
+Plans never fetch. They read commits and `VERSION` files from the remote-tracking refs
+(`origin/<branch>`) as they stand in the clone, ask origin live only which branch names
+and tags exist (`git ls-remote`), and ask GitHub about pull requests and releases. Applies then fetch or pull before changing anything. So:
+
+- **Fetch before planning** (`git fetch origin`). A plan built on stale refs can be
+  approved, and the apply then acts on the newer state it pulls. For example, the version
+  `create_release_candidate` computes comes from the `develop` it pulls, not from the one
+  the plan read.
+- **A local branch ahead of origin is not covered by the digest.** If an earlier apply
+  committed but failed to push, the next plan reads origin's version and the apply
+  builds on the local commit, skipping a version. See each action's *Partial failure and
+  recovery*.
+
+### Version commits and tags
+
+Every version change goes through `@officespacesoftware/versioner`, which runs exactly:
 
 | Command | Form |
 | --- | --- |
@@ -38,637 +74,696 @@ Read-only actions are `health_check` and `list_versions`.
 | Commit | `git commit -m "To version <version>"` |
 | Tag | `git tag "<version>" -a -m "Release version <version>"` |
 
-Tags are therefore always annotated, named for the version with no prefix, and carry the
-message `Release version <version>`.
+Tags are annotated, named for the bare version, with the message `Release version
+<version>`. Before tagging, `create_release_candidate`, `create_hotfix`,
+`increment_release_candidate` and `release_version` delete a local tag of the same name
+that origin does not have (a clone keeps tags that origin has since deleted, such as a
+reverted version's).
 
-**Pull request bodies** are wrapped in watermarks:
+### Pull requests
 
+`createPullRequest` posts to the GitHub REST API with `draft: false`, except for the
+tracking pull request `create_hotfix` opens. When GitHub answers 422 "A pull request
+already exists" it finds the open pull request for that exact head/base pair and updates
+its **title and the watermarked part of its body** only; base and draft state are
+unchanged. The result then says `updated` instead of `created`.
+
+Generated bodies sit between `<!-- RELEASE-MANAGEMENT-MCP:START -->` and
+`<!-- RELEASE-MANAGEMENT-MCP:END -->`. Text outside the markers survives updates. A body
+without the markers gets a new marked block appended. Every body ends with the
+`🤖 Auto-generated by …` footer, and every body for a pull request into `main` carries the
+production warning, except a reverted hotfix's:
+
+```markdown
+> [!WARNING]
+> This PR must be merged **after** the <release|hotfix> has been deployed to production.
 ```
-<!-- RELEASE-MANAGEMENT-MCP:START -->
-…body…
-<!-- RELEASE-MANAGEMENT-MCP:END -->
-```
 
-`createPullRequest` posts to the GitHub REST API. When GitHub answers `422` with
-"A pull request already exists", it looks up the open PR for that exact head/base pair and
-updates its title and the watermarked region of its body instead, reporting the action as
-`updated` rather than `created`. If no watermarks are present in the existing body, the
-new content is appended.
+Several actions write the same head/base pair, so one pull request is opened once and
+then retitled as the branch moves on:
 
-**Preconditions.** Every mutating action first checks that the working directory is a git
-repository and that nothing is staged; a staged file aborts the action. The four version
-workflows additionally require the versioner library to have loaded (`revert_version` uses
-git alone, so it does not). `list_versions`
-checks only that the directory is a git repository, because it never mutates.
+| Head → base | Opened by | Then updated by | Closed by | Titles | Draft |
+| --- | --- | --- | --- | --- | --- |
+| `release/X.Y.Z` → `develop` | `create_release_candidate` | `increment_release_candidate`, `release_version` (step 10), the `release` → `develop` downmerge, `revert_version` (revert shape). All but the revert open it when none is open | `revert_version` (abandon), with a comment | `RC X.Y.Z-RC.n to develop`, then `Release X.Y.Z to develop` | no |
+| `release/X.Y.Z` → `main` | `release_version` (step 7) | — | GitHub, once its head reaches `main` through the `release` → `main` downmerge | `Release X.Y.Z to main` | no |
+| `hotfix/X.Y.Z` → `main` | `create_hotfix` | `increment_release_candidate`, `release_version` (step 7), the `hotfix` → `main` downmerge, `revert_version` (revert shape). All but the revert open it when none is open | `revert_version` (abandon), with a comment | `RC X.Y.Z-RC.n to main`, then `Release X.Y.Z to main` | no |
+| `hotfix/X.Y.Z` → `develop` | `create_hotfix` (as a draft) | `release_version` (step 10), which opens it, not as a draft, when none is open | the `hotfix` → `develop` downmerge, with a comment | `Hotfix X.Y.Z to develop` | yes when `create_hotfix` opens it |
+| `main-into-develop-<ts>` → `develop` | `main` → `develop` downmerge | — | — | `Release <v> to develop`, or `Downmerge main into develop` | no |
+| `release-X.Y.Z-into-main-<ts>` → `main` | `release` → `main` downmerge | — | — | `Release X.Y.Z to main` | no |
+| `hotfix-X.Y.Z-into-develop-<ts>` → `develop` | `hotfix` → `develop` downmerge | — | — | `Hotfix X.Y.Z to develop` | no |
 
-**`dryRun`.** The five version workflows, `revert_version` included, accept a dry-run flag: read-only validation still
-runs and the mutating steps are skipped. The downmerge has no such flag and no plan
-step: it applies immediately, because the pull request it opens is the review.
-`initialize_versioner` has neither, because everything it creates is local.
+`<ts>` is a Unix timestamp in seconds, so every merge-branch downmerge opens a new pull
+request.
 
-**Working directory.** Every action except `health_check` accepts a working directory and
-defaults to the process's current directory.
+### Where each action leaves the working tree
 
-**Git timeouts.** Commands that talk to origin (`fetch`, `push`, `pull`, `clone`,
-`ls-remote`, `remote`, `submodule`) time out after 300 s; all other git commands after
-30 s.
+| Action | Checked out afterwards |
+| --- | --- |
+| `create_release_candidate` | `release/X.Y.Z` |
+| `create_hotfix` | `hotfix/X.Y.Z` |
+| `increment_release_candidate`, `release_version` | the target branch |
+| `revert_version` | the branch (revert shape), or its base (abandon shape) |
+| `downmerge` `main` → `develop`, `release` → `main`, `hotfix` → `develop` | the merge branch |
+| `downmerge` `release` → `develop` | `develop` |
+| `downmerge` `hotfix` → `main` | unchanged |
+| `initialize_versioner`, `list_versions`, `health_check`, any plan | unchanged |
+
+### Git timeouts
+
+`fetch`, `push`, `pull`, `clone`, `ls-remote`, `remote` and `submodule` time out after
+300 s; creating the temporary checkout for checks and the pipeline trigger after 300 s;
+every other git command after 30 s. A timeout reports G12: the command may have partly
+completed.
+
+---
 
 ## The plan/confirm protocol
 
-Every mutating action except `initialize_versioner` and `downmerge` is two-phase.
-`initialize_versioner` is purely local. A downmerge only opens a pull request, which a
-human reviews and can close unmerged, so it applies on the first call; see
-[`downmerge`](#downmerge).
+`create_release_candidate`, `create_hotfix`, `increment_release_candidate`,
+`release_version` and `revert_version` are two-phase. `downmerge` applies immediately,
+because the pull request it opens is the review: closing it unmerged rejects the
+downmerge. `initialize_versioner` applies immediately because everything it creates is
+local. The diagram is in [flows.md](flows.md#plan-and-confirm).
 
-**Calling one without a confirmation digest returns a plan and changes nothing.** A plan
-(`ChangePlan` in `js/packages/release-management-core/src/change-plan.ts`) states:
+1. **Called without a confirmation, the action returns a plan and changes nothing.**
+   Building it runs the preconditions, branch selection, every refusal, the read-only
+   checks behind the warnings and notes, and the configured pre-version checks.
+2. **A human approves by handing the plan's digest back**, as `confirm` (MCP) or
+   `--confirm <digest>` (CLI). The MCP tool descriptions require the round trip: an agent
+   must present the plan, end its turn, and let a person send the digest.
+3. **The action rebuilds the plan and compares digests.** If they differ it refuses with
+   D1 and returns the fresh plan and its digest; nothing is changed. If they match, it
+   applies. Refusals are re-evaluated at this point, and the pre-version checks run again.
+
+A plan (`ChangePlan` in `js/packages/release-management-core/src/change-plan.ts`) holds:
 
 | Field | Meaning |
 | --- | --- |
-| `action` | the action being planned |
-| `targetBranch` | the branch the plan is anchored to: the one being modified, or the base a new branch is cut from |
-| `targetBranchHead` | that branch's HEAD commit when the plan was computed |
-| `currentVersion` → `resultingVersion` | the version transition, absent for the downmerges, which create no version commit |
-| `mutations` | the ordered list of objects the action would touch, each with a kind (`branch`, `commit`, `tag`, `push`, `pull-request`, `github-release`), an `operation` of `create` or `delete` (absent means `create`), and a one-line summary. `renderChangePlan` groups them under "Would create:" and "Would delete:" |
-| `warnings` | conditions a human should weigh before approving; a plan with warnings is still applied when its digest is confirmed |
-| `notices` | facts that shape the plan without putting the outcome at risk, such as a pull request being updated rather than opened; rendered under "Notes:" |
-| `checkOutput` | what each failing pre-version check printed, rendered after the plan; not covered by the digest, since output varies between runs |
-| `pipelineTrigger` | set when the apply is expected to start the repository's pipeline because the branch will have no open pull request; rendered under "Pipeline:" and not covered by the digest (see [Pipeline trigger](#pipeline-trigger)) |
-| `digest` | the confirmation token |
+| `action` | The action, or `downmerge <source> → <target>` |
+| `targetBranch`, `targetBranchHead` | The branch the plan is anchored to and its head commit: the branch modified, the base a new branch is cut from, or the downmerge target |
+| `currentVersion` → `resultingVersion` | The version transition. Absent for downmerges; `resultingVersion` is absent for an abandon |
+| `mutations` | Ordered. Each has a kind (`branch`, `commit`, `tag`, `push`, `pull-request`, `github-release`), an operation (`create`, or `delete`), a one-line summary, and optional detail lines |
+| `warnings` | Conditions to weigh before approving (W1–W13). A confirmed plan with warnings is applied |
+| `notices` | Facts that shape the plan without risk (N1–N4), rendered as "Notes:" |
+| `checkOutput` | The tail of each failing pre-version check's output |
+| `pipelineTrigger` | T1, when the apply is expected to start the pipeline |
+| `digest` | The confirmation token |
 
-Every fact in a plan comes from read-only primitives: branch selection, `git rev-parse` for
-the head commit, `git show <commit>:VERSION` for a branch's version, `git tag --list` and
-`git ls-remote --tags` for tag existence, `git merge-base --is-ancestor` for whether a
-merge would be empty, and a pull-request lookup for whether a PR would be updated rather
-than opened. Where a plan needs to predict a merge, it uses `git merge-tree --write-tree`,
-which merges in memory and writes only to the object database — no checkout, no index
-change, no working-tree change. Rendering a plan ends with the line
-`Nothing has been changed. To apply, confirm with digest: <digest>`.
-
-A merge branch carries a Unix timestamp the plan cannot predict, so a downmerge plan names
-it by its pattern — `release-X.Y.Z-into-main-<unix-timestamp>` — and puts the source
-branch's head commit in a mutation summary, so a push to either side of the merge
-invalidates the digest.
-
-A plan refuses to be built at all when applying it could only fail, rather than
-describing a transition that cannot be made, and an approval cannot get past a refusal. It
-refuses when:
-
-- a version bump targets a branch that is not holding a release candidate;
-- the base for a new branch has no readable, semantic `VERSION`;
-- the tag to be created already exists on origin;
-- the branch to be created already exists;
-- creating a release candidate while `main` holds content that `origin/develop` does not;
-- the source of a downmerge is already merged into its target.
-
-A tag that exists only locally does not stop a plan: the apply deletes it before tagging,
-since a clone keeps tags that origin has since deleted, such as a reverted version's.
-
-Where the action can happen but a human should weigh a condition first, that condition is
-a warning: a shipped hotfix is missing from the branch, `main` holds commits a release
-does not, the release would conflict when merged into `main`, a pre-version check failed,
-or a check could not run. Facts that shape the plan without putting it at risk, such as a
-pull request being updated rather than opened, are notes. The comparisons against origin
-use the remote-tracking refs as they currently stand, because planning does not fetch; the
-actions fetch them themselves before applying.
-
-### Pre-version checks
-
-A repository can ask for commands to run before a version is cut, in
-`.release-management.json` at its root:
-
-```json
-{
-  "checks": [
-    {
-      "name": "bundle-audit",
-      "run": "bundle exec bundle-audit check --update",
-      "on": ["create_release_candidate", "increment_release_candidate",
-             "release_version", "create_hotfix"],
-      "timeoutSeconds": 300
-    }
-  ]
-}
-```
-
-`on` defaults to all four actions and `timeoutSeconds` to 300. The file is read from the
-commit that will be versioned: `develop`'s head for a release candidate, `main`'s for a
-hotfix, the branch head for an increment or a promotion. Each check runs with bash in a
-temporary detached checkout of that commit, which is removed afterwards, so the working
-directory and its branch are never touched. A check that exits non-zero, runs past its
-timeout, or cannot run at all becomes a warning; the tail of its output follows the plan.
-An invalid configuration is a warning too, never a silent pass. Checks run again when the
-plan is rebuilt to confirm a digest, so a check that starts failing in between makes the
-plan stale.
-
-**Applying requires passing that plan's digest back.** The digest is the first 12 hex
-characters of a SHA-256 over a canonical serialisation of the action, the target branch,
-that branch's HEAD commit, the version transition, and the ordered mutations and warnings.
-Because the HEAD commit is covered, any push to the target branch invalidates the digest;
-because the warnings are covered, so does a tag appearing on origin or a pull request being
-opened in the meantime.
-
-**A stale digest refuses and returns a fresh plan.** On mismatch, `assertPlanIsCurrent`
-raises `StalePlanError`, which carries the newly computed plan alongside the digest that
-was offered, so the operator can see what moved and confirm again.
-
-The CLI surface of the protocol is:
-
-- `--plan` — print the plan and write `plan_digest` to `$GITHUB_OUTPUT`; change nothing.
-  This is also what happens when no apply flag is given at all, so the default can never
-  mutate the repository.
-- `--confirm <digest>` — apply, provided the digest still matches.
-- `--yes` — apply directly, for automation that cannot round-trip a digest; the plan is
-  still emitted as a record of intent.
-
-The three are mutually exclusive: combining `--plan` with either apply flag, or `--confirm`
-with `--yes`, is a usage error resolved before anything touches git.
-
-Read-only actions need no confirmation: they have nothing to plan.
-
-The mutation tables in the sections below describe what an apply produces.
-
-### Pipeline trigger
-
-Some CI setups build a branch only while it has an open pull request. Every versioning
-action opens one on the branch it pushes, but once that pull request is merged or closed a
-later push to the branch builds nothing. A repository can name a command that starts its
-pipeline, in the same `.release-management.json`:
-
-```json
-{
-  "pipeline": {
-    "trigger": "scripts/start-pipeline.sh",
-    "timeoutSeconds": 120
-  }
-}
-```
-
-`timeoutSeconds` defaults to 120. Without a `pipeline` section nothing changes.
-
-**When it runs.** After `create_release_candidate`, `increment_release_candidate`,
-`release_version`, `create_hotfix`, or a `revert_version` that rewinds a branch have
-pushed and finished their pull-request steps, the action asks GitHub whether the pushed
-branch is the head of any open pull request, against any base. Only when it is not does
-the trigger run. A branch with an open pull request is left alone: its pull request's own
-build runs on the push, and starting another pipeline would cancel it. A
-`revert_version` that abandons a branch deletes it, so there is nothing to build;
-downmerges always open a pull request, so they never trigger.
-
-**How it runs.** The configuration is read from the commit that was just pushed, and the
-command runs with bash in a temporary detached checkout of that commit, removed
-afterwards. It inherits the environment of the process running the action, so CI tokens
-such as `CIRCLECI_TOKEN` reach it, plus:
-
-| Variable | Value |
-| --- | --- |
-| `RELEASE_BRANCH` | the pushed branch, such as `release/1.4.0` |
-| `RELEASE_VERSION` | the version the branch now holds, such as `1.4.0-RC.3` |
-| `RELEASE_ACTION` | the action that pushed it, such as `increment_release_candidate` |
-
-The tail of what the command prints is reported in the result, so it must not print
-credentials.
-
-**What it reports.** The apply result carries `pipelineTrigger`, with a `status` and a
-`message` (`pipeline_trigger` in the CLI's `$GITHUB_OUTPUT` holds the status), plus the
-tail of the command's output when it printed anything:
-
-| Status | Message |
-| --- | --- |
-| `started` | `Started the pipeline for <branch>: it has no open pull request.` |
-| `skipped` | `Did not start the pipeline for <branch>: PR #<n> is open, so its own build runs on the push.` |
-| `failed` | the command exited non-zero, ran past its timeout, could not run, the configuration is invalid, or the pull-request lookup failed; the message says to start the build by hand |
-
-A failure is a warning, never a rollback: the version is already on origin. An invalid
-`pipeline` section on a branch with an open pull request reports nothing at apply time,
-since nothing would have run.
-
-**In plans.** A plan for one of those actions warns when the `pipeline` section is
-invalid. When it expects the branch to have no open pull request after the apply, it sets
-`pipelineTrigger`, rendered as:
+Rendered, a plan reads:
 
 ```text
-Pipeline:
-  - Would start the pipeline for release/1.4.0: it has no open pull request. Checked again after the push.
+Action:  increment_release_candidate
+Branch:  release/1.4.0 (at 3f2a1b0c9d8)
+Version: 1.4.0-RC.1 → 1.4.0-RC.2
+
+Would create:
+  Commit: "To version 1.4.0-RC.2" on release/1.4.0
+      files: VERSION
+  Tag: annotated tag 1.4.0-RC.2
+      message: Release version 1.4.0-RC.2
+  Push: release/1.4.0 and tag 1.4.0-RC.2 to origin
+  Pull request: update PR #41 (release/1.4.0 → develop)
+
+Notes:
+  - PR #41 is already open for release/1.4.0 → develop; it will be updated, not created.
+
+Nothing has been changed. To apply, confirm with digest: 9c1e0d2b7a44
 ```
 
-Every action except a rewinding `revert_version` opens or updates a pull request on the
-branch, so in practice only those revert plans show the line; for the others the trigger
-runs only if the pull-request step fails. The line is not covered by the digest, because
-it depends on pull requests to any base, which open and close without the repository
-moving, and the apply checks again after the push regardless. The configuration it is
-read from is covered, through the branch head.
+Deletions are grouped under `Would delete:`. `Warnings:`, `Notes:`, `Pipeline:` and
+`Output of <check>:` blocks follow when present. The MCP server wraps the plan in
+`📋 Plan — nothing has been changed yet` and `To apply, call <tool> again with:
+confirm: "<digest>"`.
 
-**Examples.** A CircleCI pipeline, through its API:
+**CLI.** `--plan` prints the plan and writes `plan_digest` to `$GITHUB_OUTPUT`. Passing no
+apply flag does the same, so the default never mutates. `--confirm <digest>` applies if
+the digest matches. `--yes` applies without a digest, for automation that cannot round-trip
+one, and prints the plan to stderr as a record. Contradictory flags are refused before git
+is touched (U1–U3). A stale digest exits `1` with the new plan.
 
-```bash
-#!/usr/bin/env bash
-# scripts/start-pipeline.sh
-set -euo pipefail
-# The token goes in on stdin, not the command line, where other processes can read it.
-printf 'Circle-Token: %s\n' "$CIRCLECI_TOKEN" |
-  curl --fail-with-body -sS -X POST \
-    "https://circleci.com/api/v2/project/gh/acme/widgets/pipeline" \
-    -H @- -H "Content-Type: application/json" \
-    -d "{\"branch\": \"${RELEASE_BRANCH}\"}"
-```
+### What the digest covers
 
-A GitHub Actions workflow with a `workflow_dispatch` trigger:
+The digest is the first 12 hex characters of a SHA-256 over these lines, in order:
 
-```json
-{
-  "pipeline": {
-    "trigger": "gh workflow run ci.yml --ref \"$RELEASE_BRANCH\""
-  }
-}
-```
+| Covered | Why |
+| --- | --- |
+| `action` | A digest for one action cannot apply another |
+| `targetBranch` and `targetBranchHead` | Any push to the anchor branch invalidates the plan |
+| `currentVersion`, `resultingVersion` (when set) | The transition approved is the one made |
+| each mutation's operation, kind and **summary** | The objects approved. Summaries carry the facts that must invalidate a plan when they move: a downmerge source's head, a reverted commit's sha, a pull request's number, update versus open |
+| each warning | A new risk (a check now failing, a hotfix now shipped) needs a new approval |
+| each notice | Remote facts the head does not capture, such as a pull request opened meanwhile |
+
+A notice and a warning with the same text digest differently.
+
+| Not covered | Why |
+| --- | --- |
+| mutation `detail` lines (pull request titles, tag messages, file lists, recovery commands, release URLs) | Derived from covered facts, or presentation |
+| `checkOutput` | Output carries timings and download progress that differ between two runs of the same check; the warning naming the failure is covered |
+| `pipelineTrigger` | It depends on pull requests to any base, which open and close without the repository moving; the apply checks again after the push regardless. The configuration it reads is covered through the branch head |
+| anything the clone has not fetched | Plans read remote-tracking refs. See [Remote state](#remote-state) |
+| local commits not on origin | Version reads prefer origin; the apply builds on the local branch |
+
+### `dryRun`
+
+`create_release_candidate`, `create_hotfix`, `increment_release_candidate`,
+`release_version` and `revert_version` accept `dryRun` (MCP) or `--dry-run` (CLI). It is
+older than the plan and less reliable; **use the plan instead**. Specifically:
+
+- It only takes effect on an apply: the MCP tool needs `confirm`, the CLI `--confirm` or
+  `--yes`. Without one, a plan is returned and `dryRun` is ignored.
+- It skips checkouts, so the version checks it runs read the `VERSION` of whatever branch
+  is checked out, not the target's. Standing on `develop`, a dry-run increment of
+  `release/1.4.0` fails with A12 although the plan is valid.
+- `create_release_candidate`'s dry run still fetches `main` and `develop` (step 1).
+- It never runs the pipeline trigger. `revert_version`'s dry run does run every guard.
+
+### Pre-version checks and the pipeline trigger
+
+A repository can configure commands in `.release-management.json`: checks that run while a
+plan is built for the four versioning actions, turning failures into warnings W7–W10, and
+a trigger that starts CI after a push when the branch has no open pull request (T1–T10).
+Both are described in [configuration.md](configuration.md).
 
 ---
 
 ## `health_check`
 
-**Purpose.** Confirm the MCP server process is responsive.
+**Purpose.** Confirm the MCP server process is responsive. MCP only.
 
-**Inputs.** None.
+**Inputs.** None. **Mode.** Read-only. It does not read the repository, run git or contact
+GitHub.
 
-**Steps.**
-
-1. Build a status object and return it as pretty-printed JSON.
-
-**Mutations.** None. The action does not read the repository, run git, or contact GitHub.
-
-The response reports the server name `Release Management MCP Server`, a version string, the
-status `healthy`, an ISO timestamp, and a list of capability descriptions.
+**Returns** pretty-printed JSON: `server` (`Release Management MCP Server`), `version` (the
+package version), `build` (`commit` and `time` of the build; a commit suffixed `-dirty`
+was built from an uncommitted tree), `status` (`healthy`), `timestamp` (ISO), and
+`capabilities` (a list of descriptions).
 
 ---
 
 ## `list_versions` — read-only
 
-**Purpose.** Enumerate every release and hotfix branch with the facts needed to choose one
-deliberately, before running an action that mutates.
+**Purpose.** Show every release and hotfix branch with the facts needed to pick one
+deliberately, before a mutating action.
 
 **Inputs.**
 
-| Input | Default |
-| --- | --- |
-| `workingDirectory` / `--working-directory` | current directory |
-| `productionBranch` / `--production-branch` | `main` |
+| MCP | CLI | Default |
+| --- | --- | --- |
+| `workingDirectory` | `--working-directory` | current directory |
+| `productionBranch` | `--production-branch` | `main` |
 
 **Steps.**
 
-1. Read `git status --porcelain -b` for the current branch.
-2. Find every `release/X.Y.Z` and `hotfix/X.Y.Z` branch, locally and on origin
-   (`git ls-remote --heads origin 'refs/heads/release/*'`, likewise for `hotfix/*`),
-   de-duplicated by branch name.
-3. For each branch, read its `VERSION` first line via `git show <branch>:VERSION`.
-4. For each version, check `git tag --list <version>` and
-   `git ls-remote --tags origin refs/tags/<version>`.
-5. For each branch, check `git merge-base --is-ancestor <branch> origin/<productionBranch>`.
-6. Sort with the checked-out branch first, then by version descending, and render.
+1. Read the checked-out branch (`git status --porcelain -b`).
+2. Find every branch named exactly `release/X.Y.Z` or `hotfix/X.Y.Z`, locally and on origin
+   (`git ls-remote --heads origin 'refs/heads/release/*'`, likewise `hotfix/*`),
+   de-duplicated by name.
+3. Per branch: read `VERSION` from `origin/<branch>` first, then the local branch; read the
+   local branch's too, to detect staleness; check the tag locally (`git tag --list`) and
+   on origin (`git ls-remote --tags`); check `git merge-base --is-ancestor
+   <origin/branch, else branch> origin/<productionBranch>`.
+4. Sort: the checked-out branch first, then by version, highest first.
 
-**Mutations.** None. No checkout, no fetch, no commit, no tag, no push, no pull request.
-Steps 2 and 4 read from origin with `ls-remote`, which creates no local refs.
+**Effects.** None: no checkout, fetch, commit, tag, push or pull request.
 
-Each row reports: branch, version, whether the version is an RC or final, whether the tag
-exists remotely / locally only / not at all, whether the branch is already merged into the
-production branch, and which branch is checked out.
+**Each row.** Branch, version (or `no VERSION`), kind (`RC`, `final`, or `unknown` when no
+VERSION is readable on either side), tag (`tag:remote`, `tag:local-only`, `tag:none`),
+merge status (`merged→<productionBranch>` or `unmerged`), and `local-stale` when the local
+branch holds a different VERSION from origin's. The tag column is live; merge status is
+only as fresh as the last fetch.
 
-CLI `$GITHUB_OUTPUT` keys: `current_branch`, `release_candidates`.
+**Messages.** G1, G13. MCP failures are returned as `❌ List Versions Failed`.
+
+**CLI `$GITHUB_OUTPUT`.** `current_branch`, `release_candidates` (comma-separated RC
+versions).
 
 ---
 
 ## `create_release_candidate`
 
-**Purpose.** Cut a new release branch off `develop` and set it to an `RC.0` version.
+**Purpose.** Cut a new release branch off `develop` and set it to `X.Y.Z-RC.0`.
 
 **Inputs.**
 
-| Input | Default |
-| --- | --- |
-| `confirm` / `--confirm` (plan digest) | absent — plan only |
-| `releaseType` / `--release-type` (`major` \| `minor` \| `patch`) | `minor` |
-| `workingDirectory` / `--working-directory` | current directory |
-| `dryRun` / `--dry-run` | `false` |
+| MCP | CLI | Default |
+| --- | --- | --- |
+| `confirm` | `--plan` / `--confirm <digest>` / `--yes` | plan only |
+| `releaseType`: `major`, `minor`, `patch` | `--release-type` | `minor` |
+| `workingDirectory` | `--working-directory` | current directory |
+| `dryRun` | `--dry-run` | `false` (see [dryRun](#dryrun)) |
 
-The plan is anchored on `develop`: its head commit, the `VERSION` read at that commit, the
-release branch and tag that would be created, and the pull request into `develop`.
+**Version.** From `develop`'s `VERSION` `M.m.p`: major → `(M+1).0.0`, minor → `M.(m+1).0`,
+patch → `M.m.(p+1)`. The branch is `release/<that>` and the version `<that>-RC.0`.
 
-**Steps.**
+**Mode.** Plan → confirm.
 
-1. Verify main/develop synchronization: fetch the two base branches
-   (`git fetch origin '+refs/heads/main:refs/remotes/origin/main'
-   '+refs/heads/develop:refs/remotes/origin/develop'`), then accept if `origin/main` is an
-   ancestor of `origin/develop`, or if there are no commits in
-   `origin/develop..origin/main`, or if those commits produce no content diff. Otherwise
-   abort.
-2. Check out `develop` and pull it.
-3. Compute the next base version from `develop`'s `VERSION` and the release type — major
-   `(M+1).0.0`, minor `M.(m+1).0`, patch `M.m.(p+1)` — and create the branch. Aborts if
-   the branch already exists locally or on origin.
-4. Rewrite `VERSION` to the `RC.0` version through the versioner package, which commits and
-   tags.
-5. Push the branch and the tag.
-6. Open or update the pull request to `develop`.
+**Plan.** Anchored on `develop` (`origin/develop` when it exists) and the `VERSION` at that
+commit. Mutations: branch `release/X.Y.Z off develop`; commit `"To version X.Y.Z-RC.0" on
+release/X.Y.Z`; tag `annotated tag X.Y.Z-RC.0`; push `release/X.Y.Z and tag X.Y.Z-RC.0 to
+origin`; pull request `open release/X.Y.Z → develop`, or `update PR #n (…)`. Pre-version
+checks run against `develop`'s head.
 
-**Objects and remote effects.**
+**Apply, in order.**
 
-| Kind | Exact form |
-| --- | --- |
-| Branch | `release/X.Y.Z` — `git checkout -b release/X.Y.Z` from `develop` |
-| Commit | `To version X.Y.Z-RC.0` on `release/X.Y.Z`, staging `VERSION` |
-| Tag | annotated `X.Y.Z-RC.0`, message `Release version X.Y.Z-RC.0` |
-| Push | `git push -u origin release/X.Y.Z` (not forced) |
-| Push | `git push origin X.Y.Z-RC.0` (not forced) |
-| Pull request | head `release/X.Y.Z` → base `develop`, title `RC X.Y.Z-RC.0 to develop` |
-| Remote refs | `refs/remotes/origin/main` and `refs/remotes/origin/develop` updated by step 1 |
+1. Fetch `main` and `develop` into their remote-tracking refs
+   (`git fetch origin '+refs/heads/main:refs/remotes/origin/main' '+refs/heads/develop:refs/remotes/origin/develop'`),
+   then require `origin/main` to be in `origin/develop`, or to add no commits, or to add
+   commits with no content difference. Otherwise A1. Runs on a dry run too.
+2. `git checkout develop` and `git pull origin develop` (or create `develop` from
+   `FETCH_HEAD` when there is no local branch).
+3. Compute the version from the working tree's `VERSION`, and `git checkout -b
+   release/X.Y.Z`.
+4. Delete a stale local tag `X.Y.Z-RC.0`; the versioner writes `VERSION`, commits and tags.
+5. `git push -u origin release/X.Y.Z`, then `git push origin X.Y.Z-RC.0`.
+6. Open the pull request (or update it, on 422). **A failure here fails the action.**
+7. [Pipeline trigger](configuration.md#pipeline-trigger): normally `skipped`, since step 6
+   opened a pull request.
 
-CLI `$GITHUB_OUTPUT` keys: `release_type`, `version`, `pull_request_url`,
+**Pull request.** `release/X.Y.Z` → `develop`, title `RC X.Y.Z-RC.0 to develop`, not a
+draft, no production warning. Body: `## Release Branch: release/X.Y.Z`, the version,
+branch, target and type (such as `Minor Release Candidate`), the changes, and the six
+completed workflow steps.
+
+**Messages.** Refusals G1, G2, G4, G6, G7–G9, G14, U4/U5, P2–P7, D1. Warnings W1
+(`develop`), W2, W7–W11. Notes N1. Pipeline T2–T10. Apply failures A1–A4, A6–A10, G12,
+G13.
+
+**CLI `$GITHUB_OUTPUT`.** `release_type`, `version`, `pull_request_url`,
 `pull_request_action`, `pipeline_trigger`.
+
+### `create_release_candidate`: decision table
+
+| Condition | Outcome |
+| --- | --- |
+| `releaseType` is not major, minor or patch | U4/U5 refusal |
+| `origin/main` holds content `origin/develop` lacks | P7 refusal |
+| `develop` has no readable `VERSION` | P3 refusal |
+| `develop`'s `VERSION` is an RC | P4 refusal |
+| `release/X.Y.Z` exists locally or on origin | P6 refusal |
+| Tag `X.Y.Z-RC.0` exists on origin | P2 refusal |
+| Tag `X.Y.Z-RC.0` exists only locally | No message; the apply deletes it before tagging |
+| A shipped `hotfix/*` is not in `develop` | W1 warning |
+| A configured check fails, times out or cannot run; its configuration is invalid | W7–W10 warning |
+| `pipeline` section invalid | W11 warning |
+| `release/X.Y.Z` → `develop` already open | N1 note; the pull request is updated |
+| No `confirm` | Plan returned, nothing changed |
+| `confirm` differs from the rebuilt plan | D1 refusal with a fresh plan |
+| `confirm` matches | Apply |
+| After the apply's fetch, `main` holds content `develop` lacks | A1; nothing created |
+
+### `create_release_candidate`: partial failure and recovery
+
+| Failed at | Left behind | Recover |
+| --- | --- | --- |
+| 1 | Updated remote-tracking refs | Downmerge `main` into `develop`, plan again |
+| 2 | Possibly `develop` checked out, or a conflicted pull | Repair the local `develop`, plan again |
+| 3–4 | Local `release/X.Y.Z`, maybe a local commit and tag | `git checkout develop && git branch -D release/X.Y.Z`; the local tag is dropped automatically next time. Plans refuse (P6) until the local branch is gone |
+| 5, branch push | Local branch, commit and tag | As 3–4, or push both by hand and open the pull request by hand |
+| 5, tag push | Branch on origin without its tag | `git push origin X.Y.Z-RC.0`, then open the pull request by hand. Rerunning is refused (P6) |
+| 6 | Branch and tag on origin, no pull request, and the pipeline trigger has not run | Open `release/X.Y.Z` → `develop` titled `RC X.Y.Z-RC.0 to develop` by hand (`gh pr create --base develop --head release/X.Y.Z`). Rerunning is refused (P6) |
 
 ---
 
 ## `create_hotfix`
 
-**Purpose.** Cut a hotfix branch off `main` and set it to a patch `RC.0` version.
+**Purpose.** Cut a hotfix branch off `main` at the next patch `RC.0`, open its pull request
+into `main`, and open a draft pull request into `develop` so the second destination is
+visible from the start.
 
 **Inputs.**
 
-| Input | Default |
+| MCP | CLI | Default |
+| --- | --- | --- |
+| `confirm` | `--plan` / `--confirm <digest>` / `--yes` | plan only |
+| `workingDirectory` | `--working-directory` | current directory |
+| `dryRun` | `--dry-run` | `false` |
+
+**Version.** `main`'s `VERSION` `M.m.p` → `hotfix/M.m.(p+1)` at `M.m.(p+1)-RC.0`.
+
+**Mode.** Plan → confirm.
+
+**Plan.** Anchored on `main`. It does not check `main`/`develop` synchronization or missing
+hotfixes. Mutations: branch, commit, tag and push as for a release candidate; pull request
+`open hotfix/X.Y.Z → main` (or update); pull request `open draft hotfix/X.Y.Z → develop`
+(or `update PR #n (…)`). That last one's detail line reads `title: hotfix X.Y.Z to
+develop`; the title actually used is `Hotfix X.Y.Z to develop`. Pre-version checks run
+against `main`'s head.
+
+**Apply, in order.**
+
+1. `git fetch origin 'main'` (to `FETCH_HEAD`).
+2. `git checkout main` and `git pull origin main`.
+3. `git checkout -b hotfix/X.Y.Z`, the version computed from the working tree.
+4. Delete a stale local tag; the versioner commits and tags.
+5. `git push -u origin hotfix/X.Y.Z`, then `git push origin X.Y.Z-RC.0`.
+6. Pull request into `main`. **A failure here fails the action.**
+7. Draft pull request into `develop`. A failure is reported (R7), not thrown.
+8. Pipeline trigger: normally `skipped`.
+
+**Pull requests.**
+
+| Head → base | Title | Draft | Body |
+| --- | --- | --- | --- |
+| `hotfix/X.Y.Z` → `main` | `RC X.Y.Z-RC.0 to main` | no | `## Hotfix RC Branch: hotfix/X.Y.Z`, the production warning, "Each RC increment and the final release update this same pull request", version details, next steps (write the fix, increment, release, deploy then merge, downmerge into develop) |
+| `hotfix/X.Y.Z` → `develop` | `Hotfix X.Y.Z to develop` | yes (an already-open one keeps its state) | `## Hotfix X.Y.Z to develop`, "Draft placeholder…", **This is not ready to merge** (it conflicts on `VERSION` by construction), next steps: ship through `main`, run the `hotfix` → `develop` downmerge after the deploy, close this draft once that one is merged |
+
+**Messages.** Refusals G1, G2, G4, G6, G7–G9, G14, P2–P6, D1. Warnings W7–W11. Notes N1
+(either pair), N2. Pipeline T2–T10. Apply failures A3, A5–A10. Report R7.
+
+**CLI `$GITHUB_OUTPUT`.** `version`, `pull_request_url`, `pull_request_action`,
+`pipeline_trigger`. The draft pull request's URL and error appear only in `--json`
+(`trackingPullRequestUrl`, `trackingPullRequestError`).
+
+### `create_hotfix`: decision table
+
+| Condition | Outcome |
 | --- | --- |
-| `confirm` / `--confirm` (plan digest) | absent — plan only |
-| `workingDirectory` / `--working-directory` | current directory |
-| `dryRun` / `--dry-run` | `false` |
+| `main` has no readable `VERSION` | P3 refusal |
+| `main`'s `VERSION` is an RC | P4 refusal |
+| `hotfix/X.Y.Z` exists locally or on origin | P6 refusal |
+| Tag `X.Y.Z-RC.0` on origin | P2 refusal |
+| Check or configuration problems | W7–W11 warnings |
+| `hotfix/X.Y.Z` → `main` already open | N1; updated |
+| `hotfix/X.Y.Z` → `develop` already open | N1; updated, keeps its draft state |
+| `hotfix/X.Y.Z` → `develop` not open | N2; opened as a draft |
+| Draft pull request fails | R7; the action still succeeds |
 
-The plan is anchored on `main`, the same way `create_release_candidate`'s is anchored on
-`develop`. It does not consider main/develop synchronization, which gates only the release
-branch.
+### `create_hotfix`: partial failure and recovery
 
-**Steps.**
-
-1. Fetch `main` only (`git fetch origin 'main'`).
-2. Check out `main` and pull it.
-3. Compute `M.m.(p+1)` from `main`'s `VERSION` and create the hotfix branch.
-4. Rewrite `VERSION` to the patch `RC.0` version through the versioner package, which
-   commits and tags.
-5. Push the branch and the tag.
-6. Open or update the pull request to `main`.
-
-**Objects and remote effects.**
-
-| Kind | Exact form |
-| --- | --- |
-| Branch | `hotfix/X.Y.Z` — `git checkout -b hotfix/X.Y.Z` from `main` |
-| Commit | `To version X.Y.Z-RC.0` on `hotfix/X.Y.Z`, staging `VERSION` |
-| Tag | annotated `X.Y.Z-RC.0`, message `Release version X.Y.Z-RC.0` |
-| Push | `git push -u origin hotfix/X.Y.Z` (not forced) |
-| Push | `git push origin X.Y.Z-RC.0` (not forced) |
-| Pull request | head `hotfix/X.Y.Z` → base `main`, title `RC X.Y.Z-RC.0 to main`; body opens with a `> [!WARNING]` block stating the PR must be merged after the hotfix has been deployed to production |
-
-`hotfix/X.Y.Z` → `main` is the one head/base pair a hotfix uses. Step 6,
-`increment_release_candidate`, `release_version` and the hotfix → main `downmerge` all resolve
-to it, so whichever runs first opens the pull request and the rest update its title and the
-watermarked region of its body.
-
-Bringing the hotfix into `develop` is a separate action, the hotfix → develop `downmerge`.
-
-CLI `$GITHUB_OUTPUT` keys: `version`, `pull_request_url`, `pull_request_action`,
-`pipeline_trigger`.
+As [`create_release_candidate`](#create_release_candidate-partial-failure-and-recovery),
+with `hotfix/X.Y.Z` and `main`. If step 3 fails because a local `hotfix/X.Y.Z` exists
+(A5), delete it. If step 7 fails, open the draft by hand, or skip it: the
+`hotfix` → `develop` downmerge does not need it.
 
 ---
 
 ## `increment_release_candidate`
 
-**Purpose.** Raise the RC number on an existing release or hotfix branch, e.g.
-`1.2.0-RC.1` → `1.2.0-RC.2`.
+**Purpose.** Raise the RC number on an existing release or hotfix branch:
+`1.4.0-RC.1` → `1.4.0-RC.2`.
 
 **Inputs.**
 
-| Input | Default |
+| MCP | CLI | Default |
+| --- | --- | --- |
+| `confirm` | `--plan` / `--confirm <digest>` / `--yes` | plan only |
+| `version` (base version, such as `1.4.0`) | `--version` | selected, see below |
+| `workingDirectory` | `--working-directory` | current directory |
+| `dryRun` | `--dry-run` | `false` |
+
+### Branch selection for increment and release
+
+Used by `increment_release_candidate` and `release_version`. Branch names carry no RC
+suffix, so every decision reads `VERSION`, from `origin/<branch>` first and the local
+branch second.
+
+1. **`version` given.** Match it against the names `release/<version>` and
+   `hotfix/<version>`, locally and on origin. Both exist: S1. Neither: S2. The match's
+   version is read from `VERSION`; if unreadable, the name's version is used, and the plan
+   then refuses with P1.
+2. **No `version`, standing on `release/X.Y.Z` or `hotfix/X.Y.Z`.** Use it if its `VERSION`
+   is an RC. Otherwise refuse (S3, or S4 when unreadable) rather than act on another
+   release train.
+3. **Otherwise.** The highest RC among release branches and the highest among hotfix
+   branches, by major.minor.patch. If both exist, the higher wins, a tie going to the
+   release branch, and S6 is logged. None: S5.
+
+**Mode.** Plan → confirm.
+
+**Plan.** Anchored on the branch (`origin/<branch>` when it exists). Mutations: commit
+`"To version X.Y.Z-RC.(n+1)" on <branch>`; tag; push `<branch> and tag … to origin`; pull
+request `open <branch> → <base>` or `update PR #n (<branch> → <base>)`, where `<base>` is
+`develop` for a release branch and `main` for a hotfix branch. Pre-version checks run
+against the branch head. W1 is checked for release branches only.
+
+**Apply, in order.**
+
+1. Select the branch again.
+2. `git checkout <branch>` and `git pull origin <branch>` (or create it from `FETCH_HEAD`).
+3. `git pull origin <branch>` again.
+4. Validate: the working tree's `VERSION` must be an RC (A12), and the branch's
+   major.minor.patch must not be below its base's (A13, A14). The base's `VERSION` is read
+   with `git show`, from the local base branch first. This check is not in the plan.
+5. Delete a stale local tag; the versioner commits and tags.
+6. `git push -u origin <branch>`, then `git push origin <tag>`.
+7. Open or update the pull request. A failure is reported (R1), not thrown.
+8. Pipeline trigger: normally `skipped`; it can start a build if step 7 failed and the
+   branch heads no other open pull request.
+
+**Pull request.** `<branch>` → `develop` (release) or `main` (hotfix), title
+`RC X.Y.Z-RC.n to <base>`, not a draft, production warning when the base is `main`. Body:
+`## <Release|Hotfix> Candidate Increment`, version details, the seven completed steps, and
+"Use `release_version` tool when ready for production".
+
+**Messages.** Refusals G1, G2, G5, G6, G7–G9, G14, S1–S5, S7, P1, P2, D1. Warnings W1, W2
+(release branches), W7–W11. Notes N1. Pipeline T2–T10. Apply failures A11–A18. Report R1.
+
+**CLI `$GITHUB_OUTPUT`.** `branch`, `version`, `pull_request_url`, `pull_request_action`,
+`pull_request_error`, `pipeline_trigger`.
+
+### `increment_release_candidate`: decision table
+
+| Condition | Outcome |
 | --- | --- |
-| `version` / `--version` (base version such as `1.2.0`) | auto-selected |
-| `workingDirectory` / `--working-directory` | current directory |
-| `dryRun` / `--dry-run` | `false` |
+| Selection fails | S1–S5 refusal |
+| Selected branch is not at an RC | P1 refusal |
+| Next RC tag on origin | P2 refusal |
+| Release branch missing a shipped hotfix | W1 warning |
+| Check or configuration problems | W7–W11 warnings |
+| Pull request to the base already open | N1; updated |
+| At apply, branch below its base's version | A13; nothing created |
+| Pull request step fails | R1; the version is already pushed |
 
-**Target selection**, in order:
+### `increment_release_candidate`: partial failure and recovery
 
-1. the version passed explicitly — matched against `release/<version>` and
-   `hotfix/<version>`; both existing at once is an error;
-2. the checked-out release or hotfix branch, if its `VERSION` holds an RC;
-3. otherwise the newest RC across all release and hotfix branches, compared by semantic
-   version.
-
-Standing on a release or hotfix branch whose `VERSION` is not an RC aborts rather than
-selecting a different branch.
-
-**Steps.**
-
-1. Select the target branch.
-2. Check out the branch and pull it.
-3. Pull the branch again (`git pull origin <branch>`).
-4. Validate: the branch's `VERSION` must contain `-RC.`, and the branch version must not be
-   behind its base branch (`develop` for release branches, `main` for hotfix branches).
-   This validation also runs under `dryRun`.
-5. Increment the RC through the versioner package, which commits and tags.
-6. Push the branch and the tag.
-7. Open or update the pull request to the branch's own base — `develop` for a release
-   branch, `main` for a hotfix branch.
-
-**Objects and remote effects.**
-
-| Kind | Exact form |
-| --- | --- |
-| Commit | `To version X.Y.Z-RC.N` on the target branch, staging `VERSION` |
-| Tag | annotated `X.Y.Z-RC.N`, message `Release version X.Y.Z-RC.N` |
-| Push | `git push -u origin <target branch>` (not forced) |
-| Push | `git push origin X.Y.Z-RC.N` (not forced) |
-| Pull request | head `<target branch>` → base `develop` (release) or `main` (hotfix), title `RC X.Y.Z-RC.N to <base>`; a `main` base carries the `> [!WARNING]` production-merge block |
-
-Step 4 checks out the base branch to read its `VERSION`, then returns to the branch it
-started on. A failure in step 7 does not fail the action: the version bump has already
-happened, so the pull-request error is reported alongside the result.
-
-CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
-`pull_request_action`, `pull_request_error`, `pipeline_trigger`.
+| Failed at | Left behind | Recover |
+| --- | --- | --- |
+| 2–4 | Branch checked out, maybe pulled | Fix the cause, plan again |
+| 5 | Maybe a local commit and tag | On the branch, `git reset --hard origin/<branch>` and `git tag -d <tag>`, then plan again |
+| 6, branch push | Local commit and tag ahead of origin | **Do not simply rerun.** The plan reads origin and promises `RC.(n+1)`, but the apply builds on the local commit and produces `RC.(n+2)`, leaving `RC.(n+1)` untagged on origin. Either push both by hand (`git push origin <branch> <tag>`), or reset as for step 5 |
+| 6, tag push | Commit on origin, tag only local | `git push origin <tag>`. `list_versions` shows `tag:local-only` |
+| 7 | Everything on origin, pull request not written (R1) | Edit or open the pull request by hand |
 
 ---
 
 ## `release_version`
 
-**Purpose.** Promote a release candidate to its final version, e.g. `1.2.0-RC.3` →
-`1.2.0`.
+**Purpose.** Promote a release candidate to its final version (`1.4.0-RC.3` → `1.4.0`), tag
+it, create the GitHub release, and open the pull requests that take it to `main` and back
+to `develop`.
 
-**Inputs.**
+**Inputs.** As `increment_release_candidate`. **Selection.** The same
+[branch selection](#branch-selection-for-increment-and-release).
 
-| Input | Default |
+**Mode.** Plan → confirm.
+
+**Plan.** Anchored on the branch. Mutations: commit `"To version X.Y.Z" on <branch>`; tag;
+push; pull request `open <branch> → main` (or update); GitHub release `X.Y.Z with
+auto-generated notes`; pull request `open <branch> → develop` (or update). The plan also
+rehearses the eventual merge into `main`, read-only (`git rev-list`, `git diff`,
+`git merge-tree`), and warns (W3–W6) rather than refusing: promotion is the last cheap
+moment to take `main`'s changes in first. W1 is checked for release branches only.
+
+**Apply, in order.** The numbers match the progress list the tools print.
+
+1. Select the branch again.
+2. Check out and pull it.
+3. Pull it again.
+4. Require the working tree's `VERSION` to be an RC (A19), delete a stale local tag, then
+   the versioner commits `To version X.Y.Z` and tags `X.Y.Z`.
+5. `git push origin <branch>` (no upstream set).
+6. `git push origin X.Y.Z`.
+7. Open or update `<branch>` → `main`. A failure is reported (R1), not thrown.
+8. For a hotfix, log the deploy-before-merge warning.
+9. Create the GitHub release. Release notes are requested from GitHub's
+   `generateReleaseNotes` up to three times (waiting 1 s, then 2 s). The release is created
+   with tag `X.Y.Z`, name `Release X.Y.Z`, `target_commitish` the branch, and the notes as
+   its body. If no notes were obtained, up to three more attempts follow and the body is
+   patched in; otherwise R2–R5. **A failure to create the release fails the action** (A23).
+10. Open or update `<branch>` → `develop`, for release **and** hotfix branches. A failure
+    is reported (R6), not thrown.
+
+Then the pipeline trigger: normally `skipped`.
+
+**Pull requests.**
+
+| Head → base | Title | Draft | Body |
+| --- | --- | --- | --- |
+| `<branch>` → `main` | `Release X.Y.Z to main` | no | `## <Release\|Hotfix> Version X.Y.Z`, the production warning, version details, "Released version X.Y.Z (converted from RC)" |
+| `<branch>` → `develop` | `Release X.Y.Z to develop`, or `Hotfix X.Y.Z to develop` | no when opened here; a hotfix's draft stays a draft | `## <Release\|Hotfix> X.Y.Z to develop`, "has been promoted from a release candidate to X.Y.Z, and this PR merges it back into develop", version details, next step "Merge once X.Y.Z has been deployed to production" |
+
+The `develop` titles match the `release` → `develop` downmerge's and the hotfix tracking
+draft's, so those actions converge on one pull request. For a hotfix, this rewrites the
+draft placeholder's body with the "merge once deployed" text, or opens a non-draft
+`hotfix/X.Y.Z` → `develop` pull request when the draft was closed.
+
+**GitHub release.** Tag `X.Y.Z`, name `Release X.Y.Z`, target the branch, auto-generated
+notes. Not a draft or a prerelease, so GitHub makes it the Latest release by default.
+
+**Messages.** Refusals as `increment_release_candidate`. Warnings W1, W2, W3–W6, W7–W11.
+Notes N1 (both pairs). Pipeline T2–T10. Apply failures A11, A19–A23. Reports R1–R6.
+
+**CLI `$GITHUB_OUTPUT`.** `branch`, `version`, `pull_request_url`, `pull_request_action`,
+`pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`,
+`own_base_pull_request_action`, `own_base_pull_request_error`, `pipeline_trigger`.
+
+### `release_version`: decision table
+
+| Condition | Outcome |
 | --- | --- |
-| `version` / `--version` (base version such as `1.2.0`) | auto-selected |
-| `workingDirectory` / `--working-directory` | current directory |
-| `dryRun` / `--dry-run` | `false` |
+| Selection fails, branch not at an RC, tag `X.Y.Z` on origin | S1–S5, P1, P2 refusal |
+| `main` has commits the branch lacks | W3 warning |
+| Merging the branch into `main` would conflict | W4 warning; the downmerge into `main` will hand off H2 |
+| Those checks could not run | W5, W6 warning |
+| Release branch missing a shipped hotfix | W1 warning |
+| Check or configuration problems | W7–W11 warnings |
+| Pull request to `main` or `develop` already open | N1; updated |
+| Branch is a hotfix | The deploy warning is logged; the `develop` pull request is `hotfix/X.Y.Z` → `develop` |
+| A pull request step fails | R1 or R6; the version, tag and release exist |
+| Release creation fails | A23; tag on origin, no release, no `develop` pull request |
 
-**Target selection** is identical to `increment_release_candidate`.
+### `release_version`: partial failure and recovery
 
-**Preflight.** The plan rehearses the merge this branch will eventually make into `main`
-and warns about three things, refusing none.
+| Failed at | Left behind | Recover |
+| --- | --- | --- |
+| 2–3 | Branch checked out, maybe pulled | Fix the cause, plan again |
+| 4 | Maybe a local commit and tag | Reset as for `increment_release_candidate` step 5 |
+| 5 | Local commit and tag ahead of origin | Push both by hand (`git push origin <branch> X.Y.Z`), then do 7, 9 and 10 by hand. A new plan reads origin (still the RC) and its apply would build a second final commit on the local one |
+| 6 | Final commit on origin, tag local | `git push origin X.Y.Z`, then do 7, 9 and 10 by hand. A rerun is refused (P1: the branch is no longer an RC) |
+| 7 | Reported (R1) | Open `<branch>` → `main` by hand with the production warning |
+| 9 | Tag on origin, no GitHub release, no `develop` pull request | `gh release create X.Y.Z --target <branch> --title "Release X.Y.Z" --generate-notes`, then open or update `<branch>` → `develop` by hand. Rerunning is refused (P1) |
+| 10 | Reported (R6) | Open or edit `<branch>` → `develop` by hand |
 
-A conflict is reported with its files, since the release → main `downmerge` will stop for
-a human decision — after the tag is already cut.
-
-A hotfix whose branch is already in `main` but not in this release branch is named. It is
-a fix already in production that the release would undo. `increment_release_candidate`
-reports it too, and `create_release_candidate` reports the same for `develop`.
-
-`main` holding commits the branch does not is reported more quietly, and is not a merge
-failure at all: the merge combines both histories faithfully. The problem is that the
-artifact tagged from the branch predates those commits, so `main` ends up holding changes
-that were never deployed, and the next branch cut from `main` inherits them. A hotfix
-landing after the release branch was cut is the ordinary cause. This is deliberately
-reported at the commit level, not per file — whether a given hunk survives a three-way
-merge depends on what both sides touched, so file-level claims over-report (the branch may
-carry the same content under a different commit) or under-report to nothing (both sides
-routinely edit one file in different places). The files those commits touch are listed as
-context, not as a claim about which side wins.
-
-The remedy in every case is to merge `main` into the release branch and cut a new
-release candidate before promoting, so the change is deployed and tested like any other.
-Whether to promote anyway is the operator's call. A check that could not run is reported as
-such rather than passing silently. All of it is read-only: `merge-tree --write-tree`,
-`rev-list` and `diff`.
-
-**Steps.**
-
-1. Select the target branch.
-2. Check out the branch and pull it.
-3. Pull the branch again.
-4. Validate that `VERSION` holds an RC, then strip the RC suffix through the versioner
-   package, which commits and tags. The validation runs under `dryRun` too.
-5. Push the branch.
-6. Push the tag.
-7. Open or update the pull request to `main`.
-8. For a hotfix branch, log the deploy-before-merge warning.
-9. Create the GitHub release.
-10. Update the pull request on the branch's own base, if one is open. Skipped for a
-    hotfix, whose own base is `main` and therefore already written by step 7.
-
-**Objects and remote effects.**
-
-| Kind | Exact form |
-| --- | --- |
-| Commit | `To version X.Y.Z` on the target branch, staging `VERSION` |
-| Tag | annotated `X.Y.Z`, message `Release version X.Y.Z` |
-| Push | `git push origin <target branch>` (not forced, no upstream set) |
-| Push | `git push origin X.Y.Z` (not forced) |
-| Pull request | head `<target branch>` → base `main`, title `Release X.Y.Z to main`; body opens with a `> [!WARNING]` block stating the PR must be merged after the release or hotfix has been deployed to production |
-| GitHub release | tag `X.Y.Z`, name `Release X.Y.Z`, `target_commitish` = the target branch, body from GitHub's `generateReleaseNotes` for that tag and target |
-| Pull request (release branches only) | the open PR on the branch's own base, retitled `Release X.Y.Z to develop`, body rewritten to the final version. Only ever updated, never opened: the own-base PR belongs to `create_release_candidate`, and opening one here would propose merging a release into develop off the back of a promotion. Same title the release → develop `downmerge` uses, so the two converge |
-
-Release notes are requested up to three times with 1 s and 2 s backoff. If no body is
-obtained the release is still created, then one further attempt is made and the body
-patched in; if that also yields nothing the release keeps an empty body and the result
-carries a notes warning. A failure in step 7 or step 10 does not fail the action; by then
-the tag is pushed and the release is out, so the pull-request error is reported alongside
-the result instead. `revert_version` writes the same own-base PR — see its table below.
-
-CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
-`pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`,
-`own_base_pull_request_url`, `own_base_pull_request_error`, `pipeline_trigger`.
+To undo the promotion instead, use [`revert_version`](#revert_version).
 
 ---
 
 ## `revert_version`
 
-**Purpose.** Undo the most recent version bump on a release or hotfix branch, and remove
-the tag it created. This is the only action that deletes anything.
+**Purpose.** Undo the most recent version bump on a release or hotfix branch and remove the
+tag it created. The only action that deletes things.
 
 **Inputs.**
 
-| Input | Default |
-| --- | --- |
-| `version` / `--version` (base version such as `1.2.0`) | the checked-out branch |
-| `workingDirectory` / `--working-directory` | current directory |
-| `dryRun` / `--dry-run` | `false` |
+| MCP | CLI | Default |
+| --- | --- | --- |
+| `confirm` | `--plan` / `--confirm <digest>` / `--yes` | plan only |
+| `version` (base version, such as `1.4.0`) | `--version` | the checked-out branch |
+| `workingDirectory` | `--working-directory` | current directory |
+| `dryRun` | `--dry-run` | `false` |
 
-**Target selection**, in order:
+**Selection.** `version` given: match the names `release/<version>` and `hotfix/<version>`
+(both: S8; neither: S9). Otherwise the checked-out branch, which must be a release or
+hotfix branch (S10) with a readable `VERSION` (S11). There is no fallback to the newest
+branch: this action deletes tags and can delete a branch. Final versions are accepted.
 
-1. the version passed explicitly — matched against `release/<version>` and
-   `hotfix/<version>`; both existing at once is an error;
-2. the checked-out release or hotfix branch.
+**Guards, in order** (all refusals): no readable `VERSION` at the head (P9); the head's
+subject is not `To version <current version>` (P10); the head is already in `origin/main`
+(P11); for the abandon shape, the branch holds other commits not in `origin/<base>` (P12).
 
-There is deliberately **no third tier**. The other version workflows fall back to the
-newest release candidate across all branches; reverting does not, because guessing which
-branch to delete tags and branches from is not a risk worth taking to save typing a
-version.
+**Shape.** Decided by the `VERSION` in the bump commit's parent:
 
-**Two shapes.** Which one applies is decided by the `VERSION` in the bump commit's
-parent:
+| Parent's `VERSION` | Shape | Example |
+| --- | --- | --- |
+| None | abandon | — |
+| The same as the head's | abandon | — |
+| A different release (with RC suffixes stripped, it differs from the head's) | abandon | `1.5.0-RC.0` whose parent is `develop`'s `1.4.0` |
+| Another version of the same release | revert | `1.4.0-RC.2` → `1.4.0-RC.1`; `1.4.0` → `1.4.0-RC.3` |
 
-- **Revert** — the parent carries an earlier version of the same release (`RC.1` under
-  `RC.2`, or the RC a final was promoted from), so `VERSION` goes back one step and the
-  branch survives. This holds even when that earlier bump is already in the base,
-  as it is once a release candidate's pull request into `develop` is merged. A revert
-  commit is used, never a reset, because protected branches commonly forbid the
-  force-push a reset would need.
-- **Abandon** — the parent carries another release's version, or none, so this is the
-  branch's first version and there is nothing to rewind to; reverting would leave the
-  branch indistinguishable from its base. The branch is deleted instead.
+This holds even when the earlier version is already in `develop`, as it is once a release
+candidate's pull request into `develop` is merged. The diagram is in
+[flows.md](flows.md#revert-shape).
 
-Reverting a final version and abandoning a branch are warnings, since they destroy a
-GitHub release or a branch; the rest of what a revert plan says is notes.
+**Mode.** Plan → confirm. Every guard runs again at apply time.
 
-**Refusals.** Each of these aborts rather than warning:
+**Plan.** Anchored on the branch head. The base is `develop` for a release branch and
+`main` for a hotfix branch.
 
-1. the version is already merged into the production branch — it shipped, so it can only
-   be superseded by a new version, never revoked;
-2. the branch head is not the bump commit, i.e. its subject is not
-   `To version <current version>`; there is nothing to revert and an earlier commit will
-   not be guessed at;
-3. the branch has no readable `VERSION`;
-4. abandoning would delete a branch holding commits that are not in its base — those may
-   exist nowhere else, so they are listed and the action stops.
+- Revert shape: commit `revert of <sha11> "To version <v>" on <branch>`; tag deletions
+  (`<v> locally`, `<v> on origin`) for whichever exist; for a final with a GitHub release,
+  its deletion (details: its URL, `the Latest marker moves to the previous release`,
+  `release notes are destroyed, including any hand edits`); push `<branch> to origin`;
+  pull request `update PR #n to <resulting>` if one is open on the base.
+- Abandon shape: tag deletions; GitHub release deletion; pull request `close PR #n, with a
+  comment explaining why`; branch `<branch> on origin and locally, at <sha11>` with the
+  detail `recovery: git branch <branch> <sha11> — if you act before gc`.
 
-**Steps** (revert shape).
+**Apply, revert shape.**
 
 1. Check out and pull the branch.
-2. `git revert --no-edit <bump commit>`. A conflicting revert is aborted, leaving nothing.
-3. Delete the tag on origin, then locally.
-4. Delete the GitHub release for the tag, if the version is final and one exists.
-5. Push the branch.
-6. Update the open pull request, if there is one, to the version now held.
+2. `git revert --no-edit <head>`, giving the commit `Revert "To version <v>"`. A conflict is
+   aborted (A24); nothing is changed.
+3. Delete the tag on origin (`git push origin :refs/tags/<v>`), then locally (`git tag -d`),
+   each only if it exists.
+4. Delete the GitHub release, for a final version that has one (A25 on failure).
+5. `git push -u origin <branch>` (A26 on failure).
+6. If a pull request is open on the base, update it. A failure is reported (R8).
+7. Pipeline trigger, with `RELEASE_VERSION` set to the resulting version: `started` when no
+   pull request is open on the branch (the plan showed T1), otherwise `skipped`.
 
-**Steps** (abandon shape).
+**Apply, abandon shape.**
 
 1. Delete the tag on origin, then locally.
-2. Comment on the open pull request explaining the abandonment, then close it.
-3. Delete the branch on origin, then locally.
+2. If a pull request is open on the base, comment and close it. A failure is reported (R8).
+3. Check out and pull the base, then delete the branch on origin
+   (`git push origin :refs/heads/<branch>`) and locally (`git branch -D`).
 
-The ordering is chosen for what a partial failure leaves behind: tags go first, while the
-commit they point at is still reachable; the pull-request record is written before the
-branch disappears, so the explanation precedes the closure; the branch goes last, being
-the least recoverable step. The plan states the branch head so a mistaken abandon can be
-undone with `git branch <name> <sha>` until it is garbage collected.
+No pipeline trigger: the branch is gone. The order is chosen for partial failure: tags
+first while their commit is still reachable, the explanation before the closure, and the
+least recoverable step last.
 
-**Objects and remote effects.**
+**Pull requests.** Revert: the open pull request on the base gets the title
+`RC <resulting> to <base>` and a body headed `## Release Candidate Reverted`, naming the
+reverted commit and version, the resulting version, the deleted tag, and "Deleting the tag
+does not undo a build or deployment it already triggered." Abandon: the open pull request
+on the base is closed with the comment in
+[messages.md](messages.md#text-written-to-github). Only the pull request on the branch's
+base is touched: after reverting a promoted release, the `release/X.Y.Z` → `main` pull
+request keeps its `Release X.Y.Z to main` title, and a hotfix's `develop` pull request is
+left as it was (GitHub closes it, without a comment, when an abandon deletes the branch).
 
-| Kind | Exact form |
+**Messages.** Refusals G1, G2, G4 (CLI), G6, G7–G9, G11, S8–S11, P9–P12, D1. Warnings W11
+(revert shape), W12, W13. Notes N3, N4. Pipeline T1–T10 (revert shape). Apply failures
+A24–A27. Report R8.
+
+**CLI `$GITHUB_OUTPUT`.** `branch`, `shape` (`revert` or `abandon`), `reverted_version`,
+`resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`,
+`pull_request_action` (`updated` or `closed`), `pull_request_error`, `pipeline_trigger`.
+
+### `revert_version`: decision table
+
+| Condition | Outcome |
 | --- | --- |
-| Commit (revert shape) | `Revert "To version X.Y.Z"` on the target branch, staging `VERSION` |
-| Tag deletion | `X.Y.Z` removed locally (`git tag -d`) and on origin (`git push origin :refs/tags/X.Y.Z`) |
-| GitHub release deletion | the release for tag `X.Y.Z`, when the version is final; this moves the `Latest` marker to the previous release and destroys that release's notes, including any hand edits |
-| Push (revert shape) | `git push -u origin <target branch>` (not forced) |
-| Pull request (revert shape) | the open PR on the branch's own base, retitled `RC X.Y.Z to <base>` |
-| Pull request (abandon shape) | the open PR closed, with a comment naming the version, the deleted tag and the recovery command |
-| Branch deletion (abandon shape) | `<target branch>` removed on origin and locally |
+| No `version`, not on a release or hotfix branch | S10 refusal |
+| Head is not `To version <v>` | P10 refusal |
+| Head is in `origin/main` | P11 refusal |
+| Parent holds another version of the same release | revert shape |
+| Otherwise | abandon shape, W13 |
+| Abandon, and the branch holds other commits not in its base | P12 refusal |
+| Version is final | W12; its GitHub release is deleted if there is one |
+| Tag missing locally and on origin | N3; no tag deletion planned |
+| Always | N4 |
+| Revert shape, no open pull request on the branch | T1 in the plan; the trigger runs after the push |
+| `git revert` conflicts | A24; nothing changed |
 
-A missing tag is reported as a note rather than treated as a failure — a revert should
-not abort because the thing it wanted gone was already gone. A failure in the pull-request
-step does not fail the action: the git side has already happened, so the error is reported
-alongside the result.
+### `revert_version`: partial failure and recovery
 
-**Deleting a tag does not undo a build or deployment that tag already triggered**, and
-pushing the revert commit may itself trigger a new one. Every plan says so.
+| Failed at | Left behind | Recover |
+| --- | --- | --- |
+| Revert 2 | Nothing (the revert is aborted) | Revert by hand |
+| Revert 3 | Local revert commit; perhaps the tag deleted on origin | Delete the remaining tag, push the branch, by hand |
+| Revert 4 | Local revert commit, tag deleted | Delete the release by hand, then `git push origin <branch>` |
+| Revert 5 | Local revert commit, tag and release deleted | `git push origin <branch>`, then update the pull request by hand |
+| Revert 6 | Reported (R8) | Edit the pull request by hand |
+| Abandon 2 | Reported (R8); the branch is still deleted | Close the pull request by hand |
+| Abandon 3 | Tag deleted, pull request closed, branch maybe still on origin | `git push origin --delete <branch>` |
 
-CLI `$GITHUB_OUTPUT` keys: `branch`, `shape`, `reverted_version`, `resulting_version`,
-`tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`,
-`pull_request_error`, `pipeline_trigger`.
+A deletion that origin rejects (for example a protected branch or tag) is not reported as
+a failure: the result says `not on origin` for the tag, and still reports the branch as
+deleted. Check with `git ls-remote origin` after an abandon. To undo an abandon, recreate
+the branch from the sha in the plan or the closing comment:
+`git branch <branch> <sha> && git push origin <branch>`.
 
 ---
 
@@ -678,115 +773,204 @@ CLI `$GITHUB_OUTPUT` keys: `branch`, `shape`, `reverted_version`, `resulting_ver
 
 **Inputs.**
 
-| Input | Default |
-| --- | --- |
-| `version` / `--version` | `0.1.0-RC.0` |
-| `workingDirectory` / `--working-directory` | current directory |
+| MCP | CLI | Default |
+| --- | --- | --- |
+| `version` | `--version` | `0.1.0-RC.0` |
+| `workingDirectory` | `--working-directory` | current directory |
 
-There is no dry-run option and no plan: this action neither pushes nor opens a pull
-request, and it refuses outright if a `VERSION` file already exists.
+**Mode.** Immediate. No plan and no dry run: nothing leaves the clone.
 
-**Steps.**
+**Apply, in order.**
 
-1. Check the directory is a git repository and nothing is staged.
-2. Read the short HEAD hash; the repository must have at least one commit.
-3. Create the `VERSION` file. An existing `VERSION` file is an error.
-4. Commit and tag through the versioner package.
+1. Check the directory is a git repository (G1) and nothing is staged (G2).
+2. Read the short `HEAD` hash; the repository needs a commit (A33).
+3. Create `VERSION` with two lines, the version then the hash. An existing `VERSION`,
+   tracked or not, refuses (A32).
+4. `git add VERSION`, `git commit -m "To version <version>"`,
+   `git tag "<version>" -a -m "Release version <version>"`, on the current branch.
 
-**Objects and remote effects.**
+Nothing is pushed and no pull request is opened.
 
-| Kind | Exact form |
-| --- | --- |
-| File | `VERSION`, two lines: the version, then the short HEAD hash |
-| Commit | `To version <version>` on the current branch, staging `VERSION` |
-| Tag | annotated `<version>`, message `Release version <version>` |
+In the MCP server, the versioner is bound to the `workingDirectory` of the first
+`initialize_versioner` call the process serves; restart the server before initializing a
+second repository.
 
-Nothing is pushed and no pull request is opened. All effects are local.
+**Messages.** G1, G2, A32–A35. The MCP server reports a failure as text under
+`❌ Failed to initialize versioner`, without marking the call as an error.
 
-CLI `$GITHUB_OUTPUT` keys: `version`, `is_release_candidate`.
+**CLI `$GITHUB_OUTPUT`.** `version`, `is_release_candidate`.
+
+### `initialize_versioner`: partial failure and recovery
+
+| Failed at | Left behind | Recover |
+| --- | --- | --- |
+| 3, malformed `version` (A34) | An untracked `VERSION` holding the bad value; a rerun is refused (A32) | `rm VERSION`, rerun with a valid version |
+| 4, tag exists (A35) | The commit `To version <v>`, no new tag | Inspect the existing tag; tag by hand or reset the commit |
 
 ---
 
 ## `downmerge`
 
-**Purpose.** Bring one branch into another through a pull request. One tool covers the
-five routes:
+**Purpose.** Bring one branch into another through a pull request. One tool covers five
+routes:
 
-| `source` → `target` | CLI command | Pull request head |
-| --- | --- | --- |
-| `main` → `develop` | `downmerge main-to-develop` | merge branch `main-into-develop-<unix-timestamp>` off `develop` |
-| `release` → `develop` | `downmerge release-to-develop` | `release/X.Y.Z` itself |
-| `release` → `main` | `downmerge release-to-main` | merge branch `release-X.Y.Z-into-main-<unix-timestamp>` off `main` |
-| `hotfix` → `develop` | `downmerge hotfix-to-develop` | merge branch `hotfix-X.Y.Z-into-develop-<unix-timestamp>` off `develop` |
-| `hotfix` → `main` | `downmerge hotfix-to-main` | `hotfix/X.Y.Z` itself |
+| `source` → `target` | CLI command | Pull request head | Merge commit |
+| --- | --- | --- | --- |
+| `main` → `develop` | `downmerge main-to-develop` | merge branch `main-into-develop-<ts>` off `develop` | `Downmerge main into develop` |
+| `release` → `develop` | `downmerge release-to-develop` | `release/X.Y.Z` itself | none |
+| `release` → `main` | `downmerge release-to-main` | merge branch `release-X.Y.Z-into-main-<ts>` off `main` | `Merge release/X.Y.Z into main` |
+| `hotfix` → `develop` | `downmerge hotfix-to-develop` | merge branch `hotfix-X.Y.Z-into-develop-<ts>` off `develop` | `Merge hotfix/X.Y.Z into develop` |
+| `hotfix` → `main` | `downmerge hotfix-to-main` | `hotfix/X.Y.Z` itself | none |
+
+A merge branch keeps CI workflows keyed on a `release/*` or `hotfix/*` head from rebuilding
+an artifact that was already cut.
 
 **Inputs.**
 
-| Input | Default |
-| --- | --- |
-| `source`, `target` (MCP only; the CLI names the route in the subcommand) | required |
-| `version` / `--version` (release and hotfix sources) | newest branch of that type by semantic version |
-| `workingDirectory` / `--working-directory` | current directory |
-
-**Applies immediately.** There is no plan to confirm: the pull request is the review,
-and closing it unmerged rejects the downmerge. The MCP tool takes no `confirm`, and one
-sent anyway is ignored. The CLI accepts `--confirm` and `--yes` and ignores them, so
-scripts written for the plan/confirm protocol keep working; `--plan` is rejected as an
-unknown option rather than ignored, since ignoring it would apply a downmerge the caller
-only wanted to see. Before creating anything, the downmerge builds the same plan it used
-to show, and stops there when the plan refuses: a source already merged into the target
-is refused, and a conflict hands off as below. The plan's warnings and notes, such as an
-already-open pull request being updated rather than created, are returned with the
-result.
-
-**Clean or conflicting.** The downmerge previews the merge with `merge-tree` first. Only
-a clean merge goes ahead. A conflicting one creates nothing and returns a handoff instead,
-following [manual-downmerge.md](manual-downmerge.md). Into `develop` it is "Manual
-downmerge needed": the conflicted files, the branch to resolve them on, the pull request
-title, and numbered steps. Into `main` it is "Decision needed": `main` mirrors
-production, so the handoff resolves nothing and lists two options for a human. The CLI prints
-the handoff and exits with the user-error code. The tools never push a conflicted merge,
-and the merge itself re-checks: a conflict that appears after the preview aborts the
-merge, deletes the local branch, and returns the same handoff.
-
-**Steps for a clean merge.**
-
-1. Resolve the release or hotfix branch, by exact version or as the newest one.
-2. Fetch, check out and pull the target and the source.
-3. Merge-branch routes: create the merge branch off the target, merge the source in with
-   `git merge --no-ff`, and push. A source already merged into the target is refused
-   before anything is created, since the merge would produce no commit.
-4. Open or update the pull request into the target.
-5. `hotfix` → `develop` only: close the draft `hotfix/X.Y.Z` → `develop` pull request that
-   `create_hotfix` opened, with a comment linking the new one. Failing to close it is
-   reported, not fatal.
-
-**Objects and remote effects.**
-
-| Route | Commit | Pull request |
+| MCP | CLI | Default |
 | --- | --- | --- |
-| `main` → `develop` | `Downmerge main into develop` | title `Release <v> to develop` when `main`'s newest non-merge commit is `To version <v>`, else `Downmerge main into develop` |
-| `release` → `develop` | none | title `Release X.Y.Z to develop` |
-| `release` → `main` | `Merge release/X.Y.Z into main` | title `Release X.Y.Z to main` |
-| `hotfix` → `develop` | `Merge hotfix/X.Y.Z into develop` | title `Hotfix X.Y.Z to develop` |
-| `hotfix` → `main` | none | title `Release X.Y.Z to main` |
+| `source`, `target` | the subcommand name | required |
+| `version` (release and hotfix sources; ignored for `main`) | `--version` | the newest branch of the source type |
+| `workingDirectory` | `--working-directory` | current directory |
 
-Merge-branch routes push their branch with `git push -u origin <branch>` (not forced).
-Pull requests into `main` open with a `> [!WARNING]` block stating they must be merged
-after the deploy. The merge branch keeps CI workflows keyed on a `release/*` or `hotfix/*`
-head from rebuilding an artifact that was already cut.
+**Source selection.** By branch **name**, locally and on origin: `version` must equal the
+`X.Y.Z` in `release/X.Y.Z` or `hotfix/X.Y.Z` (S12). Without it, the highest
+major.minor.patch of that type is taken (S13 if none), whatever its `VERSION` and even if
+it is already merged, in which case the plan refuses with P8. Pass `version` when more
+than one branch of the type exists. Titles use the version from the branch name.
 
-CLI `$GITHUB_OUTPUT` keys: `kind`, `pull_request_url`; plus `merge_branch` on the
-merge-branch routes.
+**Mode.** Immediate: there is no plan to confirm, and no dry run. The MCP tool takes no
+`confirm`; one sent anyway is ignored. The CLI accepts `--confirm` and `--yes` and ignores
+them, and rejects `--plan` (U7). Before creating anything, the downmerge builds the plan it
+used to show and stops if that refuses or hands off. The plan's warnings and notes are
+returned with the result.
+
+**Checks before anything is created.** Preconditions G1 and G2 (no versioner needed).
+Then, comparing `origin/<target>` and the source as they stand in the clone: a
+`git merge-tree` preview (P13 if it cannot run), a conflict hands off (H1 into `develop`,
+H2 into `main`), and a source already in the target refuses (P8). For `release` →
+`develop` and `hotfix` → `main`, an open pull request for the pair is noted (N1) and
+updated.
+
+### Apply, per route
+
+**`main` → `develop`.**
+
+1. Fetch `main` and `develop` into their remote-tracking refs.
+2. `git checkout main`, `git pull origin main`, `git checkout develop`,
+   `git pull origin develop`.
+3. Title from `main`'s newest non-merge commit (`git log -1 --no-merges origin/main`):
+   `To version <v>` gives `Release <v> to develop`; anything else gives
+   `Downmerge main into develop`.
+4. Check out and pull `develop`, `git checkout -b main-into-develop-<ts>`,
+   `git merge --no-ff -m "Downmerge main into develop" main`. A conflict aborts the merge,
+   deletes the local branch, returns to `develop` and hands off H1. A merge that adds
+   nothing deletes the local branch and fails with A28.
+5. `git push -u origin main-into-develop-<ts>`.
+6. Open the pull request into `develop`. Body: `## Downmerge Main to Develop`, source,
+   target, and the version when detected. No warning.
+
+The result reports only the pull request URL; the merge branch name is not returned
+(`kind` is `direct`). Look it up on the pull request.
+
+**`release` → `develop`.**
+
+1. Check out and pull `develop`, then `release/X.Y.Z`.
+2. Trial merge in the working tree: refuse tracked modifications (A29), check out and pull
+   `develop`, `git merge --no-commit --no-ff release/X.Y.Z`, list conflicts,
+   `git merge --abort`, and `git reset --hard` to where `develop` was if the trial moved it.
+   Conflicts hand off H1; a failure without conflicts is A30.
+3. Open or update `release/X.Y.Z` → `develop`, titled `Release X.Y.Z to develop`. Body:
+   `## Release X.Y.Z to develop`, "This PR merges the release branch back into develop",
+   the version, branch, target and type. No warning. This is usually the pull request
+   `release_version` already opened, so it is updated.
+
+**`release` → `main`.**
+
+1. Check out and pull `main`, then `release/X.Y.Z`.
+2. As `main` → `develop` step 4, off `main`, branch `release-X.Y.Z-into-main-<ts>`, message
+   `Merge release/X.Y.Z into main`. A conflict hands off H2.
+3. `git push -u origin release-X.Y.Z-into-main-<ts>`.
+4. Open the pull request into `main`, titled `Release X.Y.Z to main`. Body:
+   `## Release X.Y.Z to main`, the production warning, why a merge branch is used, and the
+   version, source, target and merge branch.
+
+`release_version` already opened `release/X.Y.Z` → `main`, so `main` has two open pull
+requests for the release until one is merged; GitHub marks the other merged once its head
+is in `main`.
+
+**`hotfix` → `develop`.**
+
+1. Check out and pull `develop`, then `hotfix/X.Y.Z`.
+2. As `main` → `develop` step 4, off `develop`, branch `hotfix-X.Y.Z-into-develop-<ts>`,
+   message `Merge hotfix/X.Y.Z into develop`. A conflict hands off H1.
+3. `git push -u origin hotfix-X.Y.Z-into-develop-<ts>`.
+4. Open the pull request into `develop`, titled `Hotfix X.Y.Z to develop`. Body:
+   `## Hotfix X.Y.Z to develop`, why a merge branch is used, version details. No warning.
+5. Find the open `hotfix/X.Y.Z` → `develop` pull request (the draft from `create_hotfix`, or
+   the one `release_version` opened), comment `Superseded by <url>…` and close it. A
+   failure is only logged (R9).
+
+**`hotfix` → `main`.**
+
+1. Fetch `main` and `develop` into their remote-tracking refs, and `git fetch origin
+   hotfix/X.Y.Z`. No checkout.
+2. Preview the merge of `origin/hotfix/X.Y.Z` into `origin/main` again; a conflict hands off
+   H2.
+3. Open or update `hotfix/X.Y.Z` → `main` (normally the one `create_hotfix` opened), titled
+   `Release X.Y.Z to main`. Body: `## Hotfix X.Y.Z to main`, the production warning, and
+   version details.
+
+### Downmerge conflicts
+
+A conflict creates nothing: no branch, no push, no pull request. The tools never push a
+conflicted merge. Into `develop` the handoff is work to carry out (H1, "Manual downmerge
+needed"): the conflicted files, the branch to resolve them on, the title, and numbered
+steps. Into `main` it is a decision for a human (H2, "Decision needed"): `main` mirrors
+production, so nothing is resolved and two options are offered. The MCP server returns the
+handoff as text; the CLI prints it to stderr and exits `1`. The procedure is
+[manual-downmerge.md](manual-downmerge.md); the exact text is in
+[messages.md](messages.md#downmerge-handoffs).
+
+**Messages.** Refusals G1, G2, G7–G9, G14, U6, U7, S12, S13, P8, P13. Notes N1. Handoffs H1,
+H2. Apply failures A28–A31. Report R9. MCP failures are returned as `❌ Downmerge Failed`.
+
+**CLI `$GITHUB_OUTPUT`.** `kind` (`direct` or `merge-branch`), `pull_request_url`, and
+`merge_branch` for `release` → `main` and `hotfix` → `develop`. `main` → `develop` reports
+`kind=direct` and no `merge_branch`, although it uses one.
+
+### `downmerge`: decision table
+
+| Condition | Outcome |
+| --- | --- |
+| Not one of the five routes | U6 refusal |
+| No branch of the source type, or none named for `version` | S13, S12 refusal |
+| `git merge-tree` cannot compare the two | P13 refusal |
+| The merge conflicts, target `develop` | H1 handoff; nothing created |
+| The merge conflicts, target `main` | H2 handoff; nothing created |
+| The source is already in the target | P8 refusal |
+| `release` → `develop` with tracked changes in the working tree | A29; nothing created |
+| A pull request for the pair is already open (direct routes) | N1; updated |
+| A merge-branch route run twice before the first pull request merges | A second merge branch and pull request |
+| The conflict appears only during the apply | The same handoff; the local merge branch is deleted |
+| Closing the superseded draft fails (`hotfix` → `develop`) | R9, logged only |
+
+### `downmerge`: partial failure and recovery
+
+| Route | Failed at | Left behind | Recover |
+| --- | --- | --- | --- |
+| merge-branch routes | push | A local merge branch, checked out | `git checkout <target> && git branch -D <merge-branch>`, rerun |
+| merge-branch routes | pull request | The merge branch on origin, no pull request | Open the pull request from it by hand with the route's title, or delete it (`git push origin --delete <merge-branch>`) and rerun. A rerun creates a new merge branch; it does not reuse this one |
+| `hotfix` → `develop` | closing the draft | The new pull request, and the draft still open | Close the draft by hand |
+| `release` → `develop`, `hotfix` → `main` | pull request | Nothing on origin | Rerun |
 
 ---
 
 ## Version mutation primitives
 
-The actions above delegate every version change to these. They are also usable on their
-own, and they are the only code that writes the `VERSION` file. Each one rewrites
-`VERSION`, then stages, commits, and creates an annotated tag as described under
-[Conventions](#conventions-shared-by-every-action).
+The actions delegate every version change to these, which are also usable on their own and
+are the only code that writes `VERSION`. Each rewrites `VERSION`, then stages, commits and
+tags as in [Version commits and tags](#version-commits-and-tags).
 
 | Operation | `versioner` CLI | Rake task | JS function |
 | --- | --- | --- | --- |
@@ -801,16 +985,14 @@ own, and they are the only code that writes the `VERSION` file. Each one rewrite
 | Promote RC to final | `versioner release` | `rake version:release` | `release()` |
 | Print current version | `versioner show` | `rake version:show` | `showVersion()` |
 
-`versioner show` and `rake version:show` are read-only: they print the first line of
-`VERSION` and create nothing.
+`versioner show` and `rake version:show` are read-only. The `versioner` CLI also accepts
+the underscored aliases `patch_release_candidate`, `minor_release_candidate`,
+`major_release_candidate` and `increment_release_candidate`, plus `help`, `--help` and
+`-h`; with no arguments it prints help. `versioner init` takes its version from the
+argument, then the `VERSION` environment variable, then `0.1.0-RC.0`.
 
-The `versioner` CLI also accepts the underscored aliases
-`patch_release_candidate`, `minor_release_candidate`, `major_release_candidate`, and
-`increment_release_candidate`, plus `help` / `--help` / `-h`. Running it with no arguments
-prints help. `versioner init` takes its version from the argument, then the `VERSION`
-environment variable, then the `0.1.0-RC.0` default.
-
-**Guard rails**, identical in both implementations: `patch`, `minor`, `major`, and the
-three `*-rc` operations refuse to run while an RC is active; `increment-rc` and `release`
-refuse to run when the current version is not an RC; and `init` refuses when a `VERSION`
-file already exists.
+**Guard rails**, identical in both implementations: `patch`, `minor`, `major` and the three
+`*-rc` operations refuse while an RC is active (`There's an active release candidate
+(<v>). Do you want to: …`); `increment-rc` refuses on a final version (`Cannot increment
+the release candidate version on a non release candidate.`); `release` refuses on a final
+version (`Cannot release a non release candidate.`); `init` refuses when `VERSION` exists.

@@ -5,7 +5,7 @@ workflow: cut a release candidate, increment it, promote it to a final version, 
 and open the pull requests that carry changes between `main`, `develop`, `release/*` and
 `hotfix/*`.
 
-Thirteen tools, over the same
+Nine tools, over the same
 [`@officespacesoftware/release-management-core`](../release-management-core/README.md) the
 [`release-management` CLI](../release-management-cli/README.md) uses, so an assistant and a
 shell script do the same thing.
@@ -247,7 +247,7 @@ want to know when a fix appears not to have taken effect.
 
 ## Tools
 
-Thirteen tools. Full step-by-step behaviour and the exact git objects each creates are in
+Nine tools. Full step-by-step behaviour and the exact git objects each creates are in
 [docs/actions.md](../../../docs/actions.md); each row links to its section.
 
 | Tool | Inputs beyond `workingDirectory` | What it does |
