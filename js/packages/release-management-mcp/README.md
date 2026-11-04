@@ -10,9 +10,10 @@ Thirteen tools, over the same
 [`release-management` CLI](../release-management-cli/README.md) uses, so an assistant and a
 shell script do the same thing.
 
-Every mutating tool follows a **plan/confirm protocol**: called without a digest it
-describes the git objects it would create and changes nothing. That is what makes it safe to
-hand to an agent.
+Every mutating tool except `downmerge` follows a **plan/confirm protocol**: called without
+a digest it describes the git objects it would create and changes nothing. That is what makes
+it safe to hand to an agent. `downmerge` applies immediately, because all it opens is a pull
+request, and that pull request is the review.
 
 Node 18 or newer.
 
@@ -259,7 +260,7 @@ Thirteen tools. Full step-by-step behaviour and the exact git objects each creat
 | [`release_version`](../../../docs/actions.md#release_version) | `confirm`, `version`, `dryRun` | Promotes an RC to a final version, tags it, creates the GitHub release. |
 | [`revert_version`](../../../docs/actions.md#revert_version) | `confirm`, `version`, `dryRun` | Undoes the most recent version bump and deletes its tag. |
 | [`initialize_versioner`](../../../docs/actions.md#initialize_versioner) | `version` | Creates the `VERSION` file and its initial tag. Local only. |
-| [`downmerge`](../../../docs/actions.md#downmerge) | `source`, `target`, `confirm`, `version` | PRs one branch into another: `main` → `develop`, `release` → `develop`/`main`, `hotfix` → `develop`/`main`. A conflicting merge creates nothing and returns a [manual downmerge](../../../docs/manual-downmerge.md) handoff. |
+| [`downmerge`](../../../docs/actions.md#downmerge) | `source`, `target`, `version` | PRs one branch into another: `main` → `develop`, `release` → `develop`/`main`, `hotfix` → `develop`/`main`. Applies immediately; the pull request is the review. A conflicting merge creates nothing and returns a [manual downmerge](../../../docs/manual-downmerge.md) handoff. |
 
 `releaseType` is `major`, `minor` or `patch`, defaulting to `minor`. `version` identifies
 which branch to act on; when omitted, the newest matching branch on the upstream repository
@@ -272,7 +273,7 @@ supplied, must come from a human rather than being guessed.
 
 ### The plan/confirm protocol
 
-Omit `confirm` and a mutating tool returns a plan — the branches, commits, tags, pushes,
+Omit `confirm` and a mutating tool other than `downmerge` returns a plan — the branches, commits, tags, pushes,
 pull requests and releases it would create or delete, any warnings and notes, and a digest:
 
 ```

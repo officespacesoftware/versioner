@@ -12,9 +12,7 @@ import {
   ensureGitRepository,
   ensureNoStagedChanges,
   ensureVersionerAvailable,
-  ManualDownmergeRequired,
   renderChangePlan,
-  renderManualDownmerge,
   StalePlanError,
   type ChangePlan,
   type GitFlowManager,
@@ -87,13 +85,11 @@ export async function runPlanAwareCommand<T>(params: {
   commandName: string;
   opts: BaseOptions;
   flags: PlanFlags;
-  /** False for the downmerges, which never rewrite VERSION. */
-  requiresVersioner?: boolean;
   buildPlan: (agent: ReleaseAgent, gfm: GitFlowManager) => Promise<ChangePlan>;
   execute: (agent: ReleaseAgent, gfm: GitFlowManager) => Promise<T>;
   onExecuted: (result: T) => void;
 }): Promise<never> {
-  const { commandName, opts, flags, requiresVersioner = true } = params;
+  const { commandName, opts, flags } = params;
 
   return runCommand<PlanOutcome<T>>(
     async () => {
@@ -103,12 +99,8 @@ export async function runPlanAwareCommand<T>(params: {
       const gfm = createGitFlowManager(opts);
       await ensureGitRepository(gfm, opts.workingDirectory);
       await ensureNoStagedChanges(gfm);
-      const agent = await createReleaseAgent(gfm, opts, {
-        initialize: requiresVersioner,
-      });
-      if (requiresVersioner) {
-        ensureVersionerAvailable(agent);
-      }
+      const agent = await createReleaseAgent(gfm, opts);
+      ensureVersionerAvailable(agent);
 
       const plan = await params.buildPlan(agent, gfm);
 
@@ -140,9 +132,6 @@ export async function runPlanAwareCommand<T>(params: {
     (error) => {
       if (error instanceof StalePlanError) {
         return renderStalePlan(error, commandName);
-      }
-      if (error instanceof ManualDownmergeRequired) {
-        return renderManualDownmerge(error.handoff);
       }
       return undefined;
     }

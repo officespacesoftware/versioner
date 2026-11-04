@@ -62,8 +62,8 @@ git alone, so it does not). `list_versions`
 checks only that the directory is a git repository, because it never mutates.
 
 **`dryRun`.** The five version workflows, `revert_version` included, accept a dry-run flag: read-only validation still
-runs and the mutating steps are skipped. The five downmerge actions have no such flag —
-calling one without a confirmation digest returns a plan and is guaranteed not to mutate.
+runs and the mutating steps are skipped. The downmerge has no such flag and no plan
+step: it applies immediately, because the pull request it opens is the review.
 `initialize_versioner` has neither, because everything it creates is local.
 
 **Working directory.** Every action except `health_check` accepts a working directory and
@@ -75,7 +75,10 @@ defaults to the process's current directory.
 
 ## The plan/confirm protocol
 
-Every mutating action except `initialize_versioner` is two-phase.
+Every mutating action except `initialize_versioner` and `downmerge` is two-phase.
+`initialize_versioner` is purely local. A downmerge only opens a pull request, which a
+human reviews and can close unmerged, so it applies on the first call; see
+[`downmerge`](#downmerge).
 
 **Calling one without a confirmation digest returns a plan and changes nothing.** A plan
 (`ChangePlan` in `js/packages/release-management-core/src/change-plan.ts`) states:
@@ -625,19 +628,29 @@ five routes:
 | Input | Default |
 | --- | --- |
 | `source`, `target` (MCP only; the CLI names the route in the subcommand) | required |
-| `confirm` / `--confirm` (plan digest) | absent — plan only |
 | `version` / `--version` (release and hotfix sources) | newest branch of that type by semantic version |
 | `workingDirectory` / `--working-directory` | current directory |
 
-**Clean or conflicting.** The plan previews the merge with `merge-tree`. Only a clean
-merge gets a plan. A conflicting one creates nothing and returns a handoff instead,
+**Applies immediately.** There is no plan to confirm: the pull request is the review,
+and closing it unmerged rejects the downmerge. The MCP tool takes no `confirm`, and one
+sent anyway is ignored. The CLI accepts `--confirm` and `--yes` and ignores them, so
+scripts written for the plan/confirm protocol keep working; `--plan` is rejected as an
+unknown option rather than ignored, since ignoring it would apply a downmerge the caller
+only wanted to see. Before creating anything, the downmerge builds the same plan it used
+to show, and stops there when the plan refuses: a source already merged into the target
+is refused, and a conflict hands off as below. The plan's warnings and notes, such as an
+already-open pull request being updated rather than created, are returned with the
+result.
+
+**Clean or conflicting.** The downmerge previews the merge with `merge-tree` first. Only
+a clean merge goes ahead. A conflicting one creates nothing and returns a handoff instead,
 following [manual-downmerge.md](manual-downmerge.md). Into `develop` it is "Manual
 downmerge needed": the conflicted files, the branch to resolve them on, the pull request
 title, and numbered steps. Into `main` it is "Decision needed": `main` mirrors
 production, so the handoff resolves nothing and lists two options for a human. The CLI prints
 the handoff and exits with the user-error code. The tools never push a conflicted merge,
-and the apply re-checks: a conflict that appears between plan and apply aborts the merge,
-deletes the local branch, and returns the same handoff.
+and the merge itself re-checks: a conflict that appears after the preview aborts the
+merge, deletes the local branch, and returns the same handoff.
 
 **Steps for a clean merge.**
 
@@ -645,7 +658,7 @@ deletes the local branch, and returns the same handoff.
 2. Fetch, check out and pull the target and the source.
 3. Merge-branch routes: create the merge branch off the target, merge the source in with
    `git merge --no-ff`, and push. A source already merged into the target is refused
-   at planning time, since the merge would produce no commit.
+   before anything is created, since the merge would produce no commit.
 4. Open or update the pull request into the target.
 5. `hotfix` → `develop` only: close the draft `hotfix/X.Y.Z` → `develop` pull request that
    `create_hotfix` opened, with a comment linking the new one. Failing to close it is
