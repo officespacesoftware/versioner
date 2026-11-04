@@ -1,4 +1,5 @@
 import { appendFileSync } from "fs";
+import type { PipelineTriggerResult } from "@officespacesoftware/release-management-core";
 
 export interface GlobalOptions {
   json: boolean;
@@ -51,4 +52,18 @@ export function writeGithubOutput(kv: Record<string, string | undefined>): void 
   }
   if (lines.length === 0) return;
   appendFileSync(path, lines.join("\n") + "\n", "utf-8");
+}
+
+/** The pipeline trigger's outcome, then the tail of what it printed. */
+export function renderPipelineTrigger(
+  result: PipelineTriggerResult | undefined
+): string[] {
+  if (!result) return [];
+  const label = result.status === "failed" ? "Pipeline warning" : "Pipeline";
+  const lines = [`${label}: ${result.message}`];
+  if (result.output !== undefined) {
+    lines.push("Output of the pipeline trigger:");
+    lines.push(...result.output.split("\n").map((line) => `  ${line}`));
+  }
+  return lines;
 }

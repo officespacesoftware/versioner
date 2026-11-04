@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import type { IncrementRCWorkflowContext } from "@officespacesoftware/release-management-core";
-import { emit, writeGithubOutput } from "../output.js";
+import { emit, renderPipelineTrigger, writeGithubOutput } from "../output.js";
 import { runPlanAwareCommand } from "../plan.js";
 import { resolveBaseOptions } from "../run.js";
 
@@ -37,6 +37,7 @@ export function registerIncrementRC(parent: Command): void {
             pull_request_url: result.pullRequestUrl,
             pull_request_action: result.pullRequestAction,
             pull_request_error: result.pullRequestError,
+            pipeline_trigger: result.pipelineTrigger?.status,
           });
           emit(result, opts, renderIncrementRC);
         },
@@ -57,5 +58,6 @@ function renderIncrementRC(r: IncrementRCWorkflowContext): string {
   if (r.pullRequestError) {
     lines.push(`PR step failed: ${r.pullRequestError}`);
   }
+  lines.push(...renderPipelineTrigger(r.pipelineTrigger));
   return lines.join("\n");
 }

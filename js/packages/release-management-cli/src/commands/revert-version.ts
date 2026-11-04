@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import type { RevertVersionWorkflowContext } from "@officespacesoftware/release-management-core";
-import { emit, writeGithubOutput } from "../output.js";
+import { emit, renderPipelineTrigger, writeGithubOutput } from "../output.js";
 import { runPlanAwareCommand } from "../plan.js";
 import { resolveBaseOptions } from "../run.js";
 
@@ -55,6 +55,7 @@ export function registerRevertVersion(parent: Command): void {
             pull_request_url: result.pullRequestUrl,
             pull_request_action: result.pullRequestAction,
             pull_request_error: result.pullRequestError,
+            pipeline_trigger: result.pipelineTrigger?.status,
           });
           emit(result, opts, renderRevertVersion);
         },
@@ -87,6 +88,7 @@ function renderRevertVersion(r: RevertVersionWorkflowContext): string {
   if (r.pullRequestError) {
     lines.push(`PR step failed: ${r.pullRequestError}`);
   }
+  lines.push(...renderPipelineTrigger(r.pipelineTrigger));
   lines.push(
     "",
     "Deleting a tag does not undo a build or deployment it already triggered."

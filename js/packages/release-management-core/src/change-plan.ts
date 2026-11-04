@@ -67,6 +67,13 @@ export interface ChangePlan {
    * two runs of the same check, and the warning naming the failure is covered.
    */
   checkOutput?: CheckOutput[];
+  /**
+   * Set when the apply is expected to start the repository's pipeline, because the
+   * branch will have no open pull request after the push. Left out of the digest:
+   * it depends on pull requests to any base, which open and close without the
+   * repository moving, and the apply checks again after the push regardless.
+   */
+  pipelineTrigger?: string;
   digest: string;
 }
 
@@ -218,6 +225,10 @@ export function renderChangePlan(plan: ChangePlan): string {
     for (const notice of plan.notices) {
       lines.push(`  - ${notice}`);
     }
+  }
+
+  if (plan.pipelineTrigger !== undefined) {
+    lines.push("", "Pipeline:", `  - ${plan.pipelineTrigger}`);
   }
 
   for (const check of plan.checkOutput ?? []) {

@@ -93,6 +93,7 @@ human reviews and can close unmerged, so it applies on the first call; see
 | `warnings` | conditions a human should weigh before approving; a plan with warnings is still applied when its digest is confirmed |
 | `notices` | facts that shape the plan without putting the outcome at risk, such as a pull request being updated rather than opened; rendered under "Notes:" |
 | `checkOutput` | what each failing pre-version check printed, rendered after the plan; not covered by the digest, since output varies between runs |
+| `pipelineTrigger` | set when the apply is expected to start the repository's pipeline because the branch will have no open pull request; rendered under "Pipeline:" and not covered by the digest (see [Pipeline trigger](#pipeline-trigger)) |
 | `digest` | the confirmation token |
 
 Every fact in a plan comes from read-only primitives: branch selection, `git rev-parse` for
@@ -186,6 +187,101 @@ with `--yes`, is a usage error resolved before anything touches git.
 Read-only actions need no confirmation: they have nothing to plan.
 
 The mutation tables in the sections below describe what an apply produces.
+
+### Pipeline trigger
+
+Some CI setups build a branch only while it has an open pull request. Every versioning
+action opens one on the branch it pushes, but once that pull request is merged or closed a
+later push to the branch builds nothing. A repository can name a command that starts its
+pipeline, in the same `.release-management.json`:
+
+```json
+{
+  "pipeline": {
+    "trigger": "scripts/start-pipeline.sh",
+    "timeoutSeconds": 120
+  }
+}
+```
+
+`timeoutSeconds` defaults to 120. Without a `pipeline` section nothing changes.
+
+**When it runs.** After `create_release_candidate`, `increment_release_candidate`,
+`release_version`, `create_hotfix`, or a `revert_version` that rewinds a branch have
+pushed and finished their pull-request steps, the action asks GitHub whether the pushed
+branch is the head of any open pull request, against any base. Only when it is not does
+the trigger run. A branch with an open pull request is left alone: its pull request's own
+build runs on the push, and starting another pipeline would cancel it. A
+`revert_version` that abandons a branch deletes it, so there is nothing to build;
+downmerges always open a pull request, so they never trigger.
+
+**How it runs.** The configuration is read from the commit that was just pushed, and the
+command runs with bash in a temporary detached checkout of that commit, removed
+afterwards. It inherits the environment of the process running the action, so CI tokens
+such as `CIRCLECI_TOKEN` reach it, plus:
+
+| Variable | Value |
+| --- | --- |
+| `RELEASE_BRANCH` | the pushed branch, such as `release/1.4.0` |
+| `RELEASE_VERSION` | the version the branch now holds, such as `1.4.0-RC.3` |
+| `RELEASE_ACTION` | the action that pushed it, such as `increment_release_candidate` |
+
+The tail of what the command prints is reported in the result, so it must not print
+credentials.
+
+**What it reports.** The apply result carries `pipelineTrigger`, with a `status` and a
+`message` (`pipeline_trigger` in the CLI's `$GITHUB_OUTPUT` holds the status), plus the
+tail of the command's output when it printed anything:
+
+| Status | Message |
+| --- | --- |
+| `started` | `Started the pipeline for <branch>: it has no open pull request.` |
+| `skipped` | `Did not start the pipeline for <branch>: PR #<n> is open, so its own build runs on the push.` |
+| `failed` | the command exited non-zero, ran past its timeout, could not run, the configuration is invalid, or the pull-request lookup failed; the message says to start the build by hand |
+
+A failure is a warning, never a rollback: the version is already on origin. An invalid
+`pipeline` section on a branch with an open pull request reports nothing at apply time,
+since nothing would have run.
+
+**In plans.** A plan for one of those actions warns when the `pipeline` section is
+invalid. When it expects the branch to have no open pull request after the apply, it sets
+`pipelineTrigger`, rendered as:
+
+```text
+Pipeline:
+  - Would start the pipeline for release/1.4.0: it has no open pull request. Checked again after the push.
+```
+
+Every action except a rewinding `revert_version` opens or updates a pull request on the
+branch, so in practice only those revert plans show the line; for the others the trigger
+runs only if the pull-request step fails. The line is not covered by the digest, because
+it depends on pull requests to any base, which open and close without the repository
+moving, and the apply checks again after the push regardless. The configuration it is
+read from is covered, through the branch head.
+
+**Examples.** A CircleCI pipeline, through its API:
+
+```bash
+#!/usr/bin/env bash
+# scripts/start-pipeline.sh
+set -euo pipefail
+# The token goes in on stdin, not the command line, where other processes can read it.
+printf 'Circle-Token: %s\n' "$CIRCLECI_TOKEN" |
+  curl --fail-with-body -sS -X POST \
+    "https://circleci.com/api/v2/project/gh/acme/widgets/pipeline" \
+    -H @- -H "Content-Type: application/json" \
+    -d "{\"branch\": \"${RELEASE_BRANCH}\"}"
+```
+
+A GitHub Actions workflow with a `workflow_dispatch` trigger:
+
+```json
+{
+  "pipeline": {
+    "trigger": "gh workflow run ci.yml --ref \"$RELEASE_BRANCH\""
+  }
+}
+```
 
 ---
 
@@ -287,7 +383,7 @@ release branch and tag that would be created, and the pull request into `develop
 | Remote refs | `refs/remotes/origin/main` and `refs/remotes/origin/develop` updated by step 1 |
 
 CLI `$GITHUB_OUTPUT` keys: `release_type`, `version`, `pull_request_url`,
-`pull_request_action`.
+`pull_request_action`, `pipeline_trigger`.
 
 ---
 
@@ -335,7 +431,8 @@ watermarked region of its body.
 
 Bringing the hotfix into `develop` is a separate action, the hotfix → develop `downmerge`.
 
-CLI `$GITHUB_OUTPUT` keys: `version`, `pull_request_url`, `pull_request_action`.
+CLI `$GITHUB_OUTPUT` keys: `version`, `pull_request_url`, `pull_request_action`,
+`pipeline_trigger`.
 
 ---
 
@@ -391,7 +488,7 @@ started on. A failure in step 7 does not fail the action: the version bump has a
 happened, so the pull-request error is reported alongside the result.
 
 CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
-`pull_request_action`, `pull_request_error`.
+`pull_request_action`, `pull_request_error`, `pipeline_trigger`.
 
 ---
 
@@ -473,7 +570,7 @@ the result instead. `revert_version` writes the same own-base PR — see its tab
 
 CLI `$GITHUB_OUTPUT` keys: `branch`, `version`, `pull_request_url`,
 `pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`,
-`own_base_pull_request_url`, `own_base_pull_request_error`.
+`own_base_pull_request_url`, `own_base_pull_request_error`, `pipeline_trigger`.
 
 ---
 
@@ -571,7 +668,7 @@ pushing the revert commit may itself trigger a new one. Every plan says so.
 
 CLI `$GITHUB_OUTPUT` keys: `branch`, `shape`, `reverted_version`, `resulting_version`,
 `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`,
-`pull_request_error`.
+`pull_request_error`, `pipeline_trigger`.
 
 ---
 

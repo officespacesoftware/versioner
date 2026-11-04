@@ -52,6 +52,7 @@ function makeAgent(branch, versions, overrides = {}) {
     getGitHubRelease: async () => null,
     commitsNotIn: async () => [],
     findOpenPullRequest: async () => null,
+    readFileAtRef: async () => null,
     ...overrides,
   };
 

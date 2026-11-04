@@ -30,6 +30,7 @@ import {
   renderManualDownmerge,
   type ChangePlan,
   type DownmergeResult,
+  type PipelineTriggerResult,
 } from "@officespacesoftware/release-management-core";
 
 /** Reported over the MCP handshake and by health_check; taken from the package itself. */
@@ -85,6 +86,24 @@ function renderBullets(title: string, items: string[]): string {
     return "";
   }
   return `\n${title}\n${items.map((item) => `  - ${item}`).join("\n")}\n`;
+}
+
+/** The pipeline trigger's outcome and the tail of its output, or nothing. */
+function renderPipelineTrigger(
+  result: PipelineTriggerResult | undefined
+): string {
+  if (!result) {
+    return "";
+  }
+  const icon = result.status === "failed" ? "⚠️ " : "🔧";
+  const lines = [`${icon} Pipeline: ${result.message}`];
+  if (result.output !== undefined) {
+    lines.push(
+      "Output of the pipeline trigger:",
+      ...result.output.split("\n").map((line) => `  ${line}`)
+    );
+  }
+  return `\n${lines.join("\n")}\n`;
 }
 
 /**
@@ -994,7 +1013,7 @@ ${
           : "Pull Request"
       }: ${workflowResult.pullRequestUrl}`
     : ""
-}
+}${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 
 ✅ All steps completed successfully. The ${releaseType} release candidate has been created and is ready for testing.
 
@@ -1117,7 +1136,7 @@ ${
         workflowResult.trackingPullRequestError
           ? `\n⚠️  Could not open the develop PR: ${workflowResult.trackingPullRequestError}`
           : ""
-      }
+      }${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 
 ✅ All steps completed successfully.
 
@@ -1241,7 +1260,7 @@ ${
   workflowResult.pullRequestError
     ? `⚠️  PR step failed: ${workflowResult.pullRequestError}`
     : ""
-}
+}${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 
 ✅ All steps completed successfully.`;
     } catch (error) {
@@ -1339,6 +1358,10 @@ Please review the error and fix any issues before retrying the workflow.`;
       }
       if (result.pullRequestError) {
         lines.push(`⚠️  Pull request step failed: ${result.pullRequestError}`);
+      }
+      const pipeline = renderPipelineTrigger(result.pipelineTrigger);
+      if (pipeline !== "") {
+        lines.push(pipeline.trim());
       }
 
       lines.push(
@@ -1474,7 +1497,7 @@ ${
   workflowResult.ownBasePullRequestError
     ? `⚠️  ${workflowResult.branchInfo.targetBranch} PR refresh failed: ${workflowResult.ownBasePullRequestError}`
     : ""
-}
+}${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 
 ✅ All steps completed successfully. The release candidate has been converted to final version and is ready for ${
         workflowResult.branchType === "release"

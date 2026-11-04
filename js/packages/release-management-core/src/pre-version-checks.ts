@@ -17,6 +17,9 @@
  * runs in a detached checkout of that commit, so it judges exactly what would be
  * tagged. A failing check becomes a warning on the plan: the approver decides
  * whether it matters, as with any other warning.
+ *
+ * The same file holds the pipeline trigger, a `pipeline` section read by
+ * pipeline-trigger.ts.
  */
 
 import { exec } from "child_process";
@@ -41,12 +44,18 @@ export interface PreVersionCheck {
   timeoutSeconds: number;
 }
 
+export interface PipelineConfig {
+  trigger: string;
+  timeoutSeconds: number;
+}
+
 export interface PreVersionCheckResult {
   warnings: string[];
   checkOutput: CheckOutput[];
 }
 
 const DEFAULT_TIMEOUT_SECONDS = 300;
+const DEFAULT_PIPELINE_TIMEOUT_SECONDS = 120;
 const OUTPUT_TAIL_LINES = 40;
 const OUTPUT_TAIL_CHARS = 4000;
 
@@ -55,11 +64,7 @@ const OUTPUT_TAIL_CHARS = 4000;
  * for every action that cuts a version.
  */
 export function parsePreVersionConfig(text: string): PreVersionCheck[] {
-  const parsed: unknown = JSON.parse(text);
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("the top level must be an object");
-  }
-  const checks = (parsed as { checks?: unknown }).checks ?? [];
+  const checks = parseConfigObject(text)["checks"] ?? [];
   if (!Array.isArray(checks)) {
     throw new Error('"checks" must be an array');
   }
@@ -85,12 +90,7 @@ export function parsePreVersionConfig(text: string): PreVersionCheck[] {
         `${where}.on must list actions from: ${VERSION_ACTIONS.join(", ")}`
       );
     }
-    if (
-      timeoutSeconds !== undefined &&
-      (typeof timeoutSeconds !== "number" ||
-        !Number.isFinite(timeoutSeconds) ||
-        timeoutSeconds <= 0)
-    ) {
+    if (timeoutSeconds !== undefined && !isPositiveNumber(timeoutSeconds)) {
       throw new Error(`${where}.timeoutSeconds must be a positive number`);
     }
     return {
@@ -103,7 +103,49 @@ export function parsePreVersionConfig(text: string): PreVersionCheck[] {
   });
 }
 
-function tail(output: string): string {
+function parseConfigObject(text: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(text);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("the top level must be an object");
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function isPositiveNumber(value: unknown): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+/**
+ * Parse the `pipeline` section, or null when there is none. Throws on anything
+ * ambiguous, as the checks do.
+ */
+export function parsePipelineConfig(text: string): PipelineConfig | null {
+  const pipeline = parseConfigObject(text)["pipeline"];
+  if (pipeline === undefined) {
+    return null;
+  }
+  if (
+    typeof pipeline !== "object" ||
+    pipeline === null ||
+    Array.isArray(pipeline)
+  ) {
+    throw new Error('"pipeline" must be an object');
+  }
+  const { trigger, timeoutSeconds } = pipeline as Record<string, unknown>;
+  if (typeof trigger !== "string" || trigger.trim() === "") {
+    throw new Error("pipeline.trigger must be a non-empty string");
+  }
+  if (timeoutSeconds !== undefined && !isPositiveNumber(timeoutSeconds)) {
+    throw new Error("pipeline.timeoutSeconds must be a positive number");
+  }
+  return {
+    trigger,
+    timeoutSeconds: (timeoutSeconds as number | undefined) ??
+      DEFAULT_PIPELINE_TIMEOUT_SECONDS,
+  };
+}
+
+export function outputTail(output: string): string {
   const lines = output.trimEnd().split("\n");
   const kept = lines.slice(-OUTPUT_TAIL_LINES).join("\n");
   return kept.length > OUTPUT_TAIL_CHARS
@@ -111,10 +153,15 @@ function tail(output: string): string {
     : kept;
 }
 
-function runCommand(
+/**
+ * Run `command` with bash in `cwd`. `env` is added to the inherited environment,
+ * never replacing it.
+ */
+export function runShellCommand(
   command: string,
   cwd: string,
-  timeoutSeconds: number
+  timeoutSeconds: number,
+  env: Record<string, string> = {}
 ): Promise<{ exitCode: number; timedOut: boolean; output: string }> {
   return new Promise((resolve) => {
     exec(
@@ -124,6 +171,7 @@ function runCommand(
         shell: "/bin/bash",
         timeout: timeoutSeconds * 1000,
         maxBuffer: 16 * 1024 * 1024,
+        env: { ...process.env, ...env },
       },
       (error, stdout, stderr) => {
         const output = [stdout, stderr].filter((s) => s.trim() !== "").join("\n");
@@ -182,7 +230,7 @@ export async function runPreVersionChecks(opts: {
   try {
     await opts.withCheckout(opts.commit, async (dir) => {
       for (const check of checks) {
-        const run = await runCommand(check.run, dir, check.timeoutSeconds);
+        const run = await runShellCommand(check.run, dir, check.timeoutSeconds);
         if (run.exitCode === 0) {
           continue;
         }
@@ -194,7 +242,10 @@ export async function runPreVersionChecks(opts: {
                 `(exit ${run.exitCode}). Its output is at the end of the plan.`
         );
         if (run.output.trim() !== "") {
-          result.checkOutput.push({ name: check.name, output: tail(run.output) });
+          result.checkOutput.push({
+            name: check.name,
+            output: outputTail(run.output),
+          });
         }
       }
     });
