@@ -8,6 +8,7 @@
 export * from "./change-plan.js";
 export * from "./git-flow.js";
 export * from "./manual-downmerge.js";
+export * from "./pipeline-trigger.js";
 export * from "./pre-version-checks.js";
 export * from "./release-agent.js";
 export * from "./versioner-adapter.js";

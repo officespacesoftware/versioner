@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import type { ReleaseVersionWorkflowContext } from "@officespacesoftware/release-management-core";
-import { emit, writeGithubOutput } from "../output.js";
+import { emit, renderPipelineTrigger, writeGithubOutput } from "../output.js";
 import { runPlanAwareCommand } from "../plan.js";
 import { resolveBaseOptions } from "../run.js";
 
@@ -42,6 +42,7 @@ export function registerReleaseVersion(parent: Command): void {
             own_base_pull_request_url: result.ownBasePullRequestUrl,
             own_base_pull_request_action: result.ownBasePullRequestAction,
             own_base_pull_request_error: result.ownBasePullRequestError,
+            pipeline_trigger: result.pipelineTrigger?.status,
           });
           emit(result, opts, renderReleaseVersion);
         },
@@ -79,5 +80,6 @@ function renderReleaseVersion(r: ReleaseVersionWorkflowContext): string {
       `${r.branchInfo?.targetBranch ?? "Own-base"} PR refresh failed: ${r.ownBasePullRequestError}`
     );
   }
+  lines.push(...renderPipelineTrigger(r.pipelineTrigger));
   return lines.join("\n");
 }

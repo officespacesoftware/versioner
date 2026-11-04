@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import type { ReleaseWorkflowContext } from "@officespacesoftware/release-management-core";
-import { emit, writeGithubOutput } from "../output.js";
+import { emit, renderPipelineTrigger, writeGithubOutput } from "../output.js";
 import { runPlanAwareCommand } from "../plan.js";
 import { resolveBaseOptions } from "../run.js";
 
@@ -41,6 +41,7 @@ export function registerCreateRC(parent: Command): void {
             version: result.targetVersion?.version,
             pull_request_url: result.pullRequestUrl,
             pull_request_action: result.pullRequestAction,
+            pipeline_trigger: result.pipelineTrigger?.status,
           });
           emit(result, opts, renderCreateRC);
         },
@@ -57,5 +58,6 @@ function renderCreateRC(r: ReleaseWorkflowContext): string {
     const verb = r.pullRequestAction === "updated" ? "Updated PR" : "Pull Request";
     lines.push(`${verb}: ${r.pullRequestUrl}`);
   }
+  lines.push(...renderPipelineTrigger(r.pipelineTrigger));
   return lines.join("\n");
 }
