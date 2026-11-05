@@ -23,14 +23,15 @@ import {
   ManualDownmergeRequired,
   ReleaseAgent,
   StalePlanError,
-  VersionerAdapter,
   assertPlanIsCurrent,
+  initializeVersioner,
   parseDownmergeRoute,
   renderChangePlan,
   renderManualDownmerge,
   type ChangePlan,
   type DownmergeResult,
   type PipelineTriggerResult,
+  type SupersededPullRequest,
 } from "@officespacesoftware/release-management-core";
 
 /** Reported over the MCP handshake and by health_check; taken from the package itself. */
@@ -106,6 +107,55 @@ function renderPipelineTrigger(
   return `\n${lines.join("\n")}\n`;
 }
 
+/** What became of the pull request a downmerge superseded, or nothing. */
+function renderSuperseded(superseded: SupersededPullRequest | undefined): string {
+  if (!superseded) {
+    return "";
+  }
+  const pr = superseded.number ? `PR #${superseded.number} ` : "PR ";
+  const pair = `(${superseded.head} → ${superseded.base})`;
+  return superseded.error
+    ? `\n⚠️  Could not close the superseded ${pr}${pair}: ${superseded.error}. Close it by hand.`
+    : `\n🗂️  Closed ${pr}${pair} as superseded: ${superseded.url}`;
+}
+
+/** A line saying the run finished an earlier one, or nothing. */
+function renderResumed(result: {
+  resumed?: boolean;
+  currentBranch: string;
+  targetVersion?: { version: string };
+}): string {
+  if (!result.resumed) {
+    return "";
+  }
+  return `♻️  Resumed: ${result.currentBranch} was already on origin at ${result.targetVersion?.version}, so it was not created again\n`;
+}
+
+/**
+ * A create action's pull-request failure, with how to recover: running the same
+ * action again resumes from the push, since the branch is on origin at its RC.0.
+ */
+function renderCreationPullRequestError(
+  result: {
+    pullRequestError?: string;
+    currentBranch: string;
+    targetVersion?: { version: string };
+  },
+  toolName: string,
+  base: string
+): string {
+  if (!result.pullRequestError) {
+    return "";
+  }
+  const version = result.targetVersion?.version;
+  return (
+    `\n⚠️  PR step failed: ${result.pullRequestError}` +
+    `\n   To recover, call ${toolName} again with the same inputs: it resumes from ` +
+    `the push and opens the pull request. Or open ${result.currentBranch} → ${base} ` +
+    `by hand, titled "RC ${version} to ${base}".`
+  );
+}
+
 /**
  * Release Management MCP Server
  *
@@ -119,7 +169,6 @@ class ReleaseManagementMCPServer {
   private server: Server;
   private releaseAgent?: ReleaseAgent;
   private gitFlowManager?: GitFlowManager;
-  private versionerAdapter?: VersionerAdapter;
   private boundWorkingDirectory?: string;
 
   /**
@@ -225,7 +274,9 @@ Cuts a new release branch off develop and sets it to an RC.0 version.
 - Aborts unless main is already merged into develop: a release must not be cut
   from a develop that is missing production changes.
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin's main, develop, release/* and hotfix/*
+first, so the plan reflects origin): it returns a plan listing the
 branch, commit, tag, pushes and pull request it would create, plus a digest. Pass
 that digest back as 'confirm' to apply. If the repository changed in between, the
 digest no longer matches and it refuses, returning a fresh plan.
@@ -233,7 +284,13 @@ digest no longer matches and it refuses, returning a fresh plan.
 Applying creates: the branch release/X.Y.Z off develop, a commit
 "To version X.Y.Z-RC.0" touching only VERSION, an annotated tag X.Y.Z-RC.0, a push
 of the branch and a push of the tag, and a pull request release/X.Y.Z → develop
-titled "RC X.Y.Z-RC.0 to develop" (opened, or updated if one is already open).`,
+titled "RC X.Y.Z-RC.0 to develop" (opened, or updated if one is already open).
+
+If the pull request cannot be opened, that is reported with the result rather than
+failing the action: the branch and tag are already on origin. Calling the tool
+again then resumes: when origin already holds release/X.Y.Z at exactly
+X.Y.Z-RC.0, the plan says so and only the missing steps run (the tag push if it
+was missed, the pull request). A branch at any other version is refused.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -282,7 +339,9 @@ Cuts a hotfix branch off main and sets it to the next patch RC.0 version.
   the hotfix into develop — the hotfix → develop downmerge still does that, from a
   merge branch, once the fix is written and deployed
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin's main, develop, release/* and hotfix/*
+first, so the plan reflects origin): it returns a plan listing the
 branch, commit, tag, pushes and pull request it would create, plus a digest. Pass
 that digest back as 'confirm' to apply. If the repository changed in between, the
 digest no longer matches and it refuses, returning a fresh plan.
@@ -293,7 +352,12 @@ of the branch and a push of the tag, a pull request hotfix/X.Y.Z → main titled
 "RC X.Y.Z-RC.0 to main", carrying a warning not to merge before the hotfix has
 been deployed, and a draft pull request hotfix/X.Y.Z → develop titled
 "Hotfix X.Y.Z to develop". If a pull request for either head/base pair is already
-open, its title and the watermarked region of its body are updated instead.`,
+open, its title and the watermarked region of its body are updated instead.
+
+If the pull request into main cannot be opened, that is reported with the result
+rather than failing the action, and the draft is still attempted. Calling the
+tool again resumes, as for create_release_candidate, when origin already holds
+hotfix/X.Y.Z at exactly X.Y.Z-RC.0.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -327,7 +391,8 @@ open, its title and the watermarked region of its body are updated instead.`,
 
 Bumps the RC number for an existing release or hotfix branch (e.g. RC.1 → RC.2).
 
-- Input: optional base version (e.g., 1.2.0)
+- Input: optional base version (e.g., 1.2.0), or the full branch name
+  (release/1.2.0 or hotfix/1.2.0) when both exist
 - Target selection, in order:
   1. the version you pass explicitly;
   2. the currently checked-out release/hotfix branch, if it holds an RC;
@@ -337,7 +402,9 @@ Bumps the RC number for an existing release or hotfix branch (e.g. RC.1 → RC.2
   see every candidate, then pass the version you want.
 - Works with both release/X.Y.0 and hotfix/X.Y.Z
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin's main, develop, release/* and hotfix/*
+first, so the plan reflects origin): it returns a plan listing the
 commit, tag, pushes and pull request it would create, plus a digest. Pass that
 digest back as 'confirm' to apply. If the repository changed in between, the
 digest no longer matches and it refuses, returning a fresh plan.
@@ -362,7 +429,8 @@ updated if one is already open.`,
                 version: {
                   type: "string",
                   description:
-                    "Optional target version to increment (e.g., '1.2.0'). " +
+                    "Optional target version to increment (e.g., '1.2.0'), or the full branch name " +
+                    "('release/1.2.0' or 'hotfix/1.2.0') when both branches exist. " +
                     "When not provided, automatically finds the most recent version available on the upstream Git repository. " +
                     "If provided, this parameter must be entered by a human user.",
                 },
@@ -386,7 +454,8 @@ updated if one is already open.`,
 
 Promotes a release candidate to a final version (e.g. 1.2.0-RC.3 → 1.2.0).
 
-- Input: optional base version (e.g., 1.2.0)
+- Input: optional base version (e.g., 1.2.0), or the full branch name
+  (release/1.2.0 or hotfix/1.2.0) when both exist
 - Target selection, in order:
   1. the version you pass explicitly;
   2. the currently checked-out release/hotfix branch, if it holds an RC;
@@ -394,15 +463,19 @@ Promotes a release candidate to a final version (e.g. 1.2.0-RC.3 → 1.2.0).
 - If a release/hotfix branch IS checked out but does not hold an RC, this ABORTS
   rather than promoting a different release train. Use list_versions first.
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin's main, develop, release/* and hotfix/*
+first, so the plan reflects origin): it returns a plan listing the
 commit, tag, pushes, pull request and GitHub release it would create, plus a
 digest. Pass that digest back as 'confirm' to apply. If the repository changed in
 between, the digest no longer matches and it refuses, returning a fresh plan.
 
 Applying creates: a commit "To version X.Y.Z" touching only VERSION, an annotated
 tag of the same name, pushes of the branch and the tag, a pull request to main
-carrying a warning not to merge before the deployment, and a GitHub release whose
-target is the release branch.`,
+carrying a warning not to merge before the deployment, a GitHub release whose
+target is the release branch, and the pull request back to develop. For a hotfix
+that develop pull request stays a draft placeholder (it conflicts on VERSION until
+the hotfix → develop downmerge supersedes it).`,
             inputSchema: {
               type: "object",
               properties: {
@@ -419,7 +492,8 @@ target is the release branch.`,
                 version: {
                   type: "string",
                   description:
-                    "Optional specific version to release (e.g., '1.2.0'). " +
+                    "Optional specific version to release (e.g., '1.2.0'), or the full branch name " +
+                    "('release/1.2.0' or 'hotfix/1.2.0') when both branches exist. " +
                     "When not provided, automatically finds the most recent version available on the upstream Git repository. " +
                     "If provided, this parameter must be entered by a human user.",
                 },
@@ -480,7 +554,8 @@ Routes (source → target):
 - release → develop: one pull request straight from release/X.Y.Z.
 - release → main: merges the release into a fresh branch cut off main. The pull
   request head is never release/*, which would re-trigger CI workflows that build
-  a fresh artifact for an already-cut release.
+  a fresh artifact for an already-cut release. Closes the release/X.Y.Z → main
+  pull request release_version opened, as superseded, so main has one.
 - hotfix → develop: merges the hotfix into a fresh branch cut off develop, and
   closes the draft hotfix/* → develop pull request create_hotfix opened. Run it
   after the fix is written and deployed.
@@ -495,6 +570,10 @@ index nor the working tree.
 - Clean merge: creates the merge branch where the route uses one, opens or
   updates the pull request, and returns its URL with any warnings and notes.
 - Source already merged into the target: refuses and creates nothing.
+- A merge-branch route whose earlier pull request is still open: when that pull
+  request already holds the source, nothing new is created and it is returned
+  (with a note); when the source has moved on since, it refuses and asks for
+  that pull request to be merged or closed first.
 - Conflicting merge: returns a handoff instead, and creates nothing. The tools
   never push a conflicted merge.
   - Into develop, "Manual downmerge needed": the conflicted files and the steps
@@ -519,7 +598,8 @@ index nor the working tree.
                 version: {
                   type: "string",
                   description:
-                    "Optional release or hotfix version to merge (e.g., '1.2.0'). Ignored for source main. " +
+                    "Optional release or hotfix version to merge (e.g., '1.2.0', or the full branch name " +
+                    "'release/1.2.0'). Ignored for source main. " +
                     "When not provided, automatically finds the most recent branch of the source type on the upstream Git repository. " +
                     "If provided, this parameter must be entered by a human user.",
                 },
@@ -570,7 +650,8 @@ certain which branch should be acted on, then pass that version explicitly.`,
 
 Undoes the most recent version bump on a release or hotfix branch.
 
-- Input: optional version (e.g., 1.2.0) identifying the branch
+- Input: optional version (e.g., 1.2.0) identifying the branch, or the full
+  branch name (release/1.2.0 or hotfix/1.2.0) when both exist
 - Target selection, in order:
   1. the version you pass explicitly;
   2. the currently checked-out release/hotfix branch.
@@ -593,14 +674,18 @@ Refuses outright when: the version is already merged into the production branch
 (it shipped, so it can only be superseded); the branch head is not the version
 bump commit; or the branch has no readable VERSION.
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing what it
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin first, so the plan reflects origin): it
+returns a plan listing what it
 would revert and delete, plus a digest. Pass that digest back as 'confirm' to
 apply. If the repository changed in between, the digest no longer matches and it
 refuses, returning a fresh plan.
 
 Applying deletes the tag locally and on origin, and for a final version deletes
 its GitHub Release, which moves the Latest marker back to the previous release and
-destroys that release's notes. Deleting a tag does NOT undo a build or deployment
+destroys that release's notes. Reverting a release branch's final version also
+closes the release/X.Y.Z → main pull request its promotion opened, and puts the
+develop pull request back to the candidate's title. Deleting a tag does NOT undo a build or deployment
 the tag already triggered.`,
             inputSchema: {
               type: "object",
@@ -618,7 +703,8 @@ the tag already triggered.`,
                 version: {
                   type: "string",
                   description:
-                    "Optional version identifying the branch to revert (e.g., '1.2.0'). " +
+                    "Optional version identifying the branch to revert (e.g., '1.2.0'), or the full " +
+                    "branch name ('release/1.2.0' or 'hotfix/1.2.0') when both branches exist. " +
                     "When not provided, the currently checked-out release or hotfix branch is used. " +
                     "If provided, this parameter must be entered by a human user.",
                 },
@@ -718,12 +804,6 @@ the tag already triggered.`,
     const workingDirectory = args?.workingDirectory || process.cwd();
 
     try {
-      // Initialize versioner adapter if needed
-      if (!this.versionerAdapter) {
-        this.versionerAdapter = new VersionerAdapter();
-        await this.versionerAdapter.initialize(undefined, workingDirectory);
-      }
-
       await this.bindWorkingDirectory(workingDirectory);
 
       // Check if we're in a git repository
@@ -737,9 +817,9 @@ the tag already triggered.`,
       // Check for staged changes (prevents committing unrelated changes)
       await this.gitFlowManager!.validateNoStagedChanges();
 
-      const versionInfo = await this.versionerAdapter.initializeProject(
-        version
-      );
+      // A versioner bound to this call's directory, not one kept from an earlier
+      // call: the server outlives any one repository.
+      const versionInfo = await initializeVersioner(workingDirectory, version);
 
       return `✅ Versioner Initialized Successfully!
 
@@ -764,12 +844,7 @@ ${
     ? `🔍 Requested Version: ${version}`
     : "🔍 Default Version: 0.1.0-RC.0"
 }
-💥 Error: ${errorMessage}
-
-Common issues:
-- Directory may not be a git repository
-- Versioner MCP may not be running
-- Permission issues with file creation`;
+💥 Error: ${errorMessage}`;
     }
   }
 
@@ -904,7 +979,11 @@ Common issues:
         return `🔗 Pull Request: ${result.pullRequestUrl}`;
       case "merge-branch":
         return `🌿 Merge branch: \`${result.mergeBranchName}\`
-🔗 Pull Request: ${result.pullRequestUrl}`;
+🔗 Pull Request: ${result.pullRequestUrl}${
+          result.alreadyOpen
+            ? " (already open from an earlier run; nothing new was created)"
+            : ""
+        }${renderSuperseded(result.superseded)}`;
     }
   }
 
@@ -1005,7 +1084,7 @@ ${
     ? `🎯 Target Version: ${workflowResult.targetVersion.version}`
     : ""
 }
-${
+${renderResumed(workflowResult)}${
   workflowResult.pullRequestUrl
     ? `🔗 ${
         workflowResult.pullRequestAction === "updated"
@@ -1013,9 +1092,17 @@ ${
           : "Pull Request"
       }: ${workflowResult.pullRequestUrl}`
     : ""
-}${renderPipelineTrigger(workflowResult.pipelineTrigger)}
+}${renderCreationPullRequestError(
+        workflowResult,
+        "create_release_candidate",
+        "develop"
+      )}${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 
-✅ All steps completed successfully. The ${releaseType} release candidate has been created and is ready for testing.
+${
+  workflowResult.pullRequestError
+    ? "⚠️  The release candidate is on origin, but its pull request was not opened."
+    : `✅ All steps completed successfully. The ${releaseType} release candidate has been created and is ready for testing.`
+}
 
 ${
   workflowResult.pullRequestUrl
@@ -1120,7 +1207,7 @@ ${
     ? `🎯 Target Version: ${workflowResult.targetVersion.version}`
     : ""
 }
-${
+${renderResumed(workflowResult)}${
   workflowResult.pullRequestUrl
     ? `🔗 ${
         workflowResult.pullRequestAction === "updated"
@@ -1128,7 +1215,11 @@ ${
           : "Pull Request"
       }: ${workflowResult.pullRequestUrl}`
     : ""
-}${
+}${renderCreationPullRequestError(
+        workflowResult,
+        "create_hotfix",
+        "main"
+      )}${
         workflowResult.trackingPullRequestUrl
           ? `\n📝 Draft PR to develop: ${workflowResult.trackingPullRequestUrl}`
           : ""
@@ -1138,7 +1229,11 @@ ${
           : ""
       }${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 
-✅ All steps completed successfully.
+${
+  workflowResult.pullRequestError
+    ? "⚠️  The hotfix is on origin, but its pull request into main was not opened."
+    : "✅ All steps completed successfully."
+}
 
 ${
   workflowResult.pullRequestUrl
@@ -1359,6 +1454,16 @@ Please review the error and fix any issues before retrying the workflow.`;
       if (result.pullRequestError) {
         lines.push(`⚠️  Pull request step failed: ${result.pullRequestError}`);
       }
+      if (result.promotionPullRequestUrl) {
+        lines.push(
+          `🔗 Closed the promotion's PR into main: ${result.promotionPullRequestUrl}`
+        );
+      }
+      if (result.promotionPullRequestError) {
+        lines.push(
+          `⚠️  Could not close the promotion's PR into main: ${result.promotionPullRequestError}. Close it by hand.`
+        );
+      }
       const pipeline = renderPipelineTrigger(result.pipelineTrigger);
       if (pipeline !== "") {
         lines.push(pipeline.trim());
@@ -1488,14 +1593,14 @@ ${
         workflowResult.ownBasePullRequestAction === "updated"
           ? "Updated"
           : "Opened"
-      } ${workflowResult.branchInfo.targetBranch} PR: ${
+      } ${workflowResult.ownBaseBranch ?? "develop"} PR: ${
         workflowResult.ownBasePullRequestUrl
       }`
     : ""
 }
 ${
   workflowResult.ownBasePullRequestError
-    ? `⚠️  ${workflowResult.branchInfo.targetBranch} PR refresh failed: ${workflowResult.ownBasePullRequestError}`
+    ? `⚠️  ${workflowResult.ownBaseBranch ?? "develop"} PR refresh failed: ${workflowResult.ownBasePullRequestError}`
     : ""
 }${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 

@@ -6,8 +6,11 @@
 // cannot move HEAD, switch branches, or touch the working tree. Every builder is
 // run against real git and the repository is compared byte for byte afterwards.
 //
-// findOpenPullRequest is the one call that reaches GitHub rather than git, so it
-// is the one thing stubbed out.
+// A plan does fetch, so that it reflects origin. That writes remote-tracking refs
+// and nothing else, which the last test pins.
+//
+// findOpenPullRequest and findOpenPullRequestsInto are the calls that reach
+// GitHub rather than git, so they are the things stubbed out.
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -85,8 +88,9 @@ const snapshot = () => ({
 
 function makeAgent() {
   const gfm = new GitFlowManager(repo);
-  // The only GitHub call a plan makes; everything else is git.
+  // The only GitHub calls a plan makes; everything else is git.
   gfm.findOpenPullRequest = async () => null;
+  gfm.findOpenPullRequestsInto = async () => [];
   return new ReleaseAgent(gfm, repo);
 }
 
@@ -139,9 +143,13 @@ test("every plan is built from the real repository, not from defaults", async ()
     hotfixToMain,
   ] = await buildEveryPlan(makeAgent());
 
-  // main holds content develop does not, and release/4.125.0 already exists.
+  // main holds content develop does not. hotfix/4.124.1 is on origin at exactly
+  // the RC.0 a new hotfix would get, so the plan resumes it rather than cutting it.
   assert.match(rc.refused, /synchronization check/);
-  assert.match(hotfix.refused, /Branch hotfix\/4\.124\.1 already exists/);
+  assert.match(
+    hotfix.notices[0],
+    /hotfix\/4\.124\.1 is already on origin at 4\.124\.1-RC\.0/
+  );
 
   assert.equal(mainToDevelop.targetBranch, "develop");
   assert.match(
@@ -187,4 +195,36 @@ test("a commit on the source branch invalidates the downmerge digest", async () 
   const after = await makeAgent().planDownmergeHotfixToMain();
 
   assert.notEqual(before.digest, after.digest);
+});
+
+test("a plan fetches origin, moving remote-tracking refs and nothing else", async () => {
+  const other = mkdtempSync(join(tmpdir(), "plan-other-"));
+  const run = (...args) =>
+    execFileSync("git", args, { cwd: other, encoding: "utf8" }).trim();
+  let pushed;
+  try {
+    execFileSync("git", ["clone", "-q", "-b", "develop", origin, other]);
+    run("config", "user.email", "other@example.com");
+    run("config", "user.name", "Other");
+    run("config", "commit.gpgsign", "false");
+    writeFileSync(join(other, "late.txt"), "late\n");
+    run("add", "-A");
+    run("commit", "-q", "-m", "a later change");
+    run("push", "-q", "origin", "develop");
+    pushed = run("rev-parse", "HEAD");
+  } finally {
+    rmSync(other, { recursive: true, force: true });
+  }
+
+  const local = () => ({
+    ...snapshot(),
+    refs: git("for-each-ref", "--format=%(refname) %(objectname)", "refs/heads", "refs/tags"),
+  });
+  const before = local();
+
+  const plan = await makeAgent().planDownmergeMainToDevelop();
+
+  assert.equal(plan.targetBranchHead, pushed);
+  assert.equal(git("rev-parse", "refs/remotes/origin/develop"), pushed);
+  assert.deepEqual(local(), before);
 });

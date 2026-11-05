@@ -12,6 +12,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf lib/",
+    "test": "node --test test/*.test.mjs",
     "prepublishOnly": "npm run build",
     "start": "node bin/release-management-mcp"
   },

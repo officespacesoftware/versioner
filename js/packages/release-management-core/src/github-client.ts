@@ -1,7 +1,7 @@
 /**
  * GitHub client factory — resolves auth and origin owner/repo, returns Octokit handles.
  *
- * Token resolution order:
+ * Token resolution order (an empty variable counts as unset):
  *   1. GH_TOKEN env var
  *   2. GITHUB_TOKEN env var
  *   3. `gh auth token` (uses gh CLI's stored credentials — keychain or hosts.yml)
@@ -72,8 +72,11 @@ export function clearGitHubClientCache(workingDirectory?: string): void {
 }
 
 async function resolveToken(): Promise<string | undefined> {
-  const envToken = process.env["GH_TOKEN"] ?? process.env["GITHUB_TOKEN"];
-  if (envToken && envToken.length > 0) return envToken;
+  // An empty variable counts as unset, so GH_TOKEN="" does not hide GITHUB_TOKEN.
+  for (const name of ["GH_TOKEN", "GITHUB_TOKEN"]) {
+    const envToken = process.env[name];
+    if (envToken && envToken.length > 0) return envToken;
+  }
 
   // Newer gh versions store credentials in the OS keychain rather than hosts.yml.
   // `gh auth token` reads from whichever backend gh is configured to use.

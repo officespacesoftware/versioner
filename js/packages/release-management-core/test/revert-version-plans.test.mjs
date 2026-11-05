@@ -35,6 +35,7 @@ function branchInfo(name) {
  */
 function makeAgent(branch, versions, overrides = {}) {
   const fakeGfm = {
+    fetchOrigin: async () => {},
     getStatus: async () => ({ currentBranch: branch }),
     detectBranchType: (name) =>
       /^(release|hotfix)\//.test(name) ? name.split("/")[0] : null,
@@ -51,6 +52,7 @@ function makeAgent(branch, versions, overrides = {}) {
     tagExistsRemotely: async () => true,
     getGitHubRelease: async () => null,
     commitsNotIn: async () => [],
+    unpushedCommits: async () => [],
     findOpenPullRequest: async () => null,
     readFileAtRef: async () => null,
     ...overrides,
@@ -322,4 +324,18 @@ test("every plan notes that deleting a tag does not undo a deployment, without b
     plan.notices.some((w) => /does not undo a build or deployment/.test(w))
   );
   assert.deepEqual(plan.warnings, []);
+});
+
+test("a full branch name as the version selects the branch to revert", async () => {
+  const agent = makeAgent("release/1.4.0", {
+    [HEAD]: "1.4.0-RC.2",
+    [`${HEAD}^`]: "1.4.0-RC.1",
+  }, {
+    getStatus: async () => ({ currentBranch: "develop" }),
+  });
+
+  const plan = await agent.planRevertVersion("release/1.4.0");
+
+  assert.equal(plan.targetBranch, "release/1.4.0");
+  assert.equal(plan.resultingVersion, "1.4.0-RC.1");
 });

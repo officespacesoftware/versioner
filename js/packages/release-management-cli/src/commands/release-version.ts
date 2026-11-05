@@ -8,7 +8,7 @@ export function registerReleaseVersion(parent: Command): void {
   parent
     .command("release-version")
     .description("Convert an RC into a final version (release-version)")
-    .option("--version <version>", "Specific version (e.g. 1.2.0); auto-detect newest if omitted")
+    .option("--version <version>", "Specific version (e.g. 1.2.0, or release/1.2.0 / hotfix/1.2.0); auto-detect newest if omitted")
     .option("--working-directory <path>", "Repo root (defaults to cwd)")
     .option("--plan", "Describe the change and exit; touches nothing (the default when no apply flag is given)")
     .option("--confirm <digest>", "Apply the plan carrying this digest, as printed by --plan")
@@ -72,12 +72,12 @@ function renderReleaseVersion(r: ReleaseVersionWorkflowContext): string {
   if (r.ownBasePullRequestUrl) {
     const verb = r.ownBasePullRequestAction === "updated" ? "Updated" : "Opened";
     lines.push(
-      `${verb} ${r.branchInfo?.targetBranch ?? "own-base"} PR: ${r.ownBasePullRequestUrl}`
+      `${verb} ${r.ownBaseBranch ?? "develop"} PR: ${r.ownBasePullRequestUrl}`
     );
   }
   if (r.ownBasePullRequestError) {
     lines.push(
-      `${r.branchInfo?.targetBranch ?? "Own-base"} PR refresh failed: ${r.ownBasePullRequestError}`
+      `${r.ownBaseBranch ?? "develop"} PR refresh failed: ${r.ownBasePullRequestError}`
     );
   }
   lines.push(...renderPipelineTrigger(r.pipelineTrigger));

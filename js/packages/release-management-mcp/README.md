@@ -263,7 +263,8 @@ Nine tools. Full step-by-step behaviour and the exact git objects each creates a
 | [`downmerge`](../../../docs/actions.md#downmerge) | `source`, `target`, `version` | PRs one branch into another: `main` → `develop`, `release` → `develop`/`main`, `hotfix` → `develop`/`main`. Applies immediately; the pull request is the review. A conflicting merge creates nothing and returns a [manual downmerge](../../../docs/manual-downmerge.md) handoff. |
 
 `releaseType` is `major`, `minor` or `patch`, defaulting to `minor`. `version` identifies
-which branch to act on; when omitted, the newest matching branch on the upstream repository
+which branch to act on, as `1.2.0` or as the full branch name `release/1.2.0` or
+`hotfix/1.2.0`, which picks one when both exist; when omitted, the newest matching branch on the upstream repository
 is selected — except for `revert_version`, which deliberately has no automatic fallback and
 uses the checked-out branch instead, because it deletes tags.
 

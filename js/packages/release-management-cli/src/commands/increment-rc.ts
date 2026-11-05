@@ -8,7 +8,7 @@ export function registerIncrementRC(parent: Command): void {
   parent
     .command("increment-rc")
     .description("Increment the RC suffix on the active release or hotfix branch")
-    .option("--version <version>", "Target version (e.g. 1.2.0); auto-detect newest if omitted")
+    .option("--version <version>", "Target version (e.g. 1.2.0, or release/1.2.0 / hotfix/1.2.0); auto-detect newest if omitted")
     .option("--working-directory <path>", "Repo root (defaults to cwd)")
     .option("--plan", "Describe the change and exit; touches nothing (the default when no apply flag is given)")
     .option("--confirm <digest>", "Apply the plan carrying this digest, as printed by --plan")

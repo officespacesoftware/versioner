@@ -190,7 +190,28 @@ test("rejects an explicit version that matches both a release and a hotfix branc
   await assert.rejects(() => select(agent, "1.0.0"), (error) => {
     assert.ok(error instanceof BranchSelectionError);
     assert.match(error.message, /Ambiguous/);
+    assert.match(
+      error.message,
+      /Pass the full branch name, release\/1\.0\.0 or hotfix\/1\.0\.0, as the version\./
+    );
     return true;
+  });
+});
+
+test("a full branch name as the version picks between same-numbered branches", async () => {
+  const agent = makeAgent(
+    {
+      "release/1.0.0": "1.0.0-RC.0\nabc1234",
+      "hotfix/1.0.0": "1.0.0-RC.1\ndef5678",
+    },
+    "develop"
+  );
+
+  assert.equal((await select(agent, "hotfix/1.0.0")).name, "hotfix/1.0.0");
+  assert.equal((await select(agent, "release/1.0.0")).name, "release/1.0.0");
+  await assert.rejects(() => select(agent, "hotfix/2.0.0"), {
+    name: "BranchSelectionError",
+    message: "No hotfix/2.0.0 branch found",
   });
 });
 

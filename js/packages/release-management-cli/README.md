@@ -76,8 +76,9 @@ release-management downmerge hotfix-to-main      [--version <version>]
 | `initialize-versioner` | Creates the `VERSION` file and its initial tag. Defaults to `0.1.0-RC.0`. |
 | `downmerge …` | Opens the pull request that carries one branch's changes into another. Applies immediately; the pull request is the review. |
 
-Where `--version` is omitted, the newest matching branch on the upstream repository is
-selected. `docs/actions.md` records the ordered steps and the exact git objects for each of
+`--version` takes `1.2.0` or the full branch name, `release/1.2.0` or `hotfix/1.2.0`, which
+picks one when both exist. Where it is omitted, the newest matching branch on the upstream
+repository is selected. `docs/actions.md` records the ordered steps and the exact git objects for each of
 these — see [Related documentation](#related-documentation).
 
 ## Planning before applying
@@ -212,13 +213,13 @@ Three things that are easy to get wrong:
 | --- | --- |
 | any planned command | `plan_digest` |
 | `list-versions` | `current_branch`, `release_candidates` |
-| `create-rc` | `release_type`, `version`, `pull_request_url`, `pull_request_action`, `pipeline_trigger` |
-| `create-hotfix` | `version`, `pull_request_url`, `pull_request_action`, `pipeline_trigger` |
+| `create-rc` | `release_type`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `resumed`, `pipeline_trigger` |
+| `create-hotfix` | `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `tracking_pull_request_url`, `tracking_pull_request_action`, `tracking_pull_request_error`, `resumed`, `pipeline_trigger` |
 | `increment-rc` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `pipeline_trigger` |
 | `release-version` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`, `own_base_pull_request_action`, `own_base_pull_request_error`, `pipeline_trigger` |
-| `revert-version` | `branch`, `shape`, `reverted_version`, `resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `pipeline_trigger` |
+| `revert-version` | `branch`, `shape`, `reverted_version`, `resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `promotion_pull_request_url`, `promotion_pull_request_error`, `pipeline_trigger` |
 | `initialize-versioner` | `version`, `is_release_candidate` |
-| `downmerge …` | `kind`, `pull_request_url`; plus `merge_branch` for `release-to-main` and `hotfix-to-develop` (`main-to-develop` uses a merge branch but reports `kind=direct` without it) |
+| `downmerge …` | `kind`, `pull_request_url`; plus `merge_branch` for `main-to-develop`, `release-to-main` and `hotfix-to-develop`, `already_open`, and `superseded_pull_request_url` / `superseded_pull_request_error` when `release-to-main` or `hotfix-to-develop` closed, or failed to close, the pull request it supersedes |
 
 `pull_request_action` is `created` or `updated`. `revert-version`'s `shape` is `revert`
 (rewind one version) or `abandon` (delete the branch). A downmerge's `kind` is `direct` or

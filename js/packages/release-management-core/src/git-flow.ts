@@ -192,17 +192,50 @@ export interface OpenPullRequest {
   body: string;
 }
 
+/**
+ * An open `head` → `base` pull request a downmerge's merge-branch pull request
+ * replaced, and closed with a comment linking the replacement. `error` is set
+ * when closing it, or looking it up (then without a number), failed: it may
+ * still be open.
+ */
+export interface SupersededPullRequest {
+  head: string;
+  base: string;
+  number?: number;
+  url?: string;
+  error?: string;
+}
+
 export type DownmergeResult =
   | { kind: "direct"; pullRequestUrl: string }
   | {
       kind: "merge-branch";
       pullRequestUrl: string;
       mergeBranchName: string;
+      /** Set when an open pull request was superseded by this one. */
+      superseded?: SupersededPullRequest;
+      /**
+       * The pull request is one an earlier run of this downmerge opened, which
+       * already holds the source; nothing new was created.
+       */
+      alreadyOpen?: boolean;
     };
 
 export interface MergeBranchResult {
   sha: string;
   branchName: string;
+}
+
+/** Origin still has a ref after being asked to delete it. */
+export class RemoteDeletionRefused extends Error {
+  readonly ref: string;
+  constructor(ref: string, detail: string) {
+    super(
+      `Origin refused to delete ${ref}${detail ? `: ${detail.trim()}` : ""}`
+    );
+    this.name = "RemoteDeletionRefused";
+    this.ref = ref;
+  }
 }
 
 export class MergeConflictError extends Error {
@@ -212,6 +245,22 @@ export class MergeConflictError extends Error {
     this.name = "MergeConflictError";
     this.conflictedFiles = conflictedFiles;
   }
+}
+
+/**
+ * A `version` input naming a branch: `X.Y.Z`, or the full branch name
+ * `release/X.Y.Z` or `hotfix/X.Y.Z`, which also says which of the two is meant.
+ */
+export function parseVersionSelector(input: string): {
+  type?: BranchType;
+  version: string;
+} {
+  const trimmed = input.trim();
+  const match = trimmed.match(/^(release|hotfix)\/(\d+\.\d+\.\d+)$/);
+  if (match?.[1] && match[2]) {
+    return { type: match[1] as BranchType, version: match[2] };
+  }
+  return { version: trimmed };
 }
 
 export interface BranchTypeInfo {
@@ -438,6 +487,48 @@ ${stagedFiles}
   }
 
   /**
+   * Bring every remote-tracking ref a plan reads up to date: main, develop, and
+   * each release/* and hotfix/* branch, pruning the ones origin no longer has.
+   *
+   * Plans call this first, so a plan always reflects origin, and an apply, which
+   * rebuilds the plan before comparing digests, acts on exactly the state it just
+   * fetched. Writes only refs/remotes/origin/*: no tags (a stale local tag of the
+   * same name would make the fetch fail), no local branch, no working tree.
+   * Explicit refspecs rather than a bare fetch, which can fail on unrelated
+   * branch names that clash with local remote-tracking refs.
+   */
+  async fetchOrigin(): Promise<void> {
+    const listed = await this.execGit(
+      "ls-remote --heads origin refs/heads/main refs/heads/develop"
+    );
+    const present = new Set(
+      listed
+        .split("\n")
+        .map((line) => line.split(/\s+/)[1])
+        .filter((ref): ref is string => ref !== undefined)
+    );
+    const refspecs = ["main", "develop"]
+      .filter((name) => present.has(`refs/heads/${name}`))
+      .map((name) => `+refs/heads/${name}:refs/remotes/origin/${name}`);
+    refspecs.push(
+      "+refs/heads/release/*:refs/remotes/origin/release/*",
+      "+refs/heads/hotfix/*:refs/remotes/origin/hotfix/*"
+    );
+    await this.execGit(
+      `fetch --prune --no-tags origin ${refspecs.map(quoteGitArg).join(" ")}`
+    );
+  }
+
+  /** Fetch one branch into its remote-tracking ref, without tags. */
+  async fetchBranchRef(branchName: string): Promise<void> {
+    await this.execGit(
+      `fetch --no-tags origin ${quoteGitArg(
+        `+refs/heads/${branchName}:refs/remotes/origin/${branchName}`
+      )}`
+    );
+  }
+
+  /**
    * Fetch a single branch to FETCH_HEAD without updating every remote-tracking ref.
    */
   async fetchBranch(branchName: string): Promise<void> {
@@ -569,7 +660,9 @@ ${stagedFiles}
   }
 
   /**
-   * Verify that main has been merged into develop using robust three-step process
+   * Verify that main has been merged into develop using robust three-step process.
+   * Compares the remote-tracking refs as the plan fetched them; nothing is fetched
+   * here, so the apply checks the state that was approved.
    */
   async verifyMainDevelopSync(): Promise<{
     synchronized: boolean;
@@ -577,9 +670,6 @@ ${stagedFiles}
     canProceed: boolean;
   }> {
     try {
-      // First, fetch only the base branches needed for this comparison.
-      await this.fetchBaseBranches();
-
       // Step 1: Check if main is an ancestor of develop (cleanly merged)
       const isAncestor = await this.checkIsAncestor(
         "origin/main",
@@ -671,6 +761,145 @@ ${stagedFiles}
         `Failed to checkout and pull branch '${branchName}': ${error}`
       );
     }
+  }
+
+  /**
+   * Check out a new branch at origin's `baseBranch`, as last fetched. A local
+   * branch of the same name that origin does not have is replaced: the plan
+   * warned about the commits that drops (W14).
+   */
+  async createBranchFromOrigin(
+    branchName: string,
+    baseBranch: string
+  ): Promise<void> {
+    const baseRef = await this.originRef(baseBranch);
+    try {
+      await this.execGit(
+        `checkout -B ${quoteGitArg(branchName)} ${quoteGitArg(baseRef)}`
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to create branch '${branchName}' from ${baseRef}: ${error}`
+      );
+    }
+  }
+
+  /**
+   * The newest commit reachable from `ref` whose subject is exactly `subject`, or
+   * null. Looks back a thousand commits, far beyond any version bump on a release
+   * branch.
+   */
+  async findCommitWithSubject(
+    ref: string,
+    subject: string
+  ): Promise<string | null> {
+    const { stdout, exitCode } = await this.execGitTolerant(
+      `log -n 1000 --format=${quoteGitArg("%H %s")} ${quoteGitArg(ref)}`
+    );
+    if (exitCode !== 0) {
+      return null;
+    }
+    for (const line of stdout.split("\n")) {
+      const space = line.indexOf(" ");
+      if (space > 0 && line.slice(space + 1) === subject) {
+        return line.slice(0, space);
+      }
+    }
+    return null;
+  }
+
+  /** Create the annotated tag the versioner would, on `commit`. */
+  async createVersionTag(tag: string, commit: string): Promise<void> {
+    await this.execGit(
+      `tag ${quoteGitArg(tag)} -a -m ${quoteGitArg(
+        `Release version ${tag}`
+      )} ${quoteGitArg(commit)}`
+    );
+  }
+
+  /** Push one tag to origin, by its full ref so it cannot be read as a branch. */
+  async pushTag(tag: string): Promise<void> {
+    await this.execGit(`push origin ${quoteGitArg(`refs/tags/${tag}`)}`);
+  }
+
+  /** Whether origin has `branchName`, as of the last fetch. */
+  async remoteBranchExists(branchName: string): Promise<boolean> {
+    return this.refExists(`refs/remotes/origin/${branchName}`);
+  }
+
+  /** `refs/remotes/origin/<branch>` when it exists, else the local branch. */
+  private async originRef(branchName: string): Promise<string> {
+    const remote = `refs/remotes/origin/${branchName}`;
+    return (await this.refExists(remote)) ? remote : branchName;
+  }
+
+  /**
+   * Check out a branch, creating it from origin's when there is no local one.
+   * Nothing is fetched or pulled: the remote-tracking ref is what the plan read.
+   */
+  async checkoutBranch(branchName: string): Promise<void> {
+    try {
+      if (await this.refExists(`refs/heads/${branchName}`)) {
+        await this.execGit(`checkout ${quoteGitArg(branchName)}`);
+        return;
+      }
+      const remote = `refs/remotes/origin/${branchName}`;
+      if (!(await this.refExists(remote))) {
+        throw new Error(`Branch '${branchName}' not found locally or on origin`);
+      }
+      await this.execGit(
+        `checkout -b ${quoteGitArg(branchName)} ${quoteGitArg(remote)}`
+      );
+    } catch (error) {
+      throw new Error(`Failed to check out branch '${branchName}': ${error}`);
+    }
+  }
+
+  /**
+   * Move the checked-out branch to origin's head, as last fetched. A local branch
+   * ahead of or diverged from origin loses its unpushed commits from the branch:
+   * origin is the source of truth, and building on them would make the apply do
+   * something other than the plan read. `--keep` carries uncommitted changes
+   * along, or fails rather than overwrite them.
+   *
+   * Returns false, changing nothing, when origin has no such branch.
+   */
+  async resetToOrigin(branchName: string): Promise<boolean> {
+    const remote = `refs/remotes/origin/${branchName}`;
+    if (!(await this.refExists(remote))) {
+      return false;
+    }
+    try {
+      await this.execGit(`reset --keep ${quoteGitArg(remote)}`);
+      return true;
+    } catch (error) {
+      throw new Error(
+        `Failed to reset '${branchName}' to origin/${branchName}: ${error}`
+      );
+    }
+  }
+
+  /**
+   * Commits on the local `branchName` that `againstRef` does not have, newest
+   * first, as `<sha11> <subject>` lines. Empty when either ref is missing.
+   */
+  async unpushedCommits(
+    branchName: string,
+    againstRef: string
+  ): Promise<string[]> {
+    const local = `refs/heads/${branchName}`;
+    if (!(await this.refExists(local)) || !(await this.refExists(againstRef))) {
+      return [];
+    }
+    const { stdout, exitCode } = await this.execGitTolerant(
+      `log --abbrev=11 --format=${quoteGitArg("%h %s")} ${quoteGitArg(
+        againstRef
+      )}..${quoteGitArg(local)}`
+    );
+    if (exitCode !== 0) {
+      return [];
+    }
+    return stdout.split("\n").filter((line) => line.trim().length > 0);
   }
 
   /**
@@ -850,6 +1079,30 @@ ${autoGeneratedFooter()}
       throw new Error(
         `Failed to look up open PRs from '${branchName}': ${msg}`
       );
+    }
+  }
+
+  /** Every open pull request into `baseBranch`, with its head branch. */
+  async findOpenPullRequestsInto(
+    baseBranch: string
+  ): Promise<Array<{ number: number; url: string; head: string }>> {
+    const client = await createGitHubClient(this.workingDirectory);
+    try {
+      const prs = await client.rest.paginate(client.rest.pulls.list, {
+        owner: client.owner,
+        repo: client.repo,
+        base: baseBranch,
+        state: "open",
+        per_page: 100,
+      });
+      return prs.map((pr) => ({
+        number: pr.number,
+        url: pr.html_url,
+        head: pr.head.ref,
+      }));
+    } catch (error) {
+      const msg = octokitErrorMessage(error);
+      throw new Error(`Failed to look up open PRs into '${baseBranch}': ${msg}`);
     }
   }
 
@@ -1261,32 +1514,66 @@ ${autoGeneratedFooter()}
   }
 
   /**
-   * Delete a tag on origin. Same tolerance as the local delete.
+   * Delete a tag on origin. Absent is a result, not a failure; a deletion origin
+   * rejects is a failure.
    *
    * The refspec form is deliberate: `push origin :refs/tags/<tag>` cannot be
    * misread as a branch, which `push --delete origin <tag>` can when a branch and
    * a tag share a name.
+   *
+   * Returns whether a tag was removed. Throws RemoteDeletionRefused when origin
+   * still has the tag afterwards, as a protection rule or a pre-receive hook
+   * leaves it.
    */
   async deleteTagRemotely(tag: string): Promise<boolean> {
-    const { exitCode } = await this.execGitTolerant(
-      `push origin ${quoteGitArg(`:refs/tags/${tag}`)}`
-    );
-    return exitCode === 0;
+    return this.deleteRemoteRef(`refs/tags/${tag}`);
   }
 
-  /** Delete a branch on origin. Absent is a result, not a failure. */
+  /** Delete a branch on origin, verified as deleteTagRemotely is. */
   async deleteRemoteBranch(branchName: string): Promise<boolean> {
-    const { exitCode } = await this.execGitTolerant(
-      `push origin ${quoteGitArg(`:refs/heads/${branchName}`)}`
+    return this.deleteRemoteRef(`refs/heads/${branchName}`);
+  }
+
+  /**
+   * Push the deletion of `ref`, then ask origin whether it is gone: a non-zero
+   * push is ambiguous between "already absent" and "refused", and only origin can
+   * say which.
+   */
+  private async deleteRemoteRef(ref: string): Promise<boolean> {
+    const { exitCode, stderr } = await this.execGitTolerant(
+      `push origin ${quoteGitArg(`:${ref}`)}`
     );
+    if (await this.remoteRefExists(ref)) {
+      throw new RemoteDeletionRefused(ref, stderr);
+    }
     return exitCode === 0;
   }
 
-  /** Delete a branch locally, refusing to delete the one checked out. */
+  /**
+   * Whether origin has exactly `ref`, asked live. Unlike tagExistsRemotely this
+   * throws when origin cannot be asked, because callers use it to confirm a
+   * deletion and an unanswered question is not a "no".
+   */
+  async remoteRefExists(ref: string): Promise<boolean> {
+    const out = await this.execGit(`ls-remote origin ${quoteGitArg(ref)}`);
+    return out
+      .split("\n")
+      .some((line) => line.split(/\s+/)[1] === ref);
+  }
+
+  /**
+   * Delete a branch locally, refusing to delete the one checked out. Returns
+   * whether one was removed; throws when the branch is still there afterwards.
+   */
   async deleteLocalBranch(branchName: string): Promise<boolean> {
-    const { exitCode } = await this.execGitTolerant(
+    const { exitCode, stderr } = await this.execGitTolerant(
       `branch -D ${quoteGitArg(branchName)}`
     );
+    if (await this.refExists(`refs/heads/${branchName}`)) {
+      throw new Error(
+        `Could not delete the local branch ${branchName}: ${stderr}`
+      );
+    }
     return exitCode === 0;
   }
 
@@ -1419,7 +1706,12 @@ ${autoGeneratedFooter()}
   }
 
   /**
-   * Create a new branch off `baseBranch`, merge `sourceBranch` into it, push.
+   * Create a new branch off origin's `baseBranch`, merge origin's `sourceBranch`
+   * into it, push.
+   *
+   * Both sides are the remote-tracking refs the plan fetched, never local
+   * branches: the pull request then carries exactly what the plan previewed, and
+   * no commit that only this clone has reaches origin through it.
    *
    * When the merge conflicts, throws a MergeConflictError after aborting the
    * merge and removing the local branch, so nothing reaches the remote.
@@ -1433,14 +1725,17 @@ ${autoGeneratedFooter()}
     const { baseBranch, sourceBranch, branchName } = opts;
     const mergeMessage =
       opts.mergeCommitMessage || `Merge ${sourceBranch} into ${baseBranch}`;
+    const baseRef = await this.originRef(baseBranch);
+    const sourceRef = await this.originRef(sourceBranch);
 
-    await this.checkoutAndPull(baseBranch);
-    await this.execGit(`checkout -b ${quoteGitArg(branchName)}`);
+    await this.execGit(
+      `checkout -b ${quoteGitArg(branchName)} ${quoteGitArg(baseRef)}`
+    );
 
     let mergeFailed = false;
     try {
       await this.execGit(
-        `merge --no-ff -m ${quoteGitArg(mergeMessage)} ${quoteGitArg(sourceBranch)}`
+        `merge --no-ff -m ${quoteGitArg(mergeMessage)} ${quoteGitArg(sourceRef)}`
       );
     } catch {
       mergeFailed = true;
@@ -1453,9 +1748,7 @@ ${autoGeneratedFooter()}
       // then refuse the pull request for having no commits, so refuse here while
       // the only thing to undo is local.
       const sha = await this.getCurrentCommit();
-      const baseSha = await this.execGit(
-        `rev-parse ${quoteGitArg(baseBranch)}`
-      );
+      const baseSha = await this.execGit(`rev-parse ${quoteGitArg(baseRef)}`);
       if (sha === baseSha) {
         await this.discardLocalBranch(branchName, baseBranch);
         throw new Error(
@@ -1491,7 +1784,7 @@ ${autoGeneratedFooter()}
     baseBranch: string
   ): Promise<void> {
     try {
-      await this.execGit(`checkout ${quoteGitArg(baseBranch)}`);
+      await this.checkoutBranch(baseBranch);
     } catch {
       /* ignore */
     }
@@ -1527,41 +1820,60 @@ ${autoGeneratedFooter()}
   }
 
   /**
-   * Close the draft hotfix/* → develop pull request that the reconciled downmerge
-   * replaces, so develop only ever has one open pull request carrying the hotfix.
+   * Close the open `sourceBranch` → `baseBranch` pull request that a merge-branch
+   * downmerge replaces, so the base only ever has one open pull request carrying
+   * the release or hotfix.
    *
-   * The two are different head/base pairs — the draft heads on the hotfix branch,
-   * this one on a merge branch — so GitHub keeps them as separate pull requests
-   * and neither closes the other. The draft is the one that has to go: it is the
-   * unmergeable placeholder, and resolving its VERSION conflict would mean
-   * committing to a branch that is already tagged, deployed, and still open
-   * against main.
+   * The two are different head/base pairs — one heads on the release or hotfix
+   * branch, the other on a merge branch — so GitHub keeps them as separate pull
+   * requests and neither closes the other. The direct one is the one that has to
+   * go: a hotfix's is the unmergeable draft placeholder, and a release's into main
+   * is the one release_version opened before the merge branch existed.
    *
-   * Never fatal. By the time this runs the reconciled pull request exists, which
-   * is the outcome that matters; a stale draft is untidy, not harmful.
+   * Never fatal. By the time this runs the replacement exists, which is the
+   * outcome that matters; a failure is returned for the caller to report.
    */
-  private async closeSupersededTrackingPr(
-    hotfixBranch: string,
+  async closeSupersededPullRequest(
+    sourceBranch: string,
+    baseBranch: string,
     replacementUrl: string
-  ): Promise<void> {
+  ): Promise<SupersededPullRequest | undefined> {
+    const kind = sourceBranch.startsWith("hotfix/") ? "hotfix" : "release";
+    let open: OpenPullRequest | null;
     try {
-      const draft = await this.findOpenPullRequest(hotfixBranch, "develop");
-      if (!draft) {
-        return;
-      }
-
-      await this.closePullRequest(draft.number, {
-        comment:
-          `Superseded by ${replacementUrl}, which brings this hotfix into ` +
-          `develop through a merge branch. Closing so develop has one open ` +
-          `pull request for the hotfix rather than two.`,
-      });
-      console.log(`✅ Closed superseded draft PR #${draft.number}`);
+      open = await this.findOpenPullRequest(sourceBranch, baseBranch);
     } catch (error) {
+      return {
+        head: sourceBranch,
+        base: baseBranch,
+        error: octokitErrorMessage(error),
+      };
+    }
+    if (!open) {
+      return undefined;
+    }
+    const found = {
+      head: sourceBranch,
+      base: baseBranch,
+      number: open.number,
+      url: open.url,
+    };
+    try {
+      await this.closePullRequest(open.number, {
+        comment:
+          `Superseded by ${replacementUrl}. It brings this ${kind} into ` +
+          `${baseBranch} through a merge branch, so ${baseBranch} has one open ` +
+          `pull request for the ${kind} rather than two.`,
+      });
+      console.log(`✅ Closed superseded PR #${open.number}`);
+      return found;
+    } catch (error) {
+      const message = octokitErrorMessage(error);
       console.warn(
-        `⚠️  Could not close the superseded ${hotfixBranch} → develop PR: ` +
-          `${octokitErrorMessage(error)}`
+        `⚠️  Could not close the superseded ${sourceBranch} → ${baseBranch} ` +
+          `PR #${open.number}: ${message}`
       );
+      return { ...found, error: message };
     }
   }
 
@@ -1739,7 +2051,8 @@ ${autoGeneratedFooter()}
   ): Promise<{ valid: boolean; message: string }> {
     try {
       const baseBranchVersion = await this.readBranchVersion(
-        branchInfo.baseBranch
+        branchInfo.baseBranch,
+        "remote"
       );
 
       if (!baseBranchVersion) {
@@ -1788,25 +2101,12 @@ ${autoGeneratedFooter()}
   }
 
   /**
-   * Downmerge main branch into develop via pull request
+   * Downmerge main into develop via a merge branch and a pull request.
    */
-  async downmergeMainToDevelop(): Promise<string> {
+  async downmergeMainToDevelop(): Promise<DownmergeResult> {
     try {
-      // Step 1: Fetch latest changes from origin
-      await this.fetchBaseBranches();
-      console.log("✅ Fetched latest main and develop branches from origin");
-
-      // Step 2: Checkout and pull main branch
-      await this.execGit("checkout main");
-      await this.pullBranch("main");
-      console.log("✅ Checked out and pulled main branch");
-
-      // Step 3: Checkout and pull develop branch
-      await this.execGit("checkout develop");
-      await this.pullBranch("develop");
-      console.log("✅ Checked out and pulled develop branch");
-
-      // Step 4: Generate unique branch name using Unix timestamp
+      // Nothing is fetched or pulled: the plan fetched origin, and the merge branch
+      // is cut from the remote-tracking refs it read.
       const timestamp = Math.floor(Date.now() / 1000);
       const branchName = `main-into-develop-${timestamp}`;
 
@@ -1815,7 +2115,7 @@ ${autoGeneratedFooter()}
       const { title: prTitle, version: detectedVersion } =
         await this.describeMainDownmerge();
 
-      // Steps 5-7: branch off develop, merge main in, push. Delegated to
+      // Branch off develop, merge main in, push. Delegated to
       // createMergeBranch so a conflict aborts the merge, deletes the temporary
       // branch, and returns to develop, instead of leaving the repository stranded
       // mid-merge with an unresolved index.
@@ -1857,7 +2157,11 @@ ${autoGeneratedFooter()}`;
       const verb = prResult.action === "updated" ? "Updated" : "Created";
       console.log(`✅ ${verb} pull request: ${prResult.url}`);
 
-      return prResult.url;
+      return {
+        kind: "merge-branch",
+        pullRequestUrl: prResult.url,
+        mergeBranchName: branchName,
+      };
     } catch (error) {
       if (error instanceof MergeConflictError) {
         throw error;
@@ -1925,8 +2229,12 @@ ${autoGeneratedFooter()}`;
   ): Promise<{ branch: BranchTypeInfo; cleanName: string }> {
     let branch: BranchTypeInfo;
     if (version) {
-      const branches = await this.findBranchesOfType(branchType);
-      const match = branches.find((b) => b.version.full === version);
+      const selector = parseVersionSelector(version);
+      const branches =
+        selector.type === undefined || selector.type === branchType
+          ? await this.findBranchesOfType(branchType)
+          : [];
+      const match = branches.find((b) => b.version.full === selector.version);
       if (!match) {
         const label = branchType === "release" ? "Release" : "Hotfix";
         throw new Error(`${label} branch for version ${version} not found`);
@@ -2050,9 +2358,6 @@ ${autoGeneratedFooter()}`;
         `📋 Using release branch: ${cleanName} (${branch.version.full})`
       );
 
-      await this.checkoutAndPull("main");
-      await this.checkoutAndPull(cleanName);
-
       const timestamp = Math.floor(Date.now() / 1000);
       const mergeBranchName = `release-${branch.version.full}-into-main-${timestamp}`;
 
@@ -2088,10 +2393,17 @@ ${autoGeneratedFooter()}`;
       const verb = prResult.action === "updated" ? "Updated" : "Created";
       console.log(`✅ ${verb} pull request: ${prResult.url}`);
 
+      const superseded = await this.closeSupersededPullRequest(
+        cleanName,
+        "main",
+        prResult.url
+      );
+
       return {
         kind: "merge-branch",
         pullRequestUrl: prResult.url,
         mergeBranchName: mergeResult.branchName,
+        ...(superseded ? { superseded } : {}),
       };
     } catch (error) {
       if (error instanceof MergeConflictError) {
@@ -2123,9 +2435,6 @@ ${autoGeneratedFooter()}`;
       console.log(
         `📋 Using hotfix branch: ${cleanName} (${branch.version.full})`
       );
-
-      await this.checkoutAndPull("develop");
-      await this.checkoutAndPull(cleanName);
 
       const timestamp = Math.floor(Date.now() / 1000);
       const mergeBranchName = `hotfix-${branch.version.full}-into-develop-${timestamp}`;
@@ -2160,12 +2469,17 @@ ${autoGeneratedFooter()}`;
       const verb = prResult.action === "updated" ? "Updated" : "Created";
       console.log(`✅ ${verb} pull request: ${prResult.url}`);
 
-      await this.closeSupersededTrackingPr(cleanName, prResult.url);
+      const superseded = await this.closeSupersededPullRequest(
+        cleanName,
+        "develop",
+        prResult.url
+      );
 
       return {
         kind: "merge-branch",
         pullRequestUrl: prResult.url,
         mergeBranchName: mergeResult.branchName,
+        ...(superseded ? { superseded } : {}),
       };
     } catch (error) {
       if (error instanceof MergeConflictError) {
@@ -2188,9 +2502,8 @@ ${autoGeneratedFooter()}`;
         `📋 Using hotfix branch: ${cleanBranchName} (${targetBranch.version.full})`
       );
 
-      // Step 2: refuse a conflicting merge while nothing has been opened yet.
-      await this.fetchBaseBranches();
-      await this.fetchBranch(cleanBranchName);
+      // Step 2: refuse a conflicting merge while nothing has been opened yet,
+      // against the refs the plan fetched.
       const probe = await this.previewMergeConflicts(
         "origin/main",
         `origin/${cleanBranchName}`
@@ -2255,10 +2568,7 @@ ${autoGeneratedFooter()}`;
     try {
       switch (`${route.source}->${route.target}`) {
         case "main->develop":
-          return {
-            kind: "direct",
-            pullRequestUrl: await this.downmergeMainToDevelop(),
-          };
+          return await this.downmergeMainToDevelop();
         case "release->develop":
           return await this.downmergeReleaseToDevelop(resolved);
         case "release->main":

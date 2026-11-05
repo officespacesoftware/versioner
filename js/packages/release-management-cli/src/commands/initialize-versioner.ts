@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import {
-  VersionerAdapter,
   ensureGitRepository,
   ensureNoStagedChanges,
+  initializeVersioner,
   type VersionInfo,
 } from "@officespacesoftware/release-management-core";
 import { emit, writeGithubOutput } from "../output.js";
@@ -25,9 +25,7 @@ export function registerInitializeVersioner(parent: Command): void {
           const gfm = createGitFlowManager(opts);
           await ensureGitRepository(gfm, opts.workingDirectory);
           await ensureNoStagedChanges(gfm);
-          const adapter = new VersionerAdapter();
-          await adapter.initialize(undefined, opts.workingDirectory);
-          return adapter.initializeProject(cmdOpts.version);
+          return initializeVersioner(opts.workingDirectory, cmdOpts.version);
         },
         (result) => {
           writeGithubOutput({

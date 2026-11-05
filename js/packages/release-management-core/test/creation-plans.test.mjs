@@ -36,6 +36,10 @@ function branchInfo(name) {
  */
 function makeAgent(versions, overrides = {}) {
   const fakeGfm = {
+    fetchOrigin: async () => {},
+    // A branch that exists exists on origin unless a test says otherwise.
+    remoteBranchExists: async () => true,
+    unpushedCommits: async () => [],
     getBranchHead: async (branch) =>
       branch === "develop" ? DEVELOP_HEAD : MAIN_HEAD,
     readBranchVersion: async (ref) => versions[ref] ?? null,
@@ -135,9 +139,10 @@ test("a hotfix is cut off main at the next patch", async () => {
     plan.mutations.at(-2).detail.title,
     "RC 4.124.1-RC.0 to main"
   );
+  // The title the apply uses, capitalised as GitHub will show it.
   assert.equal(
     plan.mutations.at(-1).detail.title,
-    "hotfix 4.124.1 to develop"
+    "Hotfix 4.124.1 to develop"
   );
   // The draft is unmergeable on arrival and the plan has to say so, or it reads as
   // a second route to production rather than a placeholder. It is expected, so it
@@ -184,6 +189,31 @@ test("an existing branch of the same name is refused", async () => {
     name: "BranchSelectionError",
     message: /Branch release\/4\.125\.0 already exists/,
   });
+});
+
+test("a branch only this clone has is recreated, naming the commits it drops", async () => {
+  const agent = makeAgent(
+    { [DEVELOP_HEAD]: "4.124.0" },
+    {
+      findBranchesOfType: async () => [branchInfo("release/4.125.0")],
+      remoteBranchExists: async () => false,
+      unpushedCommits: async (branch, against) =>
+        branch === "release/4.125.0" && against === "refs/remotes/origin/develop"
+          ? ["0123456789a To version 4.125.0-RC.0"]
+          : [],
+    }
+  );
+
+  const plan = await agent.planCreateReleaseCandidate("minor");
+
+  assert.equal(plan.resultingVersion, "4.125.0-RC.0");
+  assert.deepEqual(plan.warnings, [
+    "Local release/4.125.0 exists but origin has no release/4.125.0, and it has " +
+      "1 commit(s) that origin/develop does not: 0123456789a To version " +
+      "4.125.0-RC.0. The apply recreates release/4.125.0 from origin/develop and " +
+      "drops them from it. To keep them, run git branch unpushed/release/4.125.0 " +
+      "0123456789a before confirming.",
+  ]);
 });
 
 test("a remote-only branch of the same name is still recognised", async () => {

@@ -12,7 +12,7 @@ export function registerRevertVersion(parent: Command): void {
     )
     .option(
       "--version <version>",
-      "Version identifying the branch (e.g. 1.2.0); defaults to the checked-out branch"
+      "Version identifying the branch (e.g. 1.2.0, or release/1.2.0 / hotfix/1.2.0); defaults to the checked-out branch"
     )
     .option("--working-directory <path>", "Repo root (defaults to cwd)")
     .option(
@@ -55,6 +55,8 @@ export function registerRevertVersion(parent: Command): void {
             pull_request_url: result.pullRequestUrl,
             pull_request_action: result.pullRequestAction,
             pull_request_error: result.pullRequestError,
+            promotion_pull_request_url: result.promotionPullRequestUrl,
+            promotion_pull_request_error: result.promotionPullRequestError,
             pipeline_trigger: result.pipelineTrigger?.status,
           });
           emit(result, opts, renderRevertVersion);
@@ -87,6 +89,14 @@ function renderRevertVersion(r: RevertVersionWorkflowContext): string {
   }
   if (r.pullRequestError) {
     lines.push(`PR step failed: ${r.pullRequestError}`);
+  }
+  if (r.promotionPullRequestUrl) {
+    lines.push(`Closed the promotion's PR into main: ${r.promotionPullRequestUrl}`);
+  }
+  if (r.promotionPullRequestError) {
+    lines.push(
+      `Could not close the promotion's PR into main: ${r.promotionPullRequestError}. Close it by hand.`
+    );
   }
   lines.push(...renderPipelineTrigger(r.pipelineTrigger));
   lines.push(

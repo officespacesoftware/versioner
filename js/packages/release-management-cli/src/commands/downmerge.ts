@@ -58,7 +58,7 @@ function registerRoute(
   if (route.source !== "main") {
     command.option(
       "--version <version>",
-      `Specific ${route.source} version; auto-detect newest if omitted`
+      `Specific ${route.source} version (e.g. 1.2.0 or ${route.source}/1.2.0); auto-detect newest if omitted`
     );
   }
 
@@ -104,16 +104,35 @@ function writeDownmergeOutputs(result: DownmergeResult): void {
         kind: result.kind,
         pull_request_url: result.pullRequestUrl,
         merge_branch: result.mergeBranchName,
+        already_open: String(result.alreadyOpen === true),
+        superseded_pull_request_url: result.superseded?.url,
+        superseded_pull_request_error: result.superseded?.error,
       });
       return;
   }
 }
 
-function renderDownmerge(r: DownmergeOutcome): string {
+export function renderDownmerge(r: DownmergeOutcome): string {
   const lines =
     r.kind === "merge-branch"
-      ? [`Merge branch: ${r.mergeBranchName}`, `Pull Request: ${r.pullRequestUrl}`]
+      ? [
+          `Merge branch: ${r.mergeBranchName}`,
+          `Pull Request: ${r.pullRequestUrl}${
+            r.alreadyOpen
+              ? " (already open from an earlier run; nothing new was created)"
+              : ""
+          }`,
+        ]
       : [`Pull Request: ${r.pullRequestUrl}`];
+  if (r.kind === "merge-branch" && r.superseded) {
+    const s = r.superseded;
+    const pr = `${s.number ? `PR #${s.number} ` : "PR "}(${s.head} → ${s.base})`;
+    lines.push(
+      s.error
+        ? `Could not close the superseded ${pr}: ${s.error}. Close it by hand.`
+        : `Closed ${pr} as superseded: ${s.url}`
+    );
+  }
   for (const [title, items] of [
     ["Warnings:", r.warnings],
     ["Notes:", r.notices],

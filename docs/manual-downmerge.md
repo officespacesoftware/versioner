@@ -50,8 +50,8 @@ source are on different version lines, so this conflict is expected after every 
 and never means the merge is wrong.
 
 **Hotfix source.** `create_hotfix` opened a draft `hotfix/X.Y.Z` → `develop` pull
-request as a reminder, and `release_version` rewrote it (or opened a non-draft one if the
-draft had been closed). Close it with a comment linking the new pull request, so `develop`
+request as a reminder, and `release_version` kept it a draft (or opened a new draft if
+it had been closed). Close it with a comment linking the new pull request, so `develop`
 has one open pull request for the hotfix.
 
 **Release source.** The `release/X.Y.Z` → `develop` pull request that `release_version`
