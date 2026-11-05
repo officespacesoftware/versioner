@@ -752,7 +752,8 @@ candidate's pull request into `develop` is merged. The diagram is in
 2. `git revert --no-edit <head>`, giving the commit `Revert "To version <v>"`. A conflict is
    aborted (A24); nothing is changed.
 3. Delete the tag on origin (`git push origin :refs/tags/<v>`), then locally (`git tag -d`),
-   each only if it exists.
+   each only if it exists. Origin is then asked (`git ls-remote origin refs/tags/<v>`)
+   whether the tag is gone; if origin still has it, the apply fails (A37) before pushing.
 4. Delete the GitHub release, for a final version that has one (A25 on failure).
 5. `git push -u origin <branch>` (A26 on failure).
 6. If a pull request is open on the base, update it. A failure is reported (R8).
@@ -761,10 +762,13 @@ candidate's pull request into `develop` is merged. The diagram is in
 
 **Apply, abandon shape.**
 
-1. Delete the tag on origin, then locally.
+1. Delete the tag on origin, then locally, verified as in the revert shape: if origin still
+   has it, the apply fails (A37) with nothing else changed.
 2. If a pull request is open on the base, comment and close it. A failure is reported (R8).
-3. Check out and pull the base, then delete the branch on origin
-   (`git push origin :refs/heads/<branch>`) and locally (`git branch -D`).
+3. Check out the base (nothing is pulled), then delete the branch on origin
+   (`git push origin :refs/heads/<branch>`) and verify it is gone (A38 if origin still has
+   it, keeping the local branch), then delete it locally (`git branch -D`, A39 if it
+   remains).
 
 No pipeline trigger: the branch is gone. The order is chosen for partial failure: tags
 first while their commit is still reachable, the explanation before the closure, and the
@@ -782,7 +786,7 @@ left as it was (GitHub closes it, without a comment, when an abandon deletes the
 
 **Messages.** Refusals G1, G2, G4 (CLI), G6, G7–G9, G11, S8–S11, P9–P12, D1. Warnings W11
 (revert shape), W12, W13, W14. Notes N3, N4. Pipeline T1–T10 (revert shape). Apply failures
-A24–A27. Report R8.
+A24–A27, A37–A39. Report R8.
 
 **CLI `$GITHUB_OUTPUT`.** `branch`, `shape` (`revert` or `abandon`), `reverted_version`,
 `resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`,
@@ -810,17 +814,20 @@ A24–A27. Report R8.
 | Failed at | Left behind | Recover |
 | --- | --- | --- |
 | Revert 2 | Nothing (the revert is aborted) | Revert by hand |
-| Revert 3 | Local revert commit; perhaps the tag deleted on origin | Delete the remaining tag, push the branch, by hand |
+| Revert 3, origin rejects the tag deletion (A37) | Local revert commit, not pushed; the tag on origin and locally | Delete the tag by hand once allowed (`git push origin :refs/tags/<v>`), then run `revert_version` again. Its plan drops the local revert commit (W14) |
+| Revert 3, local deletion | Local revert commit; tag deleted on origin | Delete the local tag and push the branch by hand |
 | Revert 4 | Local revert commit, tag deleted | Delete the release by hand, then `git push origin <branch>` |
 | Revert 5 | Local revert commit, tag and release deleted | `git push origin <branch>`, then update the pull request by hand |
 | Revert 6 | Reported (R8) | Edit the pull request by hand |
 | Abandon 2 | Reported (R8); the branch is still deleted | Close the pull request by hand |
-| Abandon 3 | Tag deleted, pull request closed, branch maybe still on origin | `git push origin --delete <branch>` |
+| Abandon 1 (A37) | Nothing: the tag is still on origin, the branch and pull request untouched | Delete the tag by hand once allowed, then run `revert_version` again |
+| Abandon 3, origin rejects the branch deletion (A38) | Tag deleted, pull request closed, branch on origin and locally | `git push origin --delete <branch>` once allowed, or run `revert_version` again |
+| Abandon 3, local deletion (A39) | Branch deleted on origin, still local | `git branch -D <branch>` |
 
-A deletion that origin rejects (for example a protected branch or tag) is not reported as
-a failure: the result says `not on origin` for the tag, and still reports the branch as
-deleted. Check with `git ls-remote origin` after an abandon. To undo an abandon, recreate
-the branch from the sha in the plan or the closing comment:
+Every deletion on origin is checked against origin afterwards. One that origin rejects
+(a protected branch, a tag protection rule, a pre-receive hook) fails the apply with what
+was and was not done; the result never reports a deletion that did not happen. To undo an
+abandon, recreate the branch from the sha in the plan or the closing comment:
 `git branch <branch> <sha> && git push origin <branch>`.
 
 ---

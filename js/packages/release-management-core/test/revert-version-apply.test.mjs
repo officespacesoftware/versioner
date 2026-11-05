@@ -304,3 +304,85 @@ test("a version set by something other than a bump commit is refused untouched",
   assert.ok(existsSync(join(repo, "VERSION")));
   assert.ok(remoteTags().includes("refs/tags/1.4.0-RC.2"));
 });
+
+/**
+ * Make origin reject deletions of refs matching `pattern`, as a protected branch,
+ * a tag protection rule or a pre-receive hook would.
+ */
+function rejectDeletesOf(pattern) {
+  const hook = join(origin, "hooks", "pre-receive");
+  writeFileSync(
+    hook,
+    [
+      "#!/bin/sh",
+      "while read old new ref; do",
+      `  case "$ref" in ${pattern})`,
+      '    if [ "$new" = "0000000000000000000000000000000000000000" ]; then',
+      '      echo "deleting $ref is not allowed" >&2; exit 1',
+      "    fi;;",
+      "  esac",
+      "done",
+      "",
+    ].join("\n"),
+    { mode: 0o755 }
+  );
+}
+
+test("an abandon whose tag deletion origin rejects fails and changes nothing else", async () => {
+  releaseBranchAtRC0();
+  rejectDeletesOf("refs/tags/*");
+  const { agent } = makeAgent({
+    findOpenPullRequest: async () => ({ number: 77, url: "u", title: "t", body: "" }),
+  });
+
+  await assert.rejects(
+    () => agent.executeRevertVersionWorkflow(repo, undefined, false),
+    (error) => {
+      assert.match(error.message, /Origin refused to delete tag 1\.5\.0-RC\.0/);
+      assert.match(error.message, /git push origin :refs\/tags\/1\.5\.0-RC\.0/);
+      return true;
+    }
+  );
+
+  assert.ok(remoteTags().includes("refs/tags/1.5.0-RC.0"));
+  assert.ok(remoteHeads().includes("refs/heads/release/1.5.0"));
+  assert.equal(calls.closed.length, 0);
+});
+
+test("an abandon whose branch deletion origin rejects does not report the branch deleted", async () => {
+  releaseBranchAtRC0();
+  rejectDeletesOf("refs/heads/*");
+  const { agent } = makeAgent();
+
+  await assert.rejects(
+    () => agent.executeRevertVersionWorkflow(repo, undefined, false),
+    (error) => {
+      assert.match(error.message, /Origin refused to delete release\/1\.5\.0/);
+      assert.match(error.message, /git push origin --delete release\/1\.5\.0/);
+      return true;
+    }
+  );
+
+  assert.ok(remoteHeads().includes("refs/heads/release/1.5.0"));
+  assert.ok(!remoteTags().includes("refs/tags/1.5.0-RC.0"));
+  // The local copy is kept while origin still has the branch.
+  assert.notEqual(gitQuiet("rev-parse", "--verify", "-q", "release/1.5.0"), "");
+});
+
+test("a revert whose tag deletion origin rejects fails before pushing", async () => {
+  releaseBranchAtRC2();
+  rejectDeletesOf("refs/tags/*");
+  const pushed = git("rev-parse", "origin/release/1.4.0");
+  const { agent } = makeAgent();
+
+  await assert.rejects(
+    () => agent.executeRevertVersionWorkflow(repo, undefined, false),
+    /Origin refused to delete tag 1\.4\.0-RC\.2/
+  );
+
+  assert.ok(remoteTags().includes("refs/tags/1.4.0-RC.2"));
+  assert.equal(
+    execFileSync("git", ["rev-parse", "release/1.4.0"], { cwd: origin, encoding: "utf8" }).trim(),
+    pushed
+  );
+});
