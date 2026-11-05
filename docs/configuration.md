@@ -155,12 +155,12 @@ A GitHub Actions workflow with a `workflow_dispatch` trigger:
 `createGitHubClient` (`js/packages/release-management-core/src/github-client.ts`) takes
 the first token it finds:
 
-1. `GH_TOKEN`, or, when `GH_TOKEN` is **unset**, `GITHUB_TOKEN`;
+1. `GH_TOKEN`, or, when `GH_TOKEN` is unset or empty, `GITHUB_TOKEN`;
 2. the output of `gh auth token` (which reads the keychain or `hosts.yml`, whichever `gh`
    uses);
 3. `github.com.oauth_token` in `~/.config/gh/hosts.yml` (older `gh` versions).
 
-`GH_TOKEN` set to an empty string skips step 1 entirely, `GITHUB_TOKEN` included. With no
+An empty variable counts as unset: `GH_TOKEN=""` falls through to `GITHUB_TOKEN`. With no
 token, any call to GitHub fails with G7. The token needs `repo` scope (pull requests,
 releases, comments); pushes use git's own credentials, not this token.
 
