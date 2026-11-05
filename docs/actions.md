@@ -28,9 +28,9 @@ a conflicting downmerge.
 | Create hotfix | `create_hotfix` | `create-hotfix` | plan → confirm | Branch `hotfix/X.Y.Z`, commit, tag `X.Y.Z-RC.0`, two pushes, PR → `main`, draft PR → `develop` |
 | Increment release candidate | `increment_release_candidate` | `increment-rc` | plan → confirm | Commit, tag `X.Y.Z-RC.n`, two pushes, PR → the branch's base |
 | Release version | `release_version` | `release-version` | plan → confirm | Commit, tag `X.Y.Z`, two pushes, PR → `main`, GitHub release, PR → `develop` |
-| Revert version | `revert_version` | `revert-version` | plan → confirm | Revert: revert commit, push, tag deleted, GitHub release deleted for a final, PR updated. Abandon: tag deleted, PR closed, branch deleted |
+| Revert version | `revert_version` | `revert-version` | plan → confirm | Revert: revert commit, push, tag deleted, GitHub release deleted for a final, PR updated; for a release's final, its PR into `main` closed. Abandon: tag deleted, PR closed, branch deleted |
 | Initialize versioner | `initialize_versioner` | `initialize-versioner` | immediate, local only | `VERSION` file, commit, tag |
-| Downmerge | `downmerge` | `downmerge <source>-to-<target>` | immediate; the PR is the review | Clean: a PR into the target, through a merge branch on three of the five routes. Conflicting: nothing; a [handoff](#downmerge-conflicts) |
+| Downmerge | `downmerge` | `downmerge <source>-to-<target>` | immediate; the PR is the review | Clean: a PR into the target, through a merge branch on three of the five routes, closing the PR it supersedes on two of them. Conflicting: nothing; a [handoff](#downmerge-conflicts) |
 
 ## Conventions shared by every action
 
@@ -66,8 +66,11 @@ nothing else: no tag, no local branch, no working tree. The plan then reads comm
 `VERSION` files from those refs (`origin/<branch>`), asks origin live which branch names and
 tags exist (`git ls-remote`), and asks GitHub about pull requests and releases.
 
-**Applies do not fetch or pull.** An apply rebuilds the plan, which fetches, compares the
-digest, and then acts on exactly the remote-tracking refs that rebuilt plan read: new
+**Applies do not fetch or pull** (the one exception is the `release` → `develop`
+downmerge's trial merge, which checks out and pulls both branches locally; what it opens
+is the pull request from origin's release branch). An apply rebuilds the plan, which
+fetches, compares the digest, and then acts on exactly the remote-tracking refs that
+rebuilt plan read: new
 branches are cut from `origin/<base>`, existing ones are reset to `origin/<branch>`, and
 merge branches merge `origin/<source>` into `origin/<target>`. If origin moved after the
 plan was approved, the rebuilt plan differs and the apply refuses with D1 and the new plan.
@@ -200,6 +203,7 @@ Would create:
       message: Release version 1.4.0-RC.2
   Push: release/1.4.0 and tag 1.4.0-RC.2 to origin
   Pull request: update PR #41 (release/1.4.0 → develop)
+      title: RC 1.4.0-RC.2 to develop
 
 Notes:
   - PR #41 is already open for release/1.4.0 → develop; it will be updated, not created.
@@ -253,7 +257,7 @@ older than the plan and less reliable; **use the plan instead**. Specifically:
   plan reads it (`origin/<branch>` first): `develop` for a release candidate, `main` for a
   hotfix, the selected branch for an increment or promotion. What is checked out does not
   matter.
-- `create_release_candidate`'s dry run still fetches `main` and `develop` (step 1).
+- Like every apply it fetches nothing itself; the plan rebuilt before it did.
 - It never runs the pipeline trigger. `revert_version`'s dry run does run every guard.
 
 ### Pre-version checks and the pipeline trigger

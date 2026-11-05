@@ -143,7 +143,10 @@ refuses to run over tracked local changes, because its cleanup would discard the
 
 `downmerge(route, version?)` runs one route — `{ source, target }`, validated by
 `parseDownmergeRoute` against `DOWNMERGE_ROUTES` — and returns a `DownmergeResult` of kind
-`direct` or `merge-branch`. A conflict creates nothing and throws
+`direct` (`release` → `develop`, `hotfix` → `main`) or `merge-branch` (the other three, with
+`mergeBranchName`, and `superseded` for the pull request it closed). `ReleaseAgent.applyDownmerge`
+returns an earlier run's still-open pull request with `alreadyOpen` rather than opening a
+second. A conflict creates nothing and throws
 `ManualDownmergeRequired`, whose `handoff` holds the conflicted files, the branch to
 resolve them on, the pull request title and numbered steps; `renderManualDownmerge`
 formats it. `ReleaseAgent.planDownmerge(route, version?)` is the matching plan, and throws
@@ -164,7 +167,8 @@ await agent.initialize();  // connects the versioner adapter
 Planning does not need it — the MCP server builds a deliberately uninitialized agent for
 read-only planning so that describing a change never requires the versioner library.
 
-**Plan** — each returns a `ChangePlan` and changes nothing:
+**Plan** — each fetches origin's main, develop, `release/*` and `hotfix/*` into their
+remote-tracking refs, returns a `ChangePlan`, and changes nothing else:
 
 ```
 planCreateReleaseCandidate(releaseType)   planDownmergeMainToDevelop()
@@ -293,9 +297,11 @@ pnpm test          # node --test test/*.test.mjs, preceded by pretest: tsc
 pnpm clean         # rm -rf lib/
 ```
 
-The suite is fifteen files under `test/`, covering branch selection, change plans, the
-creation/downmerge/version-bump/revert plan builders, merge previews, PR bodies, release
-notes, version listing, and that read-only plans stay read-only. Tests run against
+The suite is twenty-three files under `test/`, covering branch selection, change plans, the
+creation/downmerge/version-bump/revert plan builders and applies, merge previews, PR
+bodies, release notes, version listing, dry runs, resuming a creation, origin as the source
+of truth, `initialize_versioner`, token resolution, and that plans change nothing but
+remote-tracking refs. Tests run against
 compiled `lib/`, which is why `pretest` builds first.
 
 `js/packages/release-management-core/src/` is laid out as:
