@@ -121,7 +121,7 @@ then retitled as the branch moves on:
 | `release/X.Y.Z` → `develop` | `create_release_candidate` | `increment_release_candidate`, `release_version` (step 10), the `release` → `develop` downmerge, `revert_version` (revert shape). All but the revert open it when none is open | `revert_version` (abandon), with a comment | `RC X.Y.Z-RC.n to develop`, then `Release X.Y.Z to develop` | no |
 | `release/X.Y.Z` → `main` | `release_version` (step 7) | — | GitHub, once its head reaches `main` through the `release` → `main` downmerge | `Release X.Y.Z to main` | no |
 | `hotfix/X.Y.Z` → `main` | `create_hotfix` | `increment_release_candidate`, `release_version` (step 7), the `hotfix` → `main` downmerge, `revert_version` (revert shape). All but the revert open it when none is open | `revert_version` (abandon), with a comment | `RC X.Y.Z-RC.n to main`, then `Release X.Y.Z to main` | no |
-| `hotfix/X.Y.Z` → `develop` | `create_hotfix` (as a draft) | `release_version` (step 10), which opens it, not as a draft, when none is open | the `hotfix` → `develop` downmerge, with a comment | `Hotfix X.Y.Z to develop` | yes when `create_hotfix` opens it |
+| `hotfix/X.Y.Z` → `develop` | `create_hotfix` (as a draft) | `release_version` (step 10), which opens it as a draft when none is open | the `hotfix` → `develop` downmerge, with a comment | `Hotfix X.Y.Z to develop` | yes, whoever opens it; one already open keeps its state |
 | `main-into-develop-<ts>` → `develop` | `main` → `develop` downmerge | — | — | `Release <v> to develop`, or `Downmerge main into develop` | no |
 | `release-X.Y.Z-into-main-<ts>` → `main` | `release` → `main` downmerge | — | — | `Release X.Y.Z to main` | no |
 | `hotfix-X.Y.Z-into-develop-<ts>` → `develop` | `hotfix` → `develop` downmerge | — | — | `Hotfix X.Y.Z to develop` | no |
@@ -642,8 +642,8 @@ moment to take `main`'s changes in first. W1 is checked for release branches onl
    with tag `X.Y.Z`, name `Release X.Y.Z`, `target_commitish` the branch, and the notes as
    its body. If no notes were obtained, up to three more attempts follow and the body is
    patched in; otherwise R2–R5. **A failure to create the release fails the action** (A23).
-10. Open or update `<branch>` → `develop`, for release **and** hotfix branches. A failure
-    is reported (R6), not thrown.
+10. Open or update `<branch>` → `develop`, for release **and** hotfix branches; a hotfix's
+    as a draft placeholder. A failure is reported (R6), not thrown.
 
 Then the pipeline trigger: normally `skipped`.
 
@@ -652,18 +652,21 @@ Then the pipeline trigger: normally `skipped`.
 | Head → base | Title | Draft | Body |
 | --- | --- | --- | --- |
 | `<branch>` → `main` | `Release X.Y.Z to main` | no | `## <Release\|Hotfix> Version X.Y.Z`, the production warning, version details, "Released version X.Y.Z (converted from RC)" |
-| `<branch>` → `develop` | `Release X.Y.Z to develop`, or `Hotfix X.Y.Z to develop` | no when opened here; a hotfix's draft stays a draft | `## <Release\|Hotfix> X.Y.Z to develop`, "has been promoted from a release candidate to X.Y.Z, and this PR merges it back into develop", version details, next step "Merge once X.Y.Z has been deployed to production" |
+| `release/X.Y.Z` → `develop` | `Release X.Y.Z to develop` | no | `## Release X.Y.Z to develop`, "has been promoted from a release candidate to X.Y.Z, and this PR merges it back into develop", version details, next step "Merge once X.Y.Z has been deployed to production" |
+| `hotfix/X.Y.Z` → `develop` | `Hotfix X.Y.Z to develop` | yes when opened here; one already open keeps its state | The draft placeholder body `create_hotfix` uses: **This is not ready to merge** (it conflicts on `VERSION` by construction), next steps ending "That downmerge closes this draft as superseded" |
 
 The `develop` titles match the `release` → `develop` downmerge's and the hotfix tracking
-draft's, so those actions converge on one pull request. For a hotfix, this rewrites the
-draft placeholder's body with the "merge once deployed" text, or opens a non-draft
-`hotfix/X.Y.Z` → `develop` pull request when the draft was closed.
+draft's, so those actions converge on one pull request. For a hotfix, that pull request
+stays the draft placeholder: it is updated with the placeholder body, or opened as a draft
+when none is open (N6), and never presented as ready to merge, since it conflicts on
+`VERSION` until the `hotfix` → `develop` downmerge supersedes it.
 
 **GitHub release.** Tag `X.Y.Z`, name `Release X.Y.Z`, target the branch, auto-generated
 notes. Not a draft or a prerelease, so GitHub makes it the Latest release by default.
 
 **Messages.** Refusals as `increment_release_candidate`. Warnings W1, W2, W3–W6, W7–W11, W14.
-Notes N1 (both pairs). Pipeline T2–T10. Apply failures A11, A19–A23. Reports R1–R6.
+Notes N1 (both pairs), N6 (hotfix). Pipeline T2–T10. Apply failures A11, A19–A23. Reports
+R1–R6.
 
 **CLI `$GITHUB_OUTPUT`.** `branch`, `version`, `pull_request_url`, `pull_request_action`,
 `pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`,
@@ -685,7 +688,7 @@ MCP tool and the CLI label that pull request with it: `Opened develop PR: <url>`
 | Local branch has commits origin does not | W14 warning; the apply resets the branch to origin |
 | Check or configuration problems | W7–W11 warnings |
 | Pull request to `main` or `develop` already open | N1; updated |
-| Branch is a hotfix | The deploy warning is logged; the `develop` pull request is `hotfix/X.Y.Z` → `develop` |
+| Branch is a hotfix | The deploy warning is logged; the `develop` pull request is `hotfix/X.Y.Z` → `develop`, kept a draft placeholder, or opened as one with N6 |
 | A pull request step fails | R1 or R6; the version, tag and release exist |
 | Release creation fails | A23; tag on origin, no release, no `develop` pull request |
 

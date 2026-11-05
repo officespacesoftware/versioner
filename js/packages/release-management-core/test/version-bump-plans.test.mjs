@@ -319,3 +319,18 @@ test("every pull request a version bump plans names the title the apply uses", a
     "Hotfix 1.3.1 to develop",
   ]);
 });
+
+test("promoting a hotfix plans its develop PR as a draft placeholder", async () => {
+  const agent = makeAgent({ "hotfix/1.3.1": "1.3.1-RC.0\nabc1234" });
+
+  const plan = await agent.planReleaseVersion("1.3.1");
+
+  assert.equal(
+    plan.mutations.at(-1).summary,
+    "open draft hotfix/1.3.1 → develop"
+  );
+  assert.ok(
+    plan.notices.some((n) => /opens as a draft placeholder/.test(n)),
+    plan.notices.join("\n")
+  );
+});

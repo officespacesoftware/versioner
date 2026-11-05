@@ -75,8 +75,8 @@ function makeAgent({ openPrs = {}, ...overrides } = {}) {
   gfm.findOpenPullRequest = async (head, base) => openPrs[base] ?? null;
   // Mirrors the real thing: opening succeeds unless GitHub already has one open for
   // this head and base, in which case it reports an update instead.
-  gfm.createPullRequest = async (head, base, title, body) => {
-    calls.created.push({ head, base, title, body });
+  gfm.createPullRequest = async (head, base, title, body, draft = false) => {
+    calls.created.push({ head, base, title, body, draft });
     return {
       url: `https://example.invalid/pr/${base}`,
       action: openPrs[base] ? "updated" : "created",
@@ -254,4 +254,21 @@ test("a stale local tag of the version is dropped before tagging", async () => {
     execFileSync("git", ["ls-remote", "--tags", origin], { encoding: "utf8" }),
     /refs\/tags\/1\.4\.0\n/
   );
+});
+
+// A hotfix's develop PR conflicts on VERSION by construction, so promotion keeps it
+// the draft placeholder create_hotfix opened rather than turning it into a ready PR
+// that cannot be merged; the hotfix → develop downmerge supersedes it.
+test("promoting a hotfix keeps its develop PR a draft placeholder", async () => {
+  hotfixBranchAtRC0();
+  const { agent } = makeAgent();
+
+  await agent.executeReleaseWorkflow(repo, undefined, false);
+
+  const develop = prTo("develop");
+  assert.equal(develop.title, "Hotfix 1.3.1 to develop");
+  assert.equal(develop.draft, true);
+  assert.match(develop.body, /This is not ready to merge/);
+  assert.doesNotMatch(develop.body, /Merge once/);
+  assert.equal(prTo("main").draft, false);
 });

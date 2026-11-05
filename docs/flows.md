@@ -47,7 +47,7 @@ flowchart TD
   MAIN0["main at a final version, e.g. 1.4.0"]
   HF0["hotfix/1.4.1 at 1.4.1-RC.0<br/>tag 1.4.1-RC.0<br/>PR hotfix/1.4.1 → main: RC 1.4.1-RC.0 to main, with the production warning<br/>draft PR hotfix/1.4.1 → develop: Hotfix 1.4.1 to develop"]
   HFN["hotfix/1.4.1 at 1.4.1-RC.n<br/>tag 1.4.1-RC.n<br/>PR → main retitled RC 1.4.1-RC.n to main"]
-  FIN["hotfix/1.4.1 at 1.4.1<br/>tag 1.4.1 and GitHub release 1.4.1<br/>PR → main retitled Release 1.4.1 to main<br/>PR → develop rewritten, or opened if closed"]
+  FIN["hotfix/1.4.1 at 1.4.1<br/>tag 1.4.1 and GitHub release 1.4.1<br/>PR → main retitled Release 1.4.1 to main<br/>draft PR → develop updated, or opened as a draft if closed"]
   DEP["1.4.1 deployed to production"]
   HM["PR hotfix/1.4.1 → main updated: Release 1.4.1 to main"]
   MAIN1["main at 1.4.1"]

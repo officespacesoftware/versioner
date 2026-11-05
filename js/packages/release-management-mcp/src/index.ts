@@ -459,8 +459,10 @@ between, the digest no longer matches and it refuses, returning a fresh plan.
 
 Applying creates: a commit "To version X.Y.Z" touching only VERSION, an annotated
 tag of the same name, pushes of the branch and the tag, a pull request to main
-carrying a warning not to merge before the deployment, and a GitHub release whose
-target is the release branch.`,
+carrying a warning not to merge before the deployment, a GitHub release whose
+target is the release branch, and the pull request back to develop. For a hotfix
+that develop pull request stays a draft placeholder (it conflicts on VERSION until
+the hotfix → develop downmerge supersedes it).`,
             inputSchema: {
               type: "object",
               properties: {

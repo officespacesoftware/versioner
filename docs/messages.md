@@ -182,6 +182,7 @@ W11 in a versioning plan.
 | N2 | `The <hotfix/X.Y.Z> → develop pull request opens as a draft holding only a version bump, and conflicts on VERSION until the fix lands and it is reconciled. It is a reminder, not a merge that is ready to take.` | HF | No open `hotfix/X.Y.Z` → `develop` pull request yet |
 | N3 | `No tag <v> exists locally or on origin; nothing to delete.` | REV | The tag is already gone everywhere |
 | N4 | `Deleting a tag does not undo a build or deployment it already triggered. Pushing to <branch> may itself trigger a new one.` | REV | Always |
+| N6 | `No <hotfix/X.Y.Z> → develop pull request is open, so one opens as a draft placeholder: it conflicts on VERSION by construction, and the hotfix → develop downmerge supersedes it after the deploy.` | REL (hotfix) | Promoting a hotfix with no open `develop` pull request |
 | N5 | `<branch> is already on origin at <X.Y.Z-RC.0> (<sha11>), so an earlier run got as far as the push. This resumes it: the branch and the version commit are not made again.` | RC, HF | Origin holds the branch the action would create, at exactly the version it would set. The plan lists only the missing steps |
 
 The merge-branch downmerges (m→d, r→m, h→d) produce no notes and no warnings. A downmerge
