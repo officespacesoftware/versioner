@@ -110,7 +110,7 @@ $ release-management release-version --confirm 3f2a1b0c9d8e
 | `--plan` | Same, stated explicitly. |
 | `--confirm <digest>` | Applies the plan carrying this digest. |
 | `--yes` | Applies without a digest, printing the plan to stderr as a record. For automation that cannot round-trip a digest. |
-| `--dry-run` | Validates without changing anything. Prefer `--plan`, which is guaranteed not to mutate. |
+| `--dry-run` | Applies with every mutating step skipped. Takes effect only with `--confirm` or `--yes`, and validates the checked-out branch rather than the target; prefer `--plan`. See [dryRun](../../../docs/actions.md#dryrun). |
 
 If the repository moved since the plan was computed — a push to the target branch, a tag
 appearing, a pull request opening — `--confirm` refuses, prints the new plan, and exits `1`.
@@ -212,13 +212,13 @@ Three things that are easy to get wrong:
 | --- | --- |
 | any planned command | `plan_digest` |
 | `list-versions` | `current_branch`, `release_candidates` |
-| `create-rc` | `release_type`, `version`, `pull_request_url`, `pull_request_action` |
-| `create-hotfix` | `version`, `pull_request_url`, `pull_request_action` |
-| `increment-rc` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error` |
-| `release-version` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`, `own_base_pull_request_action`, `own_base_pull_request_error` |
-| `revert-version` | `branch`, `shape`, `reverted_version`, `resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`, `pull_request_error` |
+| `create-rc` | `release_type`, `version`, `pull_request_url`, `pull_request_action`, `pipeline_trigger` |
+| `create-hotfix` | `version`, `pull_request_url`, `pull_request_action`, `pipeline_trigger` |
+| `increment-rc` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `pipeline_trigger` |
+| `release-version` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`, `own_base_pull_request_action`, `own_base_pull_request_error`, `pipeline_trigger` |
+| `revert-version` | `branch`, `shape`, `reverted_version`, `resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `pipeline_trigger` |
 | `initialize-versioner` | `version`, `is_release_candidate` |
-| `downmerge …` | `kind`, `pull_request_url`; plus `merge_branch` when a merge branch was used |
+| `downmerge …` | `kind`, `pull_request_url`; plus `merge_branch` for `release-to-main` and `hotfix-to-develop` (`main-to-develop` uses a merge branch but reports `kind=direct` without it) |
 
 `pull_request_action` is `created` or `updated`. `revert-version`'s `shape` is `revert`
 (rewind one version) or `abandon` (delete the branch). A downmerge's `kind` is `direct` or
