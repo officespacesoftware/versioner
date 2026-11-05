@@ -119,7 +119,7 @@ then retitled as the branch moves on:
 | Head → base | Opened by | Then updated by | Closed by | Titles | Draft |
 | --- | --- | --- | --- | --- | --- |
 | `release/X.Y.Z` → `develop` | `create_release_candidate` | `increment_release_candidate`, `release_version` (step 10), the `release` → `develop` downmerge, `revert_version` (revert shape). All but the revert open it when none is open | `revert_version` (abandon), with a comment | `RC X.Y.Z-RC.n to develop`, then `Release X.Y.Z to develop` | no |
-| `release/X.Y.Z` → `main` | `release_version` (step 7) | — | GitHub, once its head reaches `main` through the `release` → `main` downmerge | `Release X.Y.Z to main` | no |
+| `release/X.Y.Z` → `main` | `release_version` (step 7) | — | the `release` → `main` downmerge, with a comment, as superseded by its merge-branch pull request | `Release X.Y.Z to main` | no |
 | `hotfix/X.Y.Z` → `main` | `create_hotfix` | `increment_release_candidate`, `release_version` (step 7), the `hotfix` → `main` downmerge, `revert_version` (revert shape). All but the revert open it when none is open | `revert_version` (abandon), with a comment | `RC X.Y.Z-RC.n to main`, then `Release X.Y.Z to main` | no |
 | `hotfix/X.Y.Z` → `develop` | `create_hotfix` (as a draft) | `release_version` (step 10), which opens it as a draft when none is open | the `hotfix` → `develop` downmerge, with a comment | `Hotfix X.Y.Z to develop` | yes, whoever opens it; one already open keeps its state |
 | `main-into-develop-<ts>` → `develop` | `main` → `develop` downmerge | — | — | `Release <v> to develop`, or `Downmerge main into develop` | no |
@@ -979,10 +979,12 @@ merge-branch routes.
 3. Open the pull request into `main`, titled `Release X.Y.Z to main`. Body:
    `## Release X.Y.Z to main`, the production warning, why a merge branch is used, and the
    version, source, target and merge branch.
+4. Find the open `release/X.Y.Z` → `main` pull request `release_version` opened, comment
+   `Superseded by <url>. It brings this release into main through a merge branch, so main
+   has one open pull request for the release rather than two.` and close it. A failure is
+   reported (R9), not thrown.
 
-`release_version` already opened `release/X.Y.Z` → `main`, so `main` has two open pull
-requests for the release until one is merged; GitHub marks the other merged once its head
-is in `main`.
+So `main` has one open pull request for the release: the merge branch's.
 
 **`hotfix` → `develop`.**
 
@@ -992,9 +994,9 @@ is in `main`.
 2. `git push -u origin hotfix-X.Y.Z-into-develop-<ts>`.
 3. Open the pull request into `develop`, titled `Hotfix X.Y.Z to develop`. Body:
    `## Hotfix X.Y.Z to develop`, why a merge branch is used, version details. No warning.
-4. Find the open `hotfix/X.Y.Z` → `develop` pull request (the draft from `create_hotfix`, or
-   the one `release_version` opened), comment `Superseded by <url>…` and close it. A
-   failure is only logged (R9).
+4. Find the open `hotfix/X.Y.Z` → `develop` pull request (the draft `create_hotfix` or
+   `release_version` opened), comment `Superseded by <url>. It brings this hotfix into
+   develop through a merge branch, …` and close it. A failure is reported (R9), not thrown.
 
 **`hotfix` → `main`.**
 
@@ -1020,8 +1022,15 @@ H2. Apply failures A28–A31. Report R9. MCP failures are returned as `❌ Downm
 
 **CLI `$GITHUB_OUTPUT`.** `kind` (`merge-branch` for `main` → `develop`, `release` → `main`
 and `hotfix` → `develop`; `direct` for the other two), `pull_request_url`, and `merge_branch`
-for the merge-branch routes. The MCP tool and the CLI's text output print `Merge branch:`
-for the same three.
+for the merge-branch routes; `superseded_pull_request_url` and
+`superseded_pull_request_error` when `hotfix` → `develop` or `release` → `main` closed, or
+failed to close, the pull request it supersedes. The MCP tool and the CLI's text output
+print `Merge branch:` for the same three, and `Closed PR #n (<head> → <base>) as
+superseded: <url>` or R9.
+
+**Result.** For the merge-branch routes, `superseded` is `{ head, base, number, url }` for a
+pull request closed as superseded, with `error` when closing it (or looking it up, then
+without `number`) failed.
 
 ### `downmerge`: decision table
 
@@ -1037,7 +1046,7 @@ for the same three.
 | A pull request for the pair is already open (direct routes) | N1; updated |
 | A merge-branch route run twice before the first pull request merges | A second merge branch and pull request |
 | The conflict appears only during the apply | The same handoff; the local merge branch is deleted |
-| Closing the superseded draft fails (`hotfix` → `develop`) | R9, logged only |
+| Closing the superseded pull request fails (`hotfix` → `develop`, `release` → `main`) | R9, reported with the result; the downmerge still succeeds |
 
 ### `downmerge`: partial failure and recovery
 
@@ -1045,7 +1054,7 @@ for the same three.
 | --- | --- | --- | --- |
 | merge-branch routes | push | A local merge branch, checked out | `git checkout <target> && git branch -D <merge-branch>`, rerun |
 | merge-branch routes | pull request | The merge branch on origin, no pull request | Open the pull request from it by hand with the route's title, or delete it (`git push origin --delete <merge-branch>`) and rerun. A rerun creates a new merge branch; it does not reuse this one |
-| `hotfix` → `develop` | closing the draft | The new pull request, and the draft still open | Close the draft by hand |
+| `hotfix` → `develop`, `release` → `main` | closing the superseded pull request (R9) | The new pull request, and the old one still open | Close the old one by hand |
 | `release` → `develop`, `hotfix` → `main` | pull request | Nothing on origin | Rerun |
 
 ---

@@ -384,3 +384,19 @@ test("a downmerge version may be the full branch name", async () => {
     message: "Release branch for version hotfix/4.125.0 not found",
   });
 });
+
+test("release into main closes the promotion's pull request it supersedes", async () => {
+  const plan = await makeAgent({
+    findOpenPullRequest: async (head, base) =>
+      head === "release/4.125.0" && base === "main"
+        ? { number: 88, url: "https://example.invalid/pr/88", title: "t", body: "" }
+        : null,
+  }).planDownmergeReleaseToMain();
+
+  assert.deepEqual(plan.mutations.at(-1), {
+    kind: "pull-request",
+    operation: "delete",
+    summary:
+      "close PR #88 (release/4.125.0 → main), superseded by the pull request above",
+  });
+});

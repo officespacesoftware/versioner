@@ -31,6 +31,7 @@ import {
   type ChangePlan,
   type DownmergeResult,
   type PipelineTriggerResult,
+  type SupersededPullRequest,
 } from "@officespacesoftware/release-management-core";
 
 /** Reported over the MCP handshake and by health_check; taken from the package itself. */
@@ -104,6 +105,18 @@ function renderPipelineTrigger(
     );
   }
   return `\n${lines.join("\n")}\n`;
+}
+
+/** What became of the pull request a downmerge superseded, or nothing. */
+function renderSuperseded(superseded: SupersededPullRequest | undefined): string {
+  if (!superseded) {
+    return "";
+  }
+  const pr = superseded.number ? `PR #${superseded.number} ` : "PR ";
+  const pair = `(${superseded.head} → ${superseded.base})`;
+  return superseded.error
+    ? `\n⚠️  Could not close the superseded ${pr}${pair}: ${superseded.error}. Close it by hand.`
+    : `\n🗂️  Closed ${pr}${pair} as superseded: ${superseded.url}`;
 }
 
 /** A line saying the run finished an earlier one, or nothing. */
@@ -541,7 +554,8 @@ Routes (source → target):
 - release → develop: one pull request straight from release/X.Y.Z.
 - release → main: merges the release into a fresh branch cut off main. The pull
   request head is never release/*, which would re-trigger CI workflows that build
-  a fresh artifact for an already-cut release.
+  a fresh artifact for an already-cut release. Closes the release/X.Y.Z → main
+  pull request release_version opened, as superseded, so main has one.
 - hotfix → develop: merges the hotfix into a fresh branch cut off develop, and
   closes the draft hotfix/* → develop pull request create_hotfix opened. Run it
   after the fix is written and deployed.
@@ -959,7 +973,7 @@ Common issues:
         return `🔗 Pull Request: ${result.pullRequestUrl}`;
       case "merge-branch":
         return `🌿 Merge branch: \`${result.mergeBranchName}\`
-🔗 Pull Request: ${result.pullRequestUrl}`;
+🔗 Pull Request: ${result.pullRequestUrl}${renderSuperseded(result.superseded)}`;
     }
   }
 

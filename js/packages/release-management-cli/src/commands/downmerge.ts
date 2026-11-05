@@ -104,16 +104,27 @@ function writeDownmergeOutputs(result: DownmergeResult): void {
         kind: result.kind,
         pull_request_url: result.pullRequestUrl,
         merge_branch: result.mergeBranchName,
+        superseded_pull_request_url: result.superseded?.url,
+        superseded_pull_request_error: result.superseded?.error,
       });
       return;
   }
 }
 
-function renderDownmerge(r: DownmergeOutcome): string {
+export function renderDownmerge(r: DownmergeOutcome): string {
   const lines =
     r.kind === "merge-branch"
       ? [`Merge branch: ${r.mergeBranchName}`, `Pull Request: ${r.pullRequestUrl}`]
       : [`Pull Request: ${r.pullRequestUrl}`];
+  if (r.kind === "merge-branch" && r.superseded) {
+    const s = r.superseded;
+    const pr = `${s.number ? `PR #${s.number} ` : "PR "}(${s.head} → ${s.base})`;
+    lines.push(
+      s.error
+        ? `Could not close the superseded ${pr}: ${s.error}. Close it by hand.`
+        : `Closed ${pr} as superseded: ${s.url}`
+    );
+  }
   for (const [title, items] of [
     ["Warnings:", r.warnings],
     ["Notes:", r.notices],

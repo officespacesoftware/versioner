@@ -173,3 +173,61 @@ test("main into develop reports its merge branch, like the other merge-branch ro
   assert.equal(result.pullRequestUrl, "https://example.invalid/pr/1");
   assert.ok(remoteBranches().includes(result.mergeBranchName));
 });
+
+/** A release branch with a fix, promoted, for release → main. */
+function promotedRelease() {
+  git("checkout", "-q", "-b", "release/1.1.0", "develop");
+  commit("fix.txt", "a fix\n", "the fix");
+  commit("VERSION", "1.1.0\nabc1234\n", "To version 1.1.0");
+  git("push", "-q", "origin", "release/1.1.0");
+  git("checkout", "-q", "develop");
+}
+
+function stubGitHub(gfm, { closeFails = false } = {}) {
+  const calls = { closed: [] };
+  gfm.createPullRequest = async () => ({
+    url: "https://example.invalid/pr/merge",
+    action: "created",
+  });
+  gfm.findOpenPullRequest = async (head, base) =>
+    head === "release/1.1.0" && base === "main"
+      ? { number: 88, url: "https://example.invalid/pr/88", title: "t", body: "" }
+      : null;
+  gfm.closePullRequest = async (number, opts) => {
+    if (closeFails) throw new Error("GitHub is down");
+    calls.closed.push({ number, comment: opts.comment });
+  };
+  return calls;
+}
+
+test("release into main closes the promotion's release → main pull request", async () => {
+  promotedRelease();
+  const gfm = new GitFlowManager(repo);
+  const calls = stubGitHub(gfm);
+
+  const result = await gfm.downmerge({ source: "release", target: "main" });
+
+  assert.deepEqual(result.superseded, {
+    head: "release/1.1.0",
+    base: "main",
+    number: 88,
+    url: "https://example.invalid/pr/88",
+  });
+  assert.equal(calls.closed.length, 1);
+  assert.match(
+    calls.closed[0].comment,
+    /^Superseded by https:\/\/example\.invalid\/pr\/merge\./
+  );
+});
+
+test("a failure closing the superseded pull request is reported, not thrown", async () => {
+  promotedRelease();
+  const gfm = new GitFlowManager(repo);
+  stubGitHub(gfm, { closeFails: true });
+
+  const result = await gfm.downmerge({ source: "release", target: "main" });
+
+  assert.equal(result.kind, "merge-branch");
+  assert.equal(result.superseded.number, 88);
+  assert.match(result.superseded.error, /GitHub is down/);
+});
