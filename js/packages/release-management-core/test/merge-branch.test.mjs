@@ -153,3 +153,23 @@ test("a conflicting downmerge hands off and pushes nothing", async () => {
   assert.equal(git("rev-parse", "--abbrev-ref", "HEAD"), "develop");
   assert.equal(git("status", "--porcelain"), "");
 });
+
+test("main into develop reports its merge branch, like the other merge-branch routes", async () => {
+  git("checkout", "-q", "main");
+  commit("shipped.txt", "in production\n", "production change");
+  git("push", "-q", "origin", "main");
+  git("checkout", "-q", "develop");
+
+  const gfm = new GitFlowManager(repo);
+  gfm.createPullRequest = async () => ({
+    url: "https://example.invalid/pr/1",
+    action: "created",
+  });
+
+  const result = await gfm.downmerge({ source: "main", target: "develop" });
+
+  assert.equal(result.kind, "merge-branch");
+  assert.match(result.mergeBranchName, /^main-into-develop-\d+$/);
+  assert.equal(result.pullRequestUrl, "https://example.invalid/pr/1");
+  assert.ok(remoteBranches().includes(result.mergeBranchName));
+});

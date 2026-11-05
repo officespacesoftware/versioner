@@ -218,7 +218,7 @@ Three things that are easy to get wrong:
 | `release-version` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`, `own_base_pull_request_action`, `own_base_pull_request_error`, `pipeline_trigger` |
 | `revert-version` | `branch`, `shape`, `reverted_version`, `resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `pipeline_trigger` |
 | `initialize-versioner` | `version`, `is_release_candidate` |
-| `downmerge …` | `kind`, `pull_request_url`; plus `merge_branch` for `release-to-main` and `hotfix-to-develop` (`main-to-develop` uses a merge branch but reports `kind=direct` without it) |
+| `downmerge …` | `kind`, `pull_request_url`; plus `merge_branch` for `main-to-develop`, `release-to-main` and `hotfix-to-develop` |
 
 `pull_request_action` is `created` or `updated`. `revert-version`'s `shape` is `revert`
 (rewind one version) or `abandon` (delete the branch). A downmerge's `kind` is `direct` or

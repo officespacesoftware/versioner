@@ -940,8 +940,8 @@ carries exactly what the plan previewed and no commit that only the clone has.
 4. Open the pull request into `develop`. Body: `## Downmerge Main to Develop`, source,
    target, and the version when detected. No warning.
 
-The result reports only the pull request URL; the merge branch name is not returned
-(`kind` is `direct`). Look it up on the pull request.
+The result is `kind: "merge-branch"` with the merge branch name, as for the other two
+merge-branch routes.
 
 **`release` → `develop`.**
 
@@ -1003,9 +1003,10 @@ handoff as text; the CLI prints it to stderr and exits `1`. The procedure is
 **Messages.** Refusals G1, G2, G7–G9, G14, U6, U7, S12, S13, P8, P13. Notes N1. Handoffs H1,
 H2. Apply failures A28–A31. Report R9. MCP failures are returned as `❌ Downmerge Failed`.
 
-**CLI `$GITHUB_OUTPUT`.** `kind` (`direct` or `merge-branch`), `pull_request_url`, and
-`merge_branch` for `release` → `main` and `hotfix` → `develop`. `main` → `develop` reports
-`kind=direct` and no `merge_branch`, although it uses one.
+**CLI `$GITHUB_OUTPUT`.** `kind` (`merge-branch` for `main` → `develop`, `release` → `main`
+and `hotfix` → `develop`; `direct` for the other two), `pull_request_url`, and `merge_branch`
+for the merge-branch routes. The MCP tool and the CLI's text output print `Merge branch:`
+for the same three.
 
 ### `downmerge`: decision table
 
