@@ -213,8 +213,8 @@ Three things that are easy to get wrong:
 | --- | --- |
 | any planned command | `plan_digest` |
 | `list-versions` | `current_branch`, `release_candidates` |
-| `create-rc` | `release_type`, `version`, `pull_request_url`, `pull_request_action`, `pipeline_trigger` |
-| `create-hotfix` | `version`, `pull_request_url`, `pull_request_action`, `pipeline_trigger` |
+| `create-rc` | `release_type`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `resumed`, `pipeline_trigger` |
+| `create-hotfix` | `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `tracking_pull_request_url`, `tracking_pull_request_action`, `tracking_pull_request_error`, `resumed`, `pipeline_trigger` |
 | `increment-rc` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `pipeline_trigger` |
 | `release-version` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`, `own_base_pull_request_action`, `own_base_pull_request_error`, `pipeline_trigger` |
 | `revert-version` | `branch`, `shape`, `reverted_version`, `resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `pipeline_trigger` |

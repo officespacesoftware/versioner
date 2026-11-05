@@ -480,8 +480,10 @@ Notes N1 (either pair), N2, N5. Pipeline T2–T10. Apply failures A3, A4, A6, A7
 Reports R1, R7.
 
 **CLI `$GITHUB_OUTPUT`.** `version`, `pull_request_url`, `pull_request_action`,
-`pull_request_error`, `resumed`, `pipeline_trigger`. The draft pull request's URL and error
-appear only in `--json` (`trackingPullRequestUrl`, `trackingPullRequestError`).
+`pull_request_error`, `tracking_pull_request_url`, `tracking_pull_request_action`,
+`tracking_pull_request_error`, `resumed`, `pipeline_trigger`. The text output shows the
+draft as `Draft PR to develop: <url>` (or `Updated draft PR to develop: <url>`), and a
+failure as R7.
 
 ### `create_hotfix`: decision table
 
