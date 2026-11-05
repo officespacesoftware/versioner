@@ -284,8 +284,13 @@ test("a shipped hotfix missing from the release branch is a warning", async () =
 
   const plan = await agent.planIncrementRC("1.5.0");
 
+  // No downmerge route targets a release branch, so the advice is the procedure
+  // docs/manual-downmerge.md gives, not a route that does not exist.
   assert.deepEqual(plan.warnings, [
     "hotfix/1.4.1 reached main but not release/1.5.0, so release/1.5.0 is " +
-      "missing a fix already in production. Downmerge it into release/1.5.0 first.",
+      "missing a fix already in production. No downmerge route targets a release " +
+      "branch: open a pull request from hotfix/1.4.1 into release/1.5.0 by hand " +
+      "and merge it, then cut a new release candidate with " +
+      "increment_release_candidate, so the fix is tested before release/1.5.0 ships.",
   ]);
 });
