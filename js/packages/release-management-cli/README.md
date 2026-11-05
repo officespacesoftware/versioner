@@ -76,8 +76,9 @@ release-management downmerge hotfix-to-main      [--version <version>]
 | `initialize-versioner` | Creates the `VERSION` file and its initial tag. Defaults to `0.1.0-RC.0`. |
 | `downmerge …` | Opens the pull request that carries one branch's changes into another. Applies immediately; the pull request is the review. |
 
-Where `--version` is omitted, the newest matching branch on the upstream repository is
-selected. `docs/actions.md` records the ordered steps and the exact git objects for each of
+`--version` takes `1.2.0` or the full branch name, `release/1.2.0` or `hotfix/1.2.0`, which
+picks one when both exist. Where it is omitted, the newest matching branch on the upstream
+repository is selected. `docs/actions.md` records the ordered steps and the exact git objects for each of
 these — see [Related documentation](#related-documentation).
 
 ## Planning before applying

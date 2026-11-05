@@ -100,18 +100,18 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 
 | ID | Exact text | Category | Actions | Condition | What to do |
 | --- | --- | --- | --- | --- | --- |
-| S1 | `Ambiguous: Both release/<v> and hotfix/<v> branches exist. Please specify the full branch name.` | refusal | INC, REL | `version` matches both a release and a hotfix branch. No input accepts a full branch name | Check out the branch you mean and omit `version` |
-| S2 | `No release/<v> or hotfix/<v> branch found for version <v>` | refusal | INC, REL | `version` matches no branch, locally or on origin | Run `list_versions` |
+| S1 | `Ambiguous: Both release/<v> and hotfix/<v> branches exist. Pass the full branch name, release/<v> or hotfix/<v>, as the version.` | refusal | INC, REL | `version` is a bare `X.Y.Z` matching both a release and a hotfix branch | Pass `release/<v>` or `hotfix/<v>` as `version` |
+| S2 | `No release/<v> or hotfix/<v> branch found for version <v>`, or for a full branch name `No <release\|hotfix>/<v> branch found` | refusal | INC, REL | `version` matches no branch, locally or on origin | Run `list_versions` |
 | S3 | `Checked-out branch '<branch>' is at <v>, which is not a release candidate. Refusing to auto-select a different branch, because that would modify a release train you are not on. Either pass an explicit version, or check out the branch you intend to act on. Use list_versions to see every candidate.` | refusal | INC, REL | No `version`; standing on a release/hotfix branch whose VERSION (read from origin first) is final | Pass `version`, or check out the right branch |
 | S4 | as S3 with `has no readable VERSION file` in place of `is at <v>, which is not a release candidate` | refusal | INC, REL | No `version`; the checked-out release/hotfix branch has no readable VERSION | as S3 |
 | S5 | `No release candidate branches found. Cannot determine target branch for release.` | refusal | INC, REL | No `version`, not on a release/hotfix branch, and no branch holds an RC | Run `list_versions` |
 | S6 | `⚠️  Auto-selected the most recent RC branch: <branch> (<v>). Other candidate: <branch> (<v>). Pass an explicit version to choose deliberately.` | log | INC, REL | Auto-selection found RCs on both a release and a hotfix branch, and took the higher version (a tie goes to the release) | Check the plan's `Branch:` line before confirming |
 | S7 | `Failed to select target release branch: <err>` | refusal | INC, REL | An unexpected error while selecting | Read `<err>` |
-| S8 | `Ambiguous: both release/<v> and hotfix/<v> exist. Check out the one you mean.` | refusal | REV | `version` matches both | Check out the branch and omit `version` |
-| S9 | `No release/<v> or hotfix/<v> branch found.` | refusal | REV | `version` matches neither | Run `list_versions` |
+| S8 | `Ambiguous: both release/<v> and hotfix/<v> exist. Pass the full branch name, release/<v> or hotfix/<v>, as the version, or check out the one you mean.` | refusal | REV | A bare `version` matches both | Pass the full branch name |
+| S9 | `No release/<v> or hotfix/<v> branch found.`, or for a full branch name `No <release\|hotfix>/<v> branch found.` | refusal | REV | `version` matches neither | Run `list_versions` |
 | S10 | `'<current>' is not a release or hotfix branch, and revert_version will not pick one for you — it deletes tags and can delete a branch. Check out the branch you mean, or pass its version. Use list_versions to see every candidate.` | refusal | REV | No `version` and the checked-out branch is not `release/X.Y.Z` or `hotfix/X.Y.Z` | Pass `version` |
 | S11 | `Checked-out branch '<branch>' has no readable VERSION file, so there is no version to revert.` | refusal | REV | No `version`; the checked-out branch has no readable VERSION | — |
-| S12 | `<Release\|Hotfix> branch for version <v> not found` | refusal | DM r→d, r→m, h→d, h→m | `version` matches no branch name of the source type | Run `list_versions` |
+| S12 | `<Release\|Hotfix> branch for version <v> not found` (`<v>` as given) | refusal | DM r→d, r→m, h→d, h→m | `version` matches no branch name of the source type, including a full branch name of the other type | Run `list_versions` |
 | S13 | `No <release\|hotfix> branches found` | refusal | as S12 | No `version` and no branch of the source type exists | — |
 
 ## Plan refusals

@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+import { GitFlowManager } from "../lib/git-flow.js";
 import { ReleaseAgent } from "../lib/release-agent.js";
 import { ManualDownmergeRequired } from "../lib/manual-downmerge.js";
 
@@ -370,4 +371,16 @@ test("a conflict into develop hands off the manual downmerge and creates nothing
   assert.equal(handoff.requiresDecision, false);
   assert.equal(handoff.resolutionBase, "develop");
   assert.deepEqual(calls, []);
+});
+
+test("a downmerge version may be the full branch name", async () => {
+  const gfm = new GitFlowManager("/tmp/does-not-matter");
+  gfm.findBranchesOfType = async (type) =>
+    type === "release" ? [branchInfo("release/4.125.0")] : [];
+
+  const { cleanName } = await gfm.resolveDownmergeBranch("release", "release/4.125.0");
+  assert.equal(cleanName, "release/4.125.0");
+  await assert.rejects(gfm.resolveDownmergeBranch("release", "hotfix/4.125.0"), {
+    message: "Release branch for version hotfix/4.125.0 not found",
+  });
 });

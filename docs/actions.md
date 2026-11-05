@@ -519,7 +519,7 @@ with `hotfix/X.Y.Z` and `main`. Its steps are 1 (read), 2 (branch), 3 (version),
 | MCP | CLI | Default |
 | --- | --- | --- |
 | `confirm` | `--plan` / `--confirm <digest>` / `--yes` | plan only |
-| `version` (base version, such as `1.4.0`) | `--version` | selected, see below |
+| `version`: the base version, such as `1.4.0`, or the full branch name, `release/1.4.0` or `hotfix/1.4.0` | `--version` | selected, see below |
 | `workingDirectory` | `--working-directory` | current directory |
 | `dryRun` | `--dry-run` | `false` |
 
@@ -530,7 +530,9 @@ suffix, so every decision reads `VERSION`, from `origin/<branch>` first and the 
 branch second.
 
 1. **`version` given.** Match it against the names `release/<version>` and
-   `hotfix/<version>`, locally and on origin. Both exist: S1. Neither: S2. The match's
+   `hotfix/<version>`, locally and on origin. Both exist: S1, which asks for the full branch
+   name. Neither: S2. A full branch name, `release/X.Y.Z` or `hotfix/X.Y.Z`, matches only
+   that branch (S2 when it does not exist). The match's
    version is read from `VERSION`; if unreadable, the name's version is used, and the plan
    then refuses with P1.
 2. **No `version`, standing on `release/X.Y.Z` or `hotfix/X.Y.Z`.** Use it if its `VERSION`
@@ -705,12 +707,12 @@ tag it created. The only action that deletes things.
 | MCP | CLI | Default |
 | --- | --- | --- |
 | `confirm` | `--plan` / `--confirm <digest>` / `--yes` | plan only |
-| `version` (base version, such as `1.4.0`) | `--version` | the checked-out branch |
+| `version`: the base version, such as `1.4.0`, or the full branch name | `--version` | the checked-out branch |
 | `workingDirectory` | `--working-directory` | current directory |
 | `dryRun` | `--dry-run` | `false` |
 
 **Selection.** `version` given: match the names `release/<version>` and `hotfix/<version>`
-(both: S8; neither: S9). Otherwise the checked-out branch, which must be a release or
+(both: S8; neither: S9), or, for a full branch name, that branch only. Otherwise the checked-out branch, which must be a release or
 hotfix branch (S10) with a readable `VERSION` (S11). There is no fallback to the newest
 branch: this action deletes tags and can delete a branch. Final versions are accepted.
 
@@ -899,11 +901,12 @@ an artifact that was already cut.
 | MCP | CLI | Default |
 | --- | --- | --- |
 | `source`, `target` | the subcommand name | required |
-| `version` (release and hotfix sources; ignored for `main`) | `--version` | the newest branch of the source type |
+| `version` (release and hotfix sources; ignored for `main`): `X.Y.Z`, or the full branch name `<source>/X.Y.Z` | `--version` | the newest branch of the source type |
 | `workingDirectory` | `--working-directory` | current directory |
 
 **Source selection.** By branch **name**, locally and on origin: `version` must equal the
-`X.Y.Z` in `release/X.Y.Z` or `hotfix/X.Y.Z` (S12). Without it, the highest
+`X.Y.Z` in `release/X.Y.Z` or `hotfix/X.Y.Z`, or be that full branch name of the route's
+source type (S12 otherwise). Without it, the highest
 major.minor.patch of that type is taken (S13 if none), whatever its `VERSION` and even if
 it is already merged, in which case the plan refuses with P8. Pass `version` when more
 than one branch of the type exists. Titles use the version from the branch name.

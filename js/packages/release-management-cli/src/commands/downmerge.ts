@@ -58,7 +58,7 @@ function registerRoute(
   if (route.source !== "main") {
     command.option(
       "--version <version>",
-      `Specific ${route.source} version; auto-detect newest if omitted`
+      `Specific ${route.source} version (e.g. 1.2.0 or ${route.source}/1.2.0); auto-detect newest if omitted`
     );
   }
 

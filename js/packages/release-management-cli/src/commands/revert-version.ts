@@ -12,7 +12,7 @@ export function registerRevertVersion(parent: Command): void {
     )
     .option(
       "--version <version>",
-      "Version identifying the branch (e.g. 1.2.0); defaults to the checked-out branch"
+      "Version identifying the branch (e.g. 1.2.0, or release/1.2.0 / hotfix/1.2.0); defaults to the checked-out branch"
     )
     .option("--working-directory <path>", "Repo root (defaults to cwd)")
     .option(

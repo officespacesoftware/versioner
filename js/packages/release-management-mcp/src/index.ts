@@ -378,7 +378,8 @@ hotfix/X.Y.Z at exactly X.Y.Z-RC.0.`,
 
 Bumps the RC number for an existing release or hotfix branch (e.g. RC.1 → RC.2).
 
-- Input: optional base version (e.g., 1.2.0)
+- Input: optional base version (e.g., 1.2.0), or the full branch name
+  (release/1.2.0 or hotfix/1.2.0) when both exist
 - Target selection, in order:
   1. the version you pass explicitly;
   2. the currently checked-out release/hotfix branch, if it holds an RC;
@@ -415,7 +416,8 @@ updated if one is already open.`,
                 version: {
                   type: "string",
                   description:
-                    "Optional target version to increment (e.g., '1.2.0'). " +
+                    "Optional target version to increment (e.g., '1.2.0'), or the full branch name " +
+                    "('release/1.2.0' or 'hotfix/1.2.0') when both branches exist. " +
                     "When not provided, automatically finds the most recent version available on the upstream Git repository. " +
                     "If provided, this parameter must be entered by a human user.",
                 },
@@ -439,7 +441,8 @@ updated if one is already open.`,
 
 Promotes a release candidate to a final version (e.g. 1.2.0-RC.3 → 1.2.0).
 
-- Input: optional base version (e.g., 1.2.0)
+- Input: optional base version (e.g., 1.2.0), or the full branch name
+  (release/1.2.0 or hotfix/1.2.0) when both exist
 - Target selection, in order:
   1. the version you pass explicitly;
   2. the currently checked-out release/hotfix branch, if it holds an RC;
@@ -474,7 +477,8 @@ target is the release branch.`,
                 version: {
                   type: "string",
                   description:
-                    "Optional specific version to release (e.g., '1.2.0'). " +
+                    "Optional specific version to release (e.g., '1.2.0'), or the full branch name " +
+                    "('release/1.2.0' or 'hotfix/1.2.0') when both branches exist. " +
                     "When not provided, automatically finds the most recent version available on the upstream Git repository. " +
                     "If provided, this parameter must be entered by a human user.",
                 },
@@ -574,7 +578,8 @@ index nor the working tree.
                 version: {
                   type: "string",
                   description:
-                    "Optional release or hotfix version to merge (e.g., '1.2.0'). Ignored for source main. " +
+                    "Optional release or hotfix version to merge (e.g., '1.2.0', or the full branch name " +
+                    "'release/1.2.0'). Ignored for source main. " +
                     "When not provided, automatically finds the most recent branch of the source type on the upstream Git repository. " +
                     "If provided, this parameter must be entered by a human user.",
                 },
@@ -625,7 +630,8 @@ certain which branch should be acted on, then pass that version explicitly.`,
 
 Undoes the most recent version bump on a release or hotfix branch.
 
-- Input: optional version (e.g., 1.2.0) identifying the branch
+- Input: optional version (e.g., 1.2.0) identifying the branch, or the full
+  branch name (release/1.2.0 or hotfix/1.2.0) when both exist
 - Target selection, in order:
   1. the version you pass explicitly;
   2. the currently checked-out release/hotfix branch.
@@ -675,7 +681,8 @@ the tag already triggered.`,
                 version: {
                   type: "string",
                   description:
-                    "Optional version identifying the branch to revert (e.g., '1.2.0'). " +
+                    "Optional version identifying the branch to revert (e.g., '1.2.0'), or the full " +
+                    "branch name ('release/1.2.0' or 'hotfix/1.2.0') when both branches exist. " +
                     "When not provided, the currently checked-out release or hotfix branch is used. " +
                     "If provided, this parameter must be entered by a human user.",
                 },
