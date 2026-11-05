@@ -132,6 +132,7 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | P12 | `<branch> holds <n> commit(s) that are not in <base>, so abandoning it would destroy work:` then one `  <sha> <subject>` line per commit, then `Merge or cherry-pick them somewhere safe first. <v> is this branch's first version, so there is no earlier version to revert to and the branch cannot simply be rewound.` | refusal | REV (abandon shape) | Non-merge commits on the branch, other than the bump itself, are not in `origin/<base>` | Save those commits, then retry |
 | P13 | `Could not compare '<source>' with '<base>': git merge-tree exited <n> — <stderr>. Check that both refs exist and share history.` | refusal | DM (all routes) | `git merge-tree` failed for a reason other than a conflict | Fetch both branches; check they share history |
 | P14 | `<branch> is on origin at <X.Y.Z-RC.0> but tag <X.Y.Z-RC.0> is not, and no commit "To version <X.Y.Z-RC.0>" on the branch can be tagged. Tag the commit that set the version by hand, push the tag, and run this again.` | refusal | RC, HF (resume) | A resume would push the missing tag, but the branch has no version commit to put it on | Tag the commit that set `VERSION` by hand |
+| P15 | `PR #<n> (<merge-branch> → <target>) is already open from an earlier downmerge of <source>, and <source> has moved on since: <sha11> is not in <merge-branch>. Merge or close PR #<n> first, then run the downmerge again.` | refusal | DM m→d, r→m, h→d | An earlier run's merge-branch pull request is open, and the source has commits that merge branch lacks | Merge or close that pull request, then run the downmerge again |
 
 ## Plan warnings
 
@@ -182,11 +183,13 @@ W11 in a versioning plan.
 | N2 | `The <hotfix/X.Y.Z> → develop pull request opens as a draft holding only a version bump, and conflicts on VERSION until the fix lands and it is reconciled. It is a reminder, not a merge that is ready to take.` | HF | No open `hotfix/X.Y.Z` → `develop` pull request yet |
 | N3 | `No tag <v> exists locally or on origin; nothing to delete.` | REV | The tag is already gone everywhere |
 | N4 | `Deleting a tag does not undo a build or deployment it already triggered. Pushing to <branch> may itself trigger a new one.` | REV | Always |
-| N6 | `No <hotfix/X.Y.Z> → develop pull request is open, so one opens as a draft placeholder: it conflicts on VERSION by construction, and the hotfix → develop downmerge supersedes it after the deploy.` | REL (hotfix) | Promoting a hotfix with no open `develop` pull request |
 | N5 | `<branch> is already on origin at <X.Y.Z-RC.0> (<sha11>), so an earlier run got as far as the push. This resumes it: the branch and the version commit are not made again.` | RC, HF | Origin holds the branch the action would create, at exactly the version it would set. The plan lists only the missing steps |
+| N6 | `No <hotfix/X.Y.Z> → develop pull request is open, so one opens as a draft placeholder: it conflicts on VERSION by construction, and the hotfix → develop downmerge supersedes it after the deploy.` | REL (hotfix) | Promoting a hotfix with no open `develop` pull request |
+| N7 | `PR #<n> (<merge-branch> → <target>) is already open from an earlier downmerge and holds <source> at <sha11>, so nothing new is created. Review and merge that one, or close it to reject the downmerge.` | DM m→d, r→m, h→d | An open pull request into the target heads on an earlier merge branch of the same route, which already contains the source head |
 
-The merge-branch downmerges (m→d, r→m, h→d) produce no notes and no warnings. A downmerge
-prints its notes with the result, because it applies straight away.
+
+Otherwise the merge-branch downmerges (m→d, r→m, h→d) produce no notes and no warnings. A
+downmerge prints its notes with the result, because it applies straight away.
 
 ## Downmerge handoffs
 
@@ -361,8 +364,8 @@ Problems an apply reports alongside a successful result.
 | R6 | the pull-request error | MCP `⚠️  develop PR refresh failed: <err>`; CLI `develop PR refresh failed: <err>`; `own_base_pull_request_error` | REL (step 10) | The `develop` pull request could not be opened or updated. The label is the result's `ownBaseBranch`, which is `develop` for a release and a hotfix alike | Open or edit it by hand |
 | R7 | the pull-request error | MCP `⚠️  Could not open the develop PR: <err>`; CLI `Could not open the develop PR: <err>` then `  Open it by hand as a draft, or rely on the hotfix-to-develop downmerge after the deploy.`; `tracking_pull_request_error` | HF (step 6) | The draft `develop` pull request could not be opened | Open it by hand, or rely on the `hotfix` → `develop` downmerge later |
 | R8 | the pull-request error | MCP `⚠️  Pull request step failed: <err>`; CLI `PR step failed: <err>`; `pull_request_error` | REV | Updating (revert) or closing (abandon) the pull request failed | Edit or close it by hand |
-| R10 | the GitHub error | MCP `⚠️  Could not close the promotion's PR into main: <err>. Close it by hand.`; CLI the same without the icon; `promotion_pull_request_error` | REV (revert of a release branch's final, step 7) | Closing the `release/X.Y.Z` → `main` pull request the promotion opened failed. The revert itself is done | Close it by hand |
 | R9 | the GitHub error | MCP `⚠️  Could not close the superseded PR #<n> (<head> → <base>): <err>. Close it by hand.`; CLI `Could not close the superseded PR #<n> (<head> → <base>): <err>. Close it by hand.`; `superseded.error`, `superseded_pull_request_error` | DM h→d (`hotfix/X.Y.Z` → `develop`), r→m (`release/X.Y.Z` → `main`) | Closing, or looking up, the pull request the merge branch's pull request supersedes failed. The downmerge itself succeeded | Close it by hand |
+| R10 | the GitHub error | MCP `⚠️  Could not close the promotion's PR into main: <err>. Close it by hand.`; CLI the same without the icon; `promotion_pull_request_error` | REV (revert of a release branch's final, step 7) | Closing the `release/X.Y.Z` → `main` pull request the promotion opened failed. The revert itself is done | Close it by hand |
 
 ## Log-only lines worth knowing
 

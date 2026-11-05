@@ -570,6 +570,10 @@ index nor the working tree.
 - Clean merge: creates the merge branch where the route uses one, opens or
   updates the pull request, and returns its URL with any warnings and notes.
 - Source already merged into the target: refuses and creates nothing.
+- A merge-branch route whose earlier pull request is still open: when that pull
+  request already holds the source, nothing new is created and it is returned
+  (with a note); when the source has moved on since, it refuses and asks for
+  that pull request to be merged or closed first.
 - Conflicting merge: returns a handoff instead, and creates nothing. The tools
   never push a conflicted merge.
   - Into develop, "Manual downmerge needed": the conflicted files and the steps
@@ -975,7 +979,11 @@ Common issues:
         return `🔗 Pull Request: ${result.pullRequestUrl}`;
       case "merge-branch":
         return `🌿 Merge branch: \`${result.mergeBranchName}\`
-🔗 Pull Request: ${result.pullRequestUrl}${renderSuperseded(result.superseded)}`;
+🔗 Pull Request: ${result.pullRequestUrl}${
+          result.alreadyOpen
+            ? " (already open from an earlier run; nothing new was created)"
+            : ""
+        }${renderSuperseded(result.superseded)}`;
     }
   }
 

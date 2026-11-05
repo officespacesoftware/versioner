@@ -126,8 +126,9 @@ then retitled as the branch moves on:
 | `release-X.Y.Z-into-main-<ts>` → `main` | `release` → `main` downmerge | — | — | `Release X.Y.Z to main` | no |
 | `hotfix-X.Y.Z-into-develop-<ts>` → `develop` | `hotfix` → `develop` downmerge | — | — | `Hotfix X.Y.Z to develop` | no |
 
-`<ts>` is a Unix timestamp in seconds, so every merge-branch downmerge opens a new pull
-request.
+`<ts>` is a Unix timestamp in seconds, so each merge branch is new. A merge-branch
+downmerge run again while an earlier one's pull request is open does not open a second:
+it returns that one (N7), or refuses when the source has moved on since (P15).
 
 ### Where each action leaves the working tree
 
@@ -940,10 +941,16 @@ them, and rejects `--plan` (U7). Before creating anything, the downmerge builds 
 used to show and stops if that refuses or hands off. The plan's warnings and notes are
 returned with the result.
 
-**Checks before anything is created.** Preconditions G1 and G2 (no versioner needed).
-Then, comparing `origin/<target>` and the source as they stand in the clone: a
-`git merge-tree` preview (P13 if it cannot run), a conflict hands off (H1 into `develop`,
-H2 into `main`), and a source already in the target refuses (P8). For `release` →
+**Checks before anything is created.** Preconditions G1 and G2 (no versioner needed),
+then the fetch every plan starts with. For the merge-branch routes, the open pull requests
+into the target are listed: if one heads on an earlier merge branch of the same route
+(`main-into-develop-<ts>`, `release-X.Y.Z-into-main-<ts>`, `hotfix-X.Y.Z-into-develop-<ts>`;
+the newest when there are several), that branch is fetched, and if it already holds the
+source head nothing new is created: the result is that pull request (`alreadyOpen`, N7),
+and the pull request it supersedes is still closed if it is open. If the source has commits
+that merge branch lacks, the downmerge refuses (P15). Then, comparing `origin/<target>` and
+the source: a `git merge-tree` preview (P13 if it cannot run), a conflict hands off (H1 into
+`develop`, H2 into `main`), and a source already in the target refuses (P8). For `release` →
 `develop` and `hotfix` → `main`, an open pull request for the pair is noted (N1) and
 updated.
 
@@ -1028,13 +1035,14 @@ handoff as text; the CLI prints it to stderr and exits `1`. The procedure is
 [manual-downmerge.md](manual-downmerge.md); the exact text is in
 [messages.md](messages.md#downmerge-handoffs).
 
-**Messages.** Refusals G1, G2, G7–G9, G14, U6, U7, S12, S13, P8, P13. Notes N1. Handoffs H1,
+**Messages.** Refusals G1, G2, G7–G9, G14, U6, U7, S12, S13, P8, P13, P15. Notes N1, N7. Handoffs H1,
 H2. Apply failures A28–A31. Report R9. MCP failures are returned as `❌ Downmerge Failed`.
 
 **CLI `$GITHUB_OUTPUT`.** `kind` (`merge-branch` for `main` → `develop`, `release` → `main`
 and `hotfix` → `develop`; `direct` for the other two), `pull_request_url`, and `merge_branch`
 for the merge-branch routes; `superseded_pull_request_url` and
-`superseded_pull_request_error` when `hotfix` → `develop` or `release` → `main` closed, or
+`already_open` (`true` when an earlier run's pull request was returned and nothing was
+created), `superseded_pull_request_error` when `hotfix` → `develop` or `release` → `main` closed, or
 failed to close, the pull request it supersedes. The MCP tool and the CLI's text output
 print `Merge branch:` for the same three, and `Closed PR #n (<head> → <base>) as
 superseded: <url>` or R9.
@@ -1055,7 +1063,8 @@ without `number`) failed.
 | The source is already in the target | P8 refusal |
 | `release` → `develop` with tracked changes in the working tree | A29; nothing created |
 | A pull request for the pair is already open (direct routes) | N1; updated |
-| A merge-branch route run twice before the first pull request merges | A second merge branch and pull request |
+| A merge-branch route run again while its earlier pull request is open, and that one holds the source | N7; nothing created, that pull request returned (`alreadyOpen`) |
+| The same, but the source has moved on since | P15 refusal: merge or close the open one first |
 | The conflict appears only during the apply | The same handoff; the local merge branch is deleted |
 | Closing the superseded pull request fails (`hotfix` → `develop`, `release` → `main`) | R9, reported with the result; the downmerge still succeeds |
 

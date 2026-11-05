@@ -104,6 +104,7 @@ function writeDownmergeOutputs(result: DownmergeResult): void {
         kind: result.kind,
         pull_request_url: result.pullRequestUrl,
         merge_branch: result.mergeBranchName,
+        already_open: String(result.alreadyOpen === true),
         superseded_pull_request_url: result.superseded?.url,
         superseded_pull_request_error: result.superseded?.error,
       });
@@ -114,7 +115,14 @@ function writeDownmergeOutputs(result: DownmergeResult): void {
 export function renderDownmerge(r: DownmergeOutcome): string {
   const lines =
     r.kind === "merge-branch"
-      ? [`Merge branch: ${r.mergeBranchName}`, `Pull Request: ${r.pullRequestUrl}`]
+      ? [
+          `Merge branch: ${r.mergeBranchName}`,
+          `Pull Request: ${r.pullRequestUrl}${
+            r.alreadyOpen
+              ? " (already open from an earlier run; nothing new was created)"
+              : ""
+          }`,
+        ]
       : [`Pull Request: ${r.pullRequestUrl}`];
   if (r.kind === "merge-branch" && r.superseded) {
     const s = r.superseded;

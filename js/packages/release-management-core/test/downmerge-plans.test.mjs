@@ -67,6 +67,8 @@ function makeAgent(overrides = {}) {
     }),
     checkIsAncestor: async () => false,
     findOpenPullRequest: async () => null,
+    findOpenPullRequestsInto: async () => [],
+    fetchBranchRef: async () => {},
     ...overrides,
   };
 
@@ -398,5 +400,61 @@ test("release into main closes the promotion's pull request it supersedes", asyn
     operation: "delete",
     summary:
       "close PR #88 (release/4.125.0 → main), superseded by the pull request above",
+  });
+});
+
+/** An open pull request from an earlier main → develop downmerge. */
+const earlierMergePr = {
+  findOpenPullRequestsInto: async (base) =>
+    base === "develop"
+      ? [
+          { number: 3, url: "https://example.test/pull/3", head: "feature/x" },
+          {
+            number: 90,
+            url: "https://example.test/pull/90",
+            head: "main-into-develop-1700000000",
+          },
+        ]
+      : [],
+};
+
+test("a merge-branch downmerge already open for the same source creates nothing", async () => {
+  const calls = [];
+  const agent = makeAgent({
+    ...earlierMergePr,
+    ...recordingDownmerge(calls),
+    // main's head is already in the earlier merge branch.
+    checkIsAncestor: async (head, base) =>
+      head === HEADS.main && base === "refs/remotes/origin/main-into-develop-1700000000",
+  });
+
+  const plan = await agent.planDownmergeMainToDevelop();
+  assert.deepEqual(plan.mutations, []);
+  assert.deepEqual(plan.notices, [
+    "PR #90 (main-into-develop-1700000000 → develop) is already open from an " +
+      "earlier downmerge and holds main at 0c9d8e7f6a5, so nothing new is " +
+      "created. Review and merge that one, or close it to reject the downmerge.",
+  ]);
+
+  const outcome = await agent.applyDownmerge({ source: "main", target: "develop" });
+  assert.deepEqual(calls, []);
+  assert.deepEqual(outcome.result, {
+    kind: "merge-branch",
+    pullRequestUrl: "https://example.test/pull/90",
+    mergeBranchName: "main-into-develop-1700000000",
+    alreadyOpen: true,
+  });
+});
+
+test("a source that moved past the open merge-branch pull request is refused", async () => {
+  const agent = makeAgent({ ...earlierMergePr, checkIsAncestor: async () => false });
+
+  await assert.rejects(agent.planDownmergeMainToDevelop(), {
+    name: "BranchSelectionError",
+    message:
+      "PR #90 (main-into-develop-1700000000 → develop) is already open from an " +
+      "earlier downmerge of main, and main has moved on since: 0c9d8e7f6a5 is " +
+      "not in main-into-develop-1700000000. Merge or close PR #90 first, then run " +
+      "the downmerge again.",
   });
 });

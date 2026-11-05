@@ -114,12 +114,16 @@ flowchart TD
   GUARD -->|no| G["G1 or G2 refusal"]
   GUARD -->|yes| FETCHO["fetch origin into remote-tracking refs"]
   FETCHO --> SRC{"source"}
-  SRC -->|main| PREVIEW
+  SRC -->|main| EARLIER
   SRC -->|"release or hotfix"| SEL{"version given?"}
   SEL -->|yes| BYNAME["branch named release/version or hotfix/version<br/>none: S12"]
   SEL -->|no| NEWEST["highest-numbered branch of that type<br/>none: S13"]
-  BYNAME --> PREVIEW
-  NEWEST --> PREVIEW
+  BYNAME --> EARLIER
+  NEWEST --> EARLIER
+  EARLIER{"merge-branch route, with an earlier<br/>merge branch's PR still open?"}
+  EARLIER -->|"yes, holds the source"| N7["N7: return it, create nothing"]
+  EARLIER -->|"yes, source moved on"| P15["P15 refusal"]
+  EARLIER -->|no| PREVIEW
   PREVIEW{"git merge-tree: source head into origin target"}
   PREVIEW -->|cannot compare| P13["P13 refusal"]
   PREVIEW -->|"conflicts, target develop"| H1["H1 Manual downmerge needed<br/>nothing created"]

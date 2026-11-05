@@ -9,8 +9,8 @@
 // A plan does fetch, so that it reflects origin. That writes remote-tracking refs
 // and nothing else, which the last test pins.
 //
-// findOpenPullRequest is the one call that reaches GitHub rather than git, so it
-// is the one thing stubbed out.
+// findOpenPullRequest and findOpenPullRequestsInto are the calls that reach
+// GitHub rather than git, so they are the things stubbed out.
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -88,8 +88,9 @@ const snapshot = () => ({
 
 function makeAgent() {
   const gfm = new GitFlowManager(repo);
-  // The only GitHub call a plan makes; everything else is git.
+  // The only GitHub calls a plan makes; everything else is git.
   gfm.findOpenPullRequest = async () => null;
+  gfm.findOpenPullRequestsInto = async () => [];
   return new ReleaseAgent(gfm, repo);
 }
 
