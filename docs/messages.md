@@ -151,6 +151,7 @@ All are covered by the digest. None blocks the apply.
 | W11 | `.release-management.json on <ref> at <sha11> is not valid (<reason>), so the pipeline trigger cannot run. If <branch> has no open pull request after the push, start its build by hand.` | RC, HF, INC, REL, REV (revert shape) | The `pipeline` section, or the file, does not parse | Fix the file |
 | W12 | `<v> is a FINAL version, not a release candidate.` | REV | The version being reverted is final: its GitHub release will be deleted | Approve only if the promotion was a mistake |
 | W13 | `<v> is the first version on <branch>, so there is no earlier version to return to. The branch is abandoned rather than rewound.` | REV (abandon shape) | The bump's parent carries another release's version, or none | Approve only if the branch should be deleted |
+| W14 | `Local <branch> has <n> commit(s) that origin/<branch> does not: <sha11> <subject>; …. ` then, by what the apply does with the branch: `Origin is the source of truth, so the apply resets <branch> to origin/<branch> and drops them from it.` (INC, REL, REV revert shape) or `The apply deletes <branch> locally as well as on origin, so they are dropped with it.` (REV abandon shape); then `To keep them, run git branch unpushed/<branch> <sha11> before confirming.` | INC, REL, REV | The local branch holds commits its remote-tracking ref does not, typically an earlier run's version commit whose push failed | Confirm to drop them, or keep them first with the command given |
 
 ### Configuration reasons
 
@@ -289,9 +290,9 @@ No step prefix.
 
 | ID | Exact text | Actions | Condition |
 | --- | --- | --- | --- |
-| A11 | `Failed to checkout and pull branch '<branch>': <err>` | INC, REL | Checkout or pull of the target failed |
+| A11 | `Failed to check out branch '<branch>': <err>` or `Failed to reset '<branch>' to origin/<branch>: <err>` | INC, REL | Checking out the target failed, or resetting it to origin would overwrite an uncommitted change (`git reset --keep`) |
 | A12 | `Branch <branch> version <v> is not a release candidate. Only RC versions can be incremented.` | INC | The checked-out VERSION is final. Also raised by a `dryRun`, which reads the branch you are standing on (see [dryRun](actions.md#dryrun)) |
-| A13 | `<branch> version <X.Y.Z> is behind <base> version <v>. Cannot proceed with increment.` | INC | The branch's major.minor.patch is lower than its base's, read from the local base branch first. Not checked by the plan |
+| A13 | `<branch> version <X.Y.Z> is behind <base> version <v>. Cannot proceed with increment.` | INC | The branch's major.minor.patch is lower than its base's, read from `origin/<base>` first. Not checked by the plan |
 | A14 | `Could not read version from <base> branch VERSION file` | INC | As A13, base VERSION unreadable |
 | A15 | `Failed to validate branch version: <err>` | INC | As A13, unexpected error |
 | A16 | `Failed to increment release candidate: <err>` | INC | The versioner failed, including `Tag '<v>' already exists.` |
@@ -310,7 +311,7 @@ No step prefix.
 | A24 | `Reverting <sha11> conflicts with the current state of the branch, so it was aborted and nothing was changed. Resolve by hand.` then git's output | `git revert` conflicted; it is aborted |
 | A25 | `Failed to delete GitHub release <id>: <err>` | Deleting the release failed (after the tag was deleted) |
 | A26 | `Failed to push branch '<branch>': <err>` | Pushing the revert commit failed (after the tag was deleted) |
-| A27 | `Failed to checkout and pull branch '<branch>': <err>` | Checking out the branch (revert) or its base (abandon) failed |
+| A27 | `Failed to check out branch '<branch>': <err>` or `Failed to reset '<branch>' to origin/<branch>: <err>` (revert); `Failed to checkout and pull branch '<base>': <err>` (abandon) | Checking out the branch and resetting it to origin (revert), or checking out and pulling its base (abandon), failed |
 
 ### `downmerge`
 

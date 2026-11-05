@@ -51,6 +51,7 @@ function makeAgent(branch, versions, overrides = {}) {
     tagExistsRemotely: async () => true,
     getGitHubRelease: async () => null,
     commitsNotIn: async () => [],
+    unpushedCommits: async () => [],
     findOpenPullRequest: async () => null,
     readFileAtRef: async () => null,
     ...overrides,

@@ -46,6 +46,7 @@ function makeAgent(branches, overrides = {}) {
     findOpenPullRequest: async () => null,
     readFileAtRef: async () => null,
     commitsNotIn: async () => [],
+    unpushedCommits: async () => [],
     filesChangedSinceFork: async () => [],
     previewMergeConflicts: async () => ({
       hasConflicts: false,

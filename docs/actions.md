@@ -59,10 +59,11 @@ and tags exist (`git ls-remote`), and ask GitHub about pull requests and release
   approved, and the apply then acts on the newer state it pulls. For example, the version
   `create_release_candidate` computes comes from the `develop` it pulls, not from the one
   the plan read.
-- **A local branch ahead of origin is not covered by the digest.** If an earlier apply
-  committed but failed to push, the next plan reads origin's version and the apply
-  builds on the local commit, skipping a version. See each action's *Partial failure and
-  recovery*.
+- **Origin is the source of truth; the clone is disposable.** `increment_release_candidate`,
+  `release_version` and `revert_version` act on the branch exactly as origin has it: the
+  apply checks the branch out and resets it to `origin/<branch>` (`git reset --keep`), so
+  commits an earlier run made but never pushed are dropped from it rather than built on.
+  The plan names them first (W14), with a command to keep them.
 
 ### Version commits and tags
 
@@ -222,7 +223,7 @@ A notice and a warning with the same text digest differently.
 | `checkOutput` | Output carries timings and download progress that differ between two runs of the same check; the warning naming the failure is covered |
 | `pipelineTrigger` | It depends on pull requests to any base, which open and close without the repository moving; the apply checks again after the push regardless. The configuration it reads is covered through the branch head |
 | anything the clone has not fetched | Plans read remote-tracking refs. See [Remote state](#remote-state) |
-| local commits not on origin | Version reads prefer origin; the apply builds on the local branch |
+| local commits not on origin | Version reads prefer origin, and the apply resets the branch to origin. The commits it drops are named in W14, which is covered |
 
 ### `dryRun`
 
@@ -500,11 +501,14 @@ against the branch head. W1 is checked for release branches only.
 **Apply, in order.**
 
 1. Select the branch again.
-2. `git checkout <branch>` and `git pull origin <branch>` (or create it from `FETCH_HEAD`).
-3. `git pull origin <branch>` again.
+2. `git checkout <branch>`, or `git checkout -b <branch> origin/<branch>` when there is no
+   local branch. Nothing is pulled.
+3. `git reset --keep origin/<branch>`, so the branch is exactly what the plan read: commits
+   only the clone has are dropped from it (the plan warned, W14), and uncommitted changes
+   are kept or the reset fails. Skipped for a branch origin does not have.
 4. Validate: the working tree's `VERSION` must be an RC (A12), and the branch's
    major.minor.patch must not be below its base's (A13, A14). The base's `VERSION` is read
-   with `git show`, from the local base branch first. This check is not in the plan.
+   with `git show`, from `origin/<base>` first. This check is not in the plan.
 5. Delete a stale local tag; the versioner commits and tags.
 6. `git push -u origin <branch>`, then `git push origin <tag>`.
 7. Open or update the pull request. A failure is reported (R1), not thrown.
@@ -517,7 +521,7 @@ against the branch head. W1 is checked for release branches only.
 "Use `release_version` tool when ready for production".
 
 **Messages.** Refusals G1, G2, G5, G6, G7–G9, G14, S1–S5, S7, P1, P2, D1. Warnings W1, W2
-(release branches), W7–W11. Notes N1. Pipeline T2–T10. Apply failures A11–A18. Report R1.
+(release branches), W7–W11, W14. Notes N1. Pipeline T2–T10. Apply failures A11–A18. Report R1.
 
 **CLI `$GITHUB_OUTPUT`.** `branch`, `version`, `pull_request_url`, `pull_request_action`,
 `pull_request_error`, `pipeline_trigger`.
@@ -530,6 +534,7 @@ against the branch head. W1 is checked for release branches only.
 | Selected branch is not at an RC | P1 refusal |
 | Next RC tag on origin | P2 refusal |
 | Release branch missing a shipped hotfix | W1 warning |
+| Local branch has commits origin does not | W14 warning; the apply resets the branch to origin |
 | Check or configuration problems | W7–W11 warnings |
 | Pull request to the base already open | N1; updated |
 | At apply, branch below its base's version | A13; nothing created |
@@ -540,8 +545,8 @@ against the branch head. W1 is checked for release branches only.
 | Failed at | Left behind | Recover |
 | --- | --- | --- |
 | 2–4 | Branch checked out, maybe pulled | Fix the cause, plan again |
-| 5 | Maybe a local commit and tag | On the branch, `git reset --hard origin/<branch>` and `git tag -d <tag>`, then plan again |
-| 6, branch push | Local commit and tag ahead of origin | **Do not simply rerun.** The plan reads origin and promises `RC.(n+1)`, but the apply builds on the local commit and produces `RC.(n+2)`, leaving `RC.(n+1)` untagged on origin. Either push both by hand (`git push origin <branch> <tag>`), or reset as for step 5 |
+| 5 | Maybe a local commit and tag | Plan again. The plan warns about the local commit (W14), and the apply resets the branch to origin and drops the local tag before tagging |
+| 6, branch push | Local commit and tag ahead of origin | As 5: plan again. The plan promises `RC.(n+1)` from origin and the apply produces it, dropping the unpushed commit and tag first |
 | 6, tag push | Commit on origin, tag only local | `git push origin <tag>`. `list_versions` shows `tag:local-only` |
 | 7 | Everything on origin, pull request not written (R1) | Edit or open the pull request by hand |
 
@@ -568,8 +573,8 @@ moment to take `main`'s changes in first. W1 is checked for release branches onl
 **Apply, in order.** The numbers match the progress list the tools print.
 
 1. Select the branch again.
-2. Check out and pull it.
-3. Pull it again.
+2. Check it out, as `increment_release_candidate` step 2.
+3. Reset it to `origin/<branch>`, as `increment_release_candidate` step 3.
 4. Require the working tree's `VERSION` to be an RC (A19), delete a stale local tag, then
    the versioner commits `To version X.Y.Z` and tags `X.Y.Z`.
 5. `git push origin <branch>` (no upstream set).
@@ -601,7 +606,7 @@ draft placeholder's body with the "merge once deployed" text, or opens a non-dra
 **GitHub release.** Tag `X.Y.Z`, name `Release X.Y.Z`, target the branch, auto-generated
 notes. Not a draft or a prerelease, so GitHub makes it the Latest release by default.
 
-**Messages.** Refusals as `increment_release_candidate`. Warnings W1, W2, W3–W6, W7–W11.
+**Messages.** Refusals as `increment_release_candidate`. Warnings W1, W2, W3–W6, W7–W11, W14.
 Notes N1 (both pairs). Pipeline T2–T10. Apply failures A11, A19–A23. Reports R1–R6.
 
 **CLI `$GITHUB_OUTPUT`.** `branch`, `version`, `pull_request_url`, `pull_request_action`,
@@ -617,6 +622,7 @@ Notes N1 (both pairs). Pipeline T2–T10. Apply failures A11, A19–A23. Reports
 | Merging the branch into `main` would conflict | W4 warning; the downmerge into `main` will hand off H2 |
 | Those checks could not run | W5, W6 warning |
 | Release branch missing a shipped hotfix | W1 warning |
+| Local branch has commits origin does not | W14 warning; the apply resets the branch to origin |
 | Check or configuration problems | W7–W11 warnings |
 | Pull request to `main` or `develop` already open | N1; updated |
 | Branch is a hotfix | The deploy warning is logged; the `develop` pull request is `hotfix/X.Y.Z` → `develop` |
@@ -628,8 +634,8 @@ Notes N1 (both pairs). Pipeline T2–T10. Apply failures A11, A19–A23. Reports
 | Failed at | Left behind | Recover |
 | --- | --- | --- |
 | 2–3 | Branch checked out, maybe pulled | Fix the cause, plan again |
-| 4 | Maybe a local commit and tag | Reset as for `increment_release_candidate` step 5 |
-| 5 | Local commit and tag ahead of origin | Push both by hand (`git push origin <branch> X.Y.Z`), then do 7, 9 and 10 by hand. A new plan reads origin (still the RC) and its apply would build a second final commit on the local one |
+| 4 | Maybe a local commit and tag | Plan again; the apply resets the branch to origin (W14) |
+| 5 | Local commit and tag ahead of origin | Plan again. The plan reads origin (still the RC), warns about the unpushed final commit (W14), and the apply promotes origin's RC afresh |
 | 6 | Final commit on origin, tag local | `git push origin X.Y.Z`, then do 7, 9 and 10 by hand. A rerun is refused (P1: the branch is no longer an RC) |
 | 7 | Reported (R1) | Open `<branch>` → `main` by hand with the production warning |
 | 9 | Tag on origin, no GitHub release, no `develop` pull request | `gh release create X.Y.Z --target <branch> --title "Release X.Y.Z" --generate-notes`, then open or update `<branch>` → `develop` by hand. Rerunning is refused (P1) |
@@ -691,7 +697,8 @@ candidate's pull request into `develop` is merged. The diagram is in
 
 **Apply, revert shape.**
 
-1. Check out and pull the branch.
+1. Check out the branch and reset it to `origin/<branch>`, as `increment_release_candidate`
+   steps 2 and 3. Nothing is pulled.
 2. `git revert --no-edit <head>`, giving the commit `Revert "To version <v>"`. A conflict is
    aborted (A24); nothing is changed.
 3. Delete the tag on origin (`git push origin :refs/tags/<v>`), then locally (`git tag -d`),
@@ -724,7 +731,7 @@ request keeps its `Release X.Y.Z to main` title, and a hotfix's `develop` pull r
 left as it was (GitHub closes it, without a comment, when an abandon deletes the branch).
 
 **Messages.** Refusals G1, G2, G4 (CLI), G6, G7–G9, G11, S8–S11, P9–P12, D1. Warnings W11
-(revert shape), W12, W13. Notes N3, N4. Pipeline T1–T10 (revert shape). Apply failures
+(revert shape), W12, W13, W14. Notes N3, N4. Pipeline T1–T10 (revert shape). Apply failures
 A24–A27. Report R8.
 
 **CLI `$GITHUB_OUTPUT`.** `branch`, `shape` (`revert` or `abandon`), `reverted_version`,
@@ -742,6 +749,7 @@ A24–A27. Report R8.
 | Otherwise | abandon shape, W13 |
 | Abandon, and the branch holds other commits not in its base | P12 refusal |
 | Version is final | W12; its GitHub release is deleted if there is one |
+| Local branch has commits origin does not | W14; the revert resets the branch to origin first, the abandon deletes it with them |
 | Tag missing locally and on origin | N3; no tag deletion planned |
 | Always | N4 |
 | Revert shape, no open pull request on the branch | T1 in the plan; the trigger runs after the push |
