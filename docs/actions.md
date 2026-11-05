@@ -1039,7 +1039,7 @@ handoff as text; the CLI prints it to stderr and exits `1`. The procedure is
 [manual-downmerge.md](manual-downmerge.md); the exact text is in
 [messages.md](messages.md#downmerge-handoffs).
 
-**Messages.** Refusals G1, G2, G7–G9, G14, U6, U7, S12, S13, P8, P13, P15. Notes N1, N7. Handoffs H1,
+**Messages.** Refusals G1, G2, G7–G9, G14, G15, U6, U7, S12, S13, P8, P13, P15. Notes N1, N7. Handoffs H1,
 H2. Apply failures A28–A31. Report R9. MCP failures are returned as `❌ Downmerge Failed`.
 
 **CLI `$GITHUB_OUTPUT`.** `kind` (`merge-branch` for `main` → `develop`, `release` → `main`

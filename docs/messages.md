@@ -75,6 +75,7 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | G12 | `Git command timed out after <ms>ms: git <command>. The operation may have partially completed — inspect the repository before retrying.` | apply failure (or refusal while planning) | ALL | A local git command ran past 30 s, or a network one (`fetch`, `push`, `pull`, `clone`, `ls-remote`, `remote`, `submodule`) past 300 s | Inspect the repository and origin before rerunning |
 | G13 | `Git command failed: <err>` | apply failure (or refusal while planning) | ALL | Any git command exited non-zero where no more specific message applies | Read `<err>` |
 | G14 | `Could not resolve a commit for branch '<branch>'` | refusal | RC, HF, INC, REL, REV, DM | Neither `origin/<branch>` nor `<branch>` resolves | Fetch, or create the base branch |
+| G15 | `Failed to look up open PRs into '<base>': <err>` | refusal | DM m→d, r→m, h→d | Listing the open pull requests into the target, to find an earlier run's merge-branch pull request, failed | As G9 |
 
 ## CLI usage
 
