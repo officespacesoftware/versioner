@@ -147,7 +147,8 @@ for what each action does.
 ```
 
 Installing the packages requires a token with `read:packages` for the
-`officespacesoftware` organization.
+`officespacesoftware` organization. A token that also runs the tools needs `repo` and
+`workflow`; see [Token scopes](docs/configuration.md#token-scopes).
 
 The current line of all four packages is a prerelease published under the `next` dist-tag.
 Install with `@next`, or pin an exact version; `latest` is reserved for stable releases and
