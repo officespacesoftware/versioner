@@ -72,12 +72,12 @@ function renderReleaseVersion(r: ReleaseVersionWorkflowContext): string {
   if (r.ownBasePullRequestUrl) {
     const verb = r.ownBasePullRequestAction === "updated" ? "Updated" : "Opened";
     lines.push(
-      `${verb} ${r.branchInfo?.targetBranch ?? "own-base"} PR: ${r.ownBasePullRequestUrl}`
+      `${verb} ${r.ownBaseBranch ?? "develop"} PR: ${r.ownBasePullRequestUrl}`
     );
   }
   if (r.ownBasePullRequestError) {
     lines.push(
-      `${r.branchInfo?.targetBranch ?? "Own-base"} PR refresh failed: ${r.ownBasePullRequestError}`
+      `${r.ownBaseBranch ?? "develop"} PR refresh failed: ${r.ownBasePullRequestError}`
     );
   }
   lines.push(...renderPipelineTrigger(r.pipelineTrigger));

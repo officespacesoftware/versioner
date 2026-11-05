@@ -1557,14 +1557,14 @@ ${
         workflowResult.ownBasePullRequestAction === "updated"
           ? "Updated"
           : "Opened"
-      } ${workflowResult.branchInfo.targetBranch} PR: ${
+      } ${workflowResult.ownBaseBranch ?? "develop"} PR: ${
         workflowResult.ownBasePullRequestUrl
       }`
     : ""
 }
 ${
   workflowResult.ownBasePullRequestError
-    ? `⚠️  ${workflowResult.branchInfo.targetBranch} PR refresh failed: ${workflowResult.ownBasePullRequestError}`
+    ? `⚠️  ${workflowResult.ownBaseBranch ?? "develop"} PR refresh failed: ${workflowResult.ownBasePullRequestError}`
     : ""
 }${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 

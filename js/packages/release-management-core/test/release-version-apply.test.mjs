@@ -206,6 +206,9 @@ test("promoting a hotfix writes main from step 7 and develop from step 10", asyn
   assert.equal(calls.created.length, 2);
   assert.equal(prTo("main").title, "Release 1.3.1 to main");
   assert.equal(prTo("develop").title, "Hotfix 1.3.1 to develop");
+  // The result names that second base, so it is not labelled as the hotfix's
+  // own target, main.
+  assert.equal(result.ownBaseBranch, "develop");
 
   const step10 = result.stepProgress.find((s) => s.step === 10);
   assert.equal(step10.status, "completed");

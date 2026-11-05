@@ -665,6 +665,10 @@ Notes N1 (both pairs). Pipeline T2–T10. Apply failures A11, A19–A23. Reports
 `pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`,
 `own_base_pull_request_action`, `own_base_pull_request_error`, `pipeline_trigger`.
 
+**Result.** `ownBaseBranch` names the base of the step 10 pull request (`develop`), and the
+MCP tool and the CLI label that pull request with it: `Opened develop PR: <url>`, or
+`Updated develop PR: <url>`.
+
 ### `release_version`: decision table
 
 | Condition | Outcome |
