@@ -848,19 +848,22 @@ abandon, recreate the branch from the sha in the plan or the closing comment:
 **Apply, in order.**
 
 1. Check the directory is a git repository (G1) and nothing is staged (G2).
-2. Read the short `HEAD` hash; the repository needs a commit (A33).
-3. Create `VERSION` with two lines, the version then the hash. An existing `VERSION`,
-   tracked or not, refuses (A32).
+2. Before writing anything, refuse: a version that is not `X.Y.Z` or `X.Y.Z-RC.N` (A34), an
+   existing `VERSION`, tracked or not (A32), a repository with no commit (A33), and an
+   existing tag of that version (A35).
+3. Create `VERSION` with two lines, the version then the short `HEAD` hash.
 4. `git add VERSION`, `git commit -m "To version <version>"`,
    `git tag "<version>" -a -m "Release version <version>"`, on the current branch.
 
-Nothing is pushed and no pull request is opened.
+Nothing is pushed and no pull request is opened. If step 3 or 4 fails, what the run
+created is removed (its commit, only when it is the one commit on top of where `HEAD`
+was; its tag; `VERSION` from the index and the disk) and the failure says so, so the
+action can simply be run again.
 
-In the MCP server, the versioner is bound to the `workingDirectory` of the first
-`initialize_versioner` call the process serves; restart the server before initializing a
-second repository.
+Each call uses a versioner bound to its own `workingDirectory`; the MCP server keeps none
+between calls.
 
-**Messages.** G1, G2, A32–A35. The MCP server reports a failure as text under
+**Messages.** G1, G2, A32–A35, A40. The MCP server reports a failure as text under
 `❌ Failed to initialize versioner`, without marking the call as an error.
 
 **CLI `$GITHUB_OUTPUT`.** `version`, `is_release_candidate`.
@@ -869,8 +872,9 @@ second repository.
 
 | Failed at | Left behind | Recover |
 | --- | --- | --- |
-| 3, malformed `version` (A34) | An untracked `VERSION` holding the bad value; a rerun is refused (A32) | `rm VERSION`, rerun with a valid version |
-| 4, tag exists (A35) | The commit `To version <v>`, no new tag | Inspect the existing tag; tag by hand or reset the commit |
+| 2 (A32–A35) | Nothing | Fix the cause and rerun |
+| 3–4 | Nothing: what was created is removed, and the failure ends `Everything it created was removed, so it can be run again.` | Fix the cause and rerun |
+| 3–4, and the removal fails (A40) | Possibly `VERSION`, the commit `To version <v>`, the tag | Remove them by hand as the message lists, then rerun |
 
 ---
 

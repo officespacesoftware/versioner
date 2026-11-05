@@ -14,3 +14,4 @@ export * from "./release-agent.js";
 export * from "./versioner-adapter.js";
 export * from "./versioner-direct.js";
 export * from "./guards.js";
+export * from "./initialize.js";

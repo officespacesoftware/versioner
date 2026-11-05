@@ -23,8 +23,8 @@ import {
   ManualDownmergeRequired,
   ReleaseAgent,
   StalePlanError,
-  VersionerAdapter,
   assertPlanIsCurrent,
+  initializeVersioner,
   parseDownmergeRoute,
   renderChangePlan,
   renderManualDownmerge,
@@ -156,7 +156,6 @@ class ReleaseManagementMCPServer {
   private server: Server;
   private releaseAgent?: ReleaseAgent;
   private gitFlowManager?: GitFlowManager;
-  private versionerAdapter?: VersionerAdapter;
   private boundWorkingDirectory?: string;
 
   /**
@@ -776,12 +775,6 @@ the tag already triggered.`,
     const workingDirectory = args?.workingDirectory || process.cwd();
 
     try {
-      // Initialize versioner adapter if needed
-      if (!this.versionerAdapter) {
-        this.versionerAdapter = new VersionerAdapter();
-        await this.versionerAdapter.initialize(undefined, workingDirectory);
-      }
-
       await this.bindWorkingDirectory(workingDirectory);
 
       // Check if we're in a git repository
@@ -795,9 +788,9 @@ the tag already triggered.`,
       // Check for staged changes (prevents committing unrelated changes)
       await this.gitFlowManager!.validateNoStagedChanges();
 
-      const versionInfo = await this.versionerAdapter.initializeProject(
-        version
-      );
+      // A versioner bound to this call's directory, not one kept from an earlier
+      // call: the server outlives any one repository.
+      const versionInfo = await initializeVersioner(workingDirectory, version);
 
       return `✅ Versioner Initialized Successfully!
 
@@ -822,12 +815,7 @@ ${
     ? `🔍 Requested Version: ${version}`
     : "🔍 Default Version: 0.1.0-RC.0"
 }
-💥 Error: ${errorMessage}
-
-Common issues:
-- Directory may not be a git repository
-- Versioner MCP may not be running
-- Permission issues with file creation`;
+💥 Error: ${errorMessage}`;
     }
   }
 

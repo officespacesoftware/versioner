@@ -242,6 +242,12 @@ ensureVersionerAvailable(agent);
 
 ## The versioner bridge
 
+`initializeVersioner(workingDirectory, version?)` is what `initialize_versioner` and
+`initialize-versioner` run: it refuses a malformed version, an existing `VERSION`, a
+repository with no commit and an existing tag before writing anything, initializes
+through a `VersionerAdapter` bound to that directory for this call alone, and removes
+what it created if a later step fails.
+
 `VersionerAdapter` is the high-level interface: `initialize`, `getCurrentVersion`,
 `createReleaseCandidate(type)` and its three per-type variants,
 `incrementReleaseCandidate`, `releaseVersion`, `initializeProject(version?)`,

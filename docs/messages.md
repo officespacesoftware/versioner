@@ -332,15 +332,19 @@ Each is wrapped as `Failed to downmerge <main to develop\|release to develop\|re
 
 ### `initialize_versioner`
 
-Each is prefixed `Failed to initialize versioner project: Error: `. The MCP server shows it
-under `❌ Failed to initialize versioner` without marking the call as an error.
+A32–A35 are checked before anything is written, so they are refusals in effect: nothing is
+created. A failure while writing is the versioner's own message, prefixed `Failed to
+initialize versioner project: Error: ` and followed by `Everything it created was removed,
+so it can be run again.` The MCP server shows each under `❌ Failed to initialize
+versioner` without marking the call as an error.
 
-| ID | Exact text after the prefix | Condition |
+| ID | Exact text | Condition |
 | --- | --- | --- |
 | A32 | `Cannot initialize the project with a version file: The file VERSION already exists.` | A VERSION file is present (tracked or not) |
 | A33 | `The usage of this tool requires an existing git project with at least one revision.` | The repository has no commits |
-| A34 | `Invalid version format: <v>. Expected format: X.Y.Z or X.Y.Z-RC.N` | `version` is malformed. The VERSION file has already been written by then and is left behind |
-| A35 | `Tag '<v>' already exists.` | The tag exists; the commit has already been made |
+| A34 | `Invalid version format: <v>. Expected format: X.Y.Z or X.Y.Z-RC.N. Nothing was written.` | `version` is not `X.Y.Z` or `X.Y.Z-RC.N` |
+| A35 | `Tag '<v>' already exists. Nothing was written.` | A local tag of that version exists |
+| A40 | `<the failure> Removing what it created also failed (<err>): check for a VERSION file, a "To version <v>" commit and a tag <v>, and remove them by hand.` | Writing failed, and so did removing what it had created |
 
 ## Apply reports
 
