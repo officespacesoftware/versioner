@@ -55,6 +55,8 @@ export function registerRevertVersion(parent: Command): void {
             pull_request_url: result.pullRequestUrl,
             pull_request_action: result.pullRequestAction,
             pull_request_error: result.pullRequestError,
+            promotion_pull_request_url: result.promotionPullRequestUrl,
+            promotion_pull_request_error: result.promotionPullRequestError,
             pipeline_trigger: result.pipelineTrigger?.status,
           });
           emit(result, opts, renderRevertVersion);
@@ -87,6 +89,14 @@ function renderRevertVersion(r: RevertVersionWorkflowContext): string {
   }
   if (r.pullRequestError) {
     lines.push(`PR step failed: ${r.pullRequestError}`);
+  }
+  if (r.promotionPullRequestUrl) {
+    lines.push(`Closed the promotion's PR into main: ${r.promotionPullRequestUrl}`);
+  }
+  if (r.promotionPullRequestError) {
+    lines.push(
+      `Could not close the promotion's PR into main: ${r.promotionPullRequestError}. Close it by hand.`
+    );
   }
   lines.push(...renderPipelineTrigger(r.pipelineTrigger));
   lines.push(

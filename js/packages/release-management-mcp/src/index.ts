@@ -679,7 +679,9 @@ refuses, returning a fresh plan.
 
 Applying deletes the tag locally and on origin, and for a final version deletes
 its GitHub Release, which moves the Latest marker back to the previous release and
-destroys that release's notes. Deleting a tag does NOT undo a build or deployment
+destroys that release's notes. Reverting a release branch's final version also
+closes the release/X.Y.Z → main pull request its promotion opened, and puts the
+develop pull request back to the candidate's title. Deleting a tag does NOT undo a build or deployment
 the tag already triggered.`,
             inputSchema: {
               type: "object",
@@ -1443,6 +1445,16 @@ Please review the error and fix any issues before retrying the workflow.`;
       }
       if (result.pullRequestError) {
         lines.push(`⚠️  Pull request step failed: ${result.pullRequestError}`);
+      }
+      if (result.promotionPullRequestUrl) {
+        lines.push(
+          `🔗 Closed the promotion's PR into main: ${result.promotionPullRequestUrl}`
+        );
+      }
+      if (result.promotionPullRequestError) {
+        lines.push(
+          `⚠️  Could not close the promotion's PR into main: ${result.promotionPullRequestError}. Close it by hand.`
+        );
       }
       const pipeline = renderPipelineTrigger(result.pipelineTrigger);
       if (pipeline !== "") {

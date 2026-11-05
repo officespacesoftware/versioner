@@ -386,3 +386,94 @@ test("a revert whose tag deletion origin rejects fails before pushing", async ()
     pushed
   );
 });
+
+/** release/1.4.0 promoted from RC.2 to 1.4.0, pushed with its tag. */
+function promotedRelease() {
+  releaseBranchAtRC2();
+  git("checkout", "-q", "release/1.4.0");
+  commit("VERSION", version("1.4.0"), "To version 1.4.0");
+  tagVersion("1.4.0");
+  git("push", "-q", "origin", "release/1.4.0", "1.4.0");
+}
+
+const openPr = (number, title) => ({
+  number,
+  url: `https://example.invalid/pr/${number}`,
+  title,
+  body: "",
+});
+
+test("reverting a promoted release undoes the promotion's pull requests", async () => {
+  promotedRelease();
+  const { agent } = makeAgent({
+    findOpenPullRequest: async (head, base) =>
+      base === "develop"
+        ? openPr(70, "Release 1.4.0 to develop")
+        : openPr(71, "Release 1.4.0 to main"),
+  });
+
+  const plan = await agent.planRevertVersion();
+  assert.ok(
+    plan.mutations.some(
+      (m) =>
+        m.operation === "delete" &&
+        m.summary ===
+          "close PR #71 (release/1.4.0 → main), opened by the promotion being reverted"
+    ),
+    plan.mutations.map((m) => m.summary).join("\n")
+  );
+
+  const result = await agent.executeRevertVersionWorkflow(repo, undefined, false);
+
+  // The develop PR goes back to the candidate's title...
+  assert.deepEqual(
+    calls.created.map((c) => `${c.base}: ${c.title}`),
+    ["develop: RC 1.4.0-RC.2 to develop"]
+  );
+  // ...and the promotion's PR into main is closed, saying why.
+  assert.equal(calls.closed.length, 1);
+  assert.equal(calls.closed[0].number, 71);
+  assert.match(calls.closed[0].comment, /1\.4\.0 was reverted/);
+  assert.equal(result.promotionPullRequestUrl, "https://example.invalid/pr/71");
+});
+
+test("a failure closing the promotion's pull request is reported, not thrown", async () => {
+  promotedRelease();
+  const { agent } = makeAgent({
+    findOpenPullRequest: async (head, base) =>
+      base === "main" ? openPr(71, "Release 1.4.0 to main") : null,
+    closePullRequest: async () => {
+      throw new Error("GitHub is down");
+    },
+  });
+
+  const result = await agent.executeRevertVersionWorkflow(repo, undefined, false);
+
+  assert.equal(result.resultingVersion, "1.4.0-RC.2");
+  assert.match(result.promotionPullRequestError, /GitHub is down/);
+});
+
+test("reverting a hotfix final keeps the production warning on its main PR", async () => {
+  git("checkout", "-q", "-b", "hotfix/1.3.1", "main");
+  commit("VERSION", version("1.3.1-RC.0"), "To version 1.3.1-RC.0");
+  tagVersion("1.3.1-RC.0");
+  commit("VERSION", version("1.3.1"), "To version 1.3.1");
+  tagVersion("1.3.1");
+  git("push", "-q", "origin", "hotfix/1.3.1", "1.3.1-RC.0", "1.3.1");
+
+  const { agent } = makeAgent({
+    findOpenPullRequest: async (head, base) =>
+      base === "main" ? openPr(42, "Release 1.3.1 to main") : null,
+  });
+
+  await agent.executeRevertVersionWorkflow(repo, undefined, false);
+
+  assert.equal(calls.created.length, 1);
+  assert.equal(calls.created[0].title, "RC 1.3.1-RC.0 to main");
+  assert.match(
+    calls.created[0].body,
+    /This PR must be merged \*\*after\*\* the hotfix has been deployed to production\./
+  );
+  // A hotfix's PR into main is its own; it is retitled, not closed.
+  assert.equal(calls.closed.length, 0);
+});
