@@ -291,7 +291,7 @@ No step prefix.
 | ID | Exact text | Actions | Condition |
 | --- | --- | --- | --- |
 | A11 | `Failed to check out branch '<branch>': <err>` or `Failed to reset '<branch>' to origin/<branch>: <err>` | INC, REL | Checking out the target failed, or resetting it to origin would overwrite an uncommitted change (`git reset --keep`) |
-| A12 | `Branch <branch> version <v> is not a release candidate. Only RC versions can be incremented.` | INC | The checked-out VERSION is final. Also raised by a `dryRun`, which reads the branch you are standing on (see [dryRun](actions.md#dryrun)) |
+| A12 | `Branch <branch> version <v> is not a release candidate. Only RC versions can be incremented.` | INC | The branch's VERSION is final: the working tree's after the checkout, or on a `dryRun`, the branch's as the plan reads it (see [dryRun](actions.md#dryrun)) |
 | A13 | `<branch> version <X.Y.Z> is behind <base> version <v>. Cannot proceed with increment.` | INC | The branch's major.minor.patch is lower than its base's, read from `origin/<base>` first. Not checked by the plan |
 | A14 | `Could not read version from <base> branch VERSION file` | INC | As A13, base VERSION unreadable |
 | A15 | `Failed to validate branch version: <err>` | INC | As A13, unexpected error |

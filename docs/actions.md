@@ -233,9 +233,10 @@ older than the plan and less reliable; **use the plan instead**. Specifically:
 
 - It only takes effect on an apply: the MCP tool needs `confirm`, the CLI `--confirm` or
   `--yes`. Without one, a plan is returned and `dryRun` is ignored.
-- It skips checkouts, so the version checks it runs read the `VERSION` of whatever branch
-  is checked out, not the target's. Standing on `develop`, a dry-run increment of
-  `release/1.4.0` fails with A12 although the plan is valid.
+- It skips checkouts, so every version it reads comes from the branch it is about, as the
+  plan reads it (`origin/<branch>` first): `develop` for a release candidate, `main` for a
+  hotfix, the selected branch for an increment or promotion. What is checked out does not
+  matter.
 - `create_release_candidate`'s dry run still fetches `main` and `develop` (step 1).
 - It never runs the pipeline trigger. `revert_version`'s dry run does run every guard.
 
