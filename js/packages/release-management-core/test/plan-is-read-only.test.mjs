@@ -142,9 +142,13 @@ test("every plan is built from the real repository, not from defaults", async ()
     hotfixToMain,
   ] = await buildEveryPlan(makeAgent());
 
-  // main holds content develop does not, and release/4.125.0 already exists.
+  // main holds content develop does not. hotfix/4.124.1 is on origin at exactly
+  // the RC.0 a new hotfix would get, so the plan resumes it rather than cutting it.
   assert.match(rc.refused, /synchronization check/);
-  assert.match(hotfix.refused, /Branch hotfix\/4\.124\.1 already exists/);
+  assert.match(
+    hotfix.notices[0],
+    /hotfix\/4\.124\.1 is already on origin at 4\.124\.1-RC\.0/
+  );
 
   assert.equal(mainToDevelop.targetBranch, "develop");
   assert.match(

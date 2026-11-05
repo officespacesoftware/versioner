@@ -338,36 +338,55 @@ patch → `M.m.(p+1)`. The branch is `release/<that>` and the version `<that>-RC
 **Plan.** Anchored on `develop` (`origin/develop` when it exists) and the `VERSION` at that
 commit. Mutations: branch `release/X.Y.Z off develop`; commit `"To version X.Y.Z-RC.0" on
 release/X.Y.Z`; tag `annotated tag X.Y.Z-RC.0`; push `release/X.Y.Z and tag X.Y.Z-RC.0 to
-origin`; pull request `open release/X.Y.Z → develop`, or `update PR #n (…)`. Pre-version
-checks run against `develop`'s head.
+origin`; pull request `open release/X.Y.Z → develop`, or `update PR #n (…)`, with the detail
+`title: RC X.Y.Z-RC.0 to develop`. Pre-version checks run against `develop`'s head.
+
+**Resuming.** When origin already holds `release/X.Y.Z` with `VERSION` exactly
+`X.Y.Z-RC.0`, an earlier run got as far as the push and stopped, typically on its pull
+request. The plan says so (N5) and lists only what is still missing: the tag
+`annotated tag X.Y.Z-RC.0 on <sha11>` and `tag X.Y.Z-RC.0 to origin` when the tag is not on
+origin (on the commit `To version X.Y.Z-RC.0`, refused with P14 if there is none), and the
+pull request. The synchronization refusal (P7), W1, P2 and the pre-version checks are about
+cutting the branch, which is done, so they are skipped. A branch on origin at any other
+version is refused (P6).
 
 **Apply, in order.**
 
 Nothing is fetched or pulled: the plan rebuilt just before the apply fetched, and every
 step reads the remote-tracking refs it fetched.
 
-1. Require `origin/main` to be in `origin/develop`, or to add no commits, or to add commits
-   with no content difference. Otherwise A1. Runs on a dry run too.
-2. Read `origin/develop`'s `VERSION` and compute the version and branch name from it.
+1. Read `origin/develop`'s `VERSION` and compute the version and branch name from it. If
+   origin already holds the branch at exactly that `RC.0`, the run is a resume.
+2. Require `origin/main` to be in `origin/develop`, or to add no commits, or to add commits
+   with no content difference. Otherwise A1. Runs on a dry run too; skipped on a resume.
 3. `git checkout -B release/X.Y.Z origin/develop`. A local `release/X.Y.Z` that origin does
-   not have is replaced (the plan warned, W14). Skipped on a dry run.
+   not have is replaced (the plan warned, W14). On a resume, the branch is checked out and
+   reset to `origin/release/X.Y.Z` instead. Skipped on a dry run.
 4. Delete a stale local tag `X.Y.Z-RC.0`; the versioner writes `VERSION`, commits and tags.
-5. `git push -u origin release/X.Y.Z`, then `git push origin X.Y.Z-RC.0`.
-6. Open the pull request (or update it, on 422). **A failure here fails the action.**
+   Skipped on a resume.
+5. `git push -u origin release/X.Y.Z`, then `git push origin X.Y.Z-RC.0`. On a resume, only
+   a tag origin lacks: recreated on the commit `To version X.Y.Z-RC.0` of
+   `origin/release/X.Y.Z` and pushed (`git push origin refs/tags/X.Y.Z-RC.0`).
+6. Open the pull request (or update it, on 422). A failure is reported (R1), not thrown:
+   the branch and tag are on origin, and running the action again resumes.
 7. [Pipeline trigger](configuration.md#pipeline-trigger): normally `skipped`, since step 6
-   opened a pull request.
+   opened a pull request. `started` when step 6 failed and the branch heads no other open
+   pull request.
 
 **Pull request.** `release/X.Y.Z` → `develop`, title `RC X.Y.Z-RC.0 to develop`, not a
 draft, no production warning. Body: `## Release Branch: release/X.Y.Z`, the version,
 branch, target and type (such as `Minor Release Candidate`), the changes, and the six
 completed workflow steps.
 
-**Messages.** Refusals G1, G2, G4, G6, G7–G9, G14, U4/U5, P2–P7, D1. Warnings W1
-(`develop`), W2, W7–W11, W14. Notes N1. Pipeline T2–T10. Apply failures A1–A4, A6–A10,
-G12, G13.
+**Messages.** Refusals G1, G2, G4, G6, G7–G9, G14, U4/U5, P2–P7, P14, D1. Warnings W1
+(`develop`), W2, W7–W11, W14. Notes N1, N5. Pipeline T2–T10. Apply failures A1–A4, A6, A7,
+A36, G12, G13. Report R1.
+
+**Result.** `resumed` is true when the run finished an earlier one. `pullRequestError`
+carries R1; the MCP tool and the CLI print it with how to recover.
 
 **CLI `$GITHUB_OUTPUT`.** `release_type`, `version`, `pull_request_url`,
-`pull_request_action`, `pipeline_trigger`.
+`pull_request_action`, `pull_request_error`, `resumed`, `pipeline_trigger`.
 
 ### `create_release_candidate`: decision table
 
@@ -377,7 +396,9 @@ G12, G13.
 | `origin/main` holds content `origin/develop` lacks | P7 refusal |
 | `develop` has no readable `VERSION` | P3 refusal |
 | `develop`'s `VERSION` is an RC | P4 refusal |
-| `release/X.Y.Z` exists on origin | P6 refusal |
+| `release/X.Y.Z` on origin at exactly `X.Y.Z-RC.0` | Resume, N5: only the missing tag push and the pull request |
+| `release/X.Y.Z` on origin at any other version | P6 refusal |
+| Resuming, tag not on origin and no `To version X.Y.Z-RC.0` commit on the branch | P14 refusal |
 | `release/X.Y.Z` exists only locally | Replaced by the apply; W14 names any commits it holds that `origin/develop` does not |
 | Tag `X.Y.Z-RC.0` exists on origin | P2 refusal |
 | Tag `X.Y.Z-RC.0` exists only locally | No message; the apply deletes it before tagging |
@@ -389,17 +410,18 @@ G12, G13.
 | `confirm` differs from the rebuilt plan | D1 refusal with a fresh plan |
 | `confirm` matches | Apply |
 | At apply, `origin/main` holds content `origin/develop` lacks | A1; nothing created. In practice unreachable: the rebuilt plan refuses first (P7) |
+| Pull request step fails | R1; the branch and tag are on origin, the pipeline trigger runs, and a rerun resumes |
 
 ### `create_release_candidate`: partial failure and recovery
 
 | Failed at | Left behind | Recover |
 | --- | --- | --- |
-| 1 | Nothing | Downmerge `main` into `develop`, plan again |
-| 2 | Nothing | Repair `develop`'s `VERSION`, plan again |
+| 1 | Nothing | Repair `develop`'s `VERSION`, plan again |
+| 2 | Nothing | Downmerge `main` into `develop`, plan again |
 | 3–4 | Local `release/X.Y.Z`, maybe a local commit and tag | Plan again: the local branch is replaced from `origin/develop` (W14) and the local tag dropped before tagging |
 | 5, branch push | Local branch, commit and tag | As 3–4 |
-| 5, tag push | Branch on origin without its tag | `git push origin X.Y.Z-RC.0`, then open the pull request by hand. Rerunning is refused (P6) |
-| 6 | Branch and tag on origin, no pull request, and the pipeline trigger has not run | Open `release/X.Y.Z` → `develop` titled `RC X.Y.Z-RC.0 to develop` by hand (`gh pr create --base develop --head release/X.Y.Z`). Rerunning is refused (P6) |
+| 5, tag push | Branch on origin without its tag | Run the action again: it resumes, tags the version commit and pushes the tag, then opens the pull request |
+| 6 | Reported (R1): branch and tag on origin, no pull request; the pipeline trigger has run | Run the action again with the same `releaseType`: it resumes and opens the pull request. Or open `release/X.Y.Z` → `develop` titled `RC X.Y.Z-RC.0 to develop` by hand |
 
 ---
 
@@ -426,20 +448,25 @@ hotfixes. Mutations: branch, commit, tag and push as for a release candidate; pu
 `open hotfix/X.Y.Z → main` (or update); pull request `open draft hotfix/X.Y.Z → develop`
 (or `update PR #n (…)`). That last one's detail line reads `title: hotfix X.Y.Z to
 develop`; the title actually used is `Hotfix X.Y.Z to develop`. Pre-version checks run
-against `main`'s head.
+against `main`'s head. A `hotfix/X.Y.Z` on origin at exactly `X.Y.Z-RC.0` is resumed as for
+a [release candidate](#create_release_candidate), N5.
 
 **Apply, in order.**
 
 Nothing is fetched or pulled, as for a release candidate.
 
-1. Read `origin/main`'s `VERSION` and compute the version and branch name from it.
-2. `git checkout -B hotfix/X.Y.Z origin/main`, replacing a local-only `hotfix/X.Y.Z` (W14).
-   Skipped on a dry run.
-3. Delete a stale local tag; the versioner commits and tags.
-4. `git push -u origin hotfix/X.Y.Z`, then `git push origin X.Y.Z-RC.0`.
-5. Pull request into `main`. **A failure here fails the action.**
-6. Draft pull request into `develop`. A failure is reported (R7), not thrown.
-7. Pipeline trigger: normally `skipped`.
+1. Read `origin/main`'s `VERSION` and compute the version and branch name from it, and
+   whether this is a resume.
+2. `git checkout -B hotfix/X.Y.Z origin/main`, replacing a local-only `hotfix/X.Y.Z` (W14);
+   on a resume, check it out at `origin/hotfix/X.Y.Z`. Skipped on a dry run.
+3. Delete a stale local tag; the versioner commits and tags. Skipped on a resume.
+4. `git push -u origin hotfix/X.Y.Z`, then `git push origin X.Y.Z-RC.0`; on a resume, only a
+   missing tag.
+5. Pull request into `main`. A failure is reported (R1), not thrown.
+6. Draft pull request into `develop`, attempted whether or not step 5 succeeded. A failure
+   is reported (R7), not thrown.
+7. Pipeline trigger: normally `skipped`; `started` when no pull request ended up open on
+   the branch.
 
 **Pull requests.**
 
@@ -448,12 +475,13 @@ Nothing is fetched or pulled, as for a release candidate.
 | `hotfix/X.Y.Z` → `main` | `RC X.Y.Z-RC.0 to main` | no | `## Hotfix RC Branch: hotfix/X.Y.Z`, the production warning, "Each RC increment and the final release update this same pull request", version details, next steps (write the fix, increment, release, deploy then merge, downmerge into develop) |
 | `hotfix/X.Y.Z` → `develop` | `Hotfix X.Y.Z to develop` | yes (an already-open one keeps its state) | `## Hotfix X.Y.Z to develop`, "Draft placeholder…", **This is not ready to merge** (it conflicts on `VERSION` by construction), next steps: ship through `main`, run the `hotfix` → `develop` downmerge after the deploy, close this draft once that one is merged |
 
-**Messages.** Refusals G1, G2, G4, G6, G7–G9, G14, P2–P6, D1. Warnings W7–W11. Notes N1
-(either pair), N2. Warning W14. Pipeline T2–T10. Apply failures A3, A6–A10. Report R7.
+**Messages.** Refusals G1, G2, G4, G6, G7–G9, G14, P2–P6, P14, D1. Warnings W7–W11, W14.
+Notes N1 (either pair), N2, N5. Pipeline T2–T10. Apply failures A3, A4, A6, A7, A36.
+Reports R1, R7.
 
 **CLI `$GITHUB_OUTPUT`.** `version`, `pull_request_url`, `pull_request_action`,
-`pipeline_trigger`. The draft pull request's URL and error appear only in `--json`
-(`trackingPullRequestUrl`, `trackingPullRequestError`).
+`pull_request_error`, `resumed`, `pipeline_trigger`. The draft pull request's URL and error
+appear only in `--json` (`trackingPullRequestUrl`, `trackingPullRequestError`).
 
 ### `create_hotfix`: decision table
 
@@ -461,20 +489,22 @@ Nothing is fetched or pulled, as for a release candidate.
 | --- | --- |
 | `main` has no readable `VERSION` | P3 refusal |
 | `main`'s `VERSION` is an RC | P4 refusal |
-| `hotfix/X.Y.Z` exists on origin | P6 refusal |
+| `hotfix/X.Y.Z` on origin at exactly `X.Y.Z-RC.0` | Resume, N5 |
+| `hotfix/X.Y.Z` on origin at any other version | P6 refusal |
 | `hotfix/X.Y.Z` exists only locally | Replaced by the apply; W14 names any commits it holds that `origin/main` does not |
 | Tag `X.Y.Z-RC.0` on origin | P2 refusal |
 | Check or configuration problems | W7–W11 warnings |
 | `hotfix/X.Y.Z` → `main` already open | N1; updated |
 | `hotfix/X.Y.Z` → `develop` already open | N1; updated, keeps its draft state |
 | `hotfix/X.Y.Z` → `develop` not open | N2; opened as a draft |
+| Pull request into `main` fails | R1; the draft is still attempted, the pipeline trigger runs, and a rerun resumes |
 | Draft pull request fails | R7; the action still succeeds |
 
 ### `create_hotfix`: partial failure and recovery
 
 As [`create_release_candidate`](#create_release_candidate-partial-failure-and-recovery),
-with `hotfix/X.Y.Z` and `main`, and every step number one lower (there is no
-synchronization step). If step 6 fails, open the draft by hand, or skip it: the
+with `hotfix/X.Y.Z` and `main`. Its steps are 1 (read), 2 (branch), 3 (version), 4
+(push) and 5 (pull request into `main`): there is no synchronization step. If step 6 fails, open the draft by hand, or skip it: the
 `hotfix` → `develop` downmerge does not need it.
 
 ---

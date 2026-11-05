@@ -726,6 +726,44 @@ ${stagedFiles}
     }
   }
 
+  /**
+   * The newest commit reachable from `ref` whose subject is exactly `subject`, or
+   * null. Looks back a thousand commits, far beyond any version bump on a release
+   * branch.
+   */
+  async findCommitWithSubject(
+    ref: string,
+    subject: string
+  ): Promise<string | null> {
+    const { stdout, exitCode } = await this.execGitTolerant(
+      `log -n 1000 --format=${quoteGitArg("%H %s")} ${quoteGitArg(ref)}`
+    );
+    if (exitCode !== 0) {
+      return null;
+    }
+    for (const line of stdout.split("\n")) {
+      const space = line.indexOf(" ");
+      if (space > 0 && line.slice(space + 1) === subject) {
+        return line.slice(0, space);
+      }
+    }
+    return null;
+  }
+
+  /** Create the annotated tag the versioner would, on `commit`. */
+  async createVersionTag(tag: string, commit: string): Promise<void> {
+    await this.execGit(
+      `tag ${quoteGitArg(tag)} -a -m ${quoteGitArg(
+        `Release version ${tag}`
+      )} ${quoteGitArg(commit)}`
+    );
+  }
+
+  /** Push one tag to origin, by its full ref so it cannot be read as a branch. */
+  async pushTag(tag: string): Promise<void> {
+    await this.execGit(`push origin ${quoteGitArg(`refs/tags/${tag}`)}`);
+  }
+
   /** Whether origin has `branchName`, as of the last fetch. */
   async remoteBranchExists(branchName: string): Promise<boolean> {
     return this.refExists(`refs/remotes/origin/${branchName}`);

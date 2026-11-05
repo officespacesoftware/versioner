@@ -30,6 +30,8 @@ export function registerCreateHotfix(parent: Command): void {
             version: result.targetVersion?.version,
             pull_request_url: result.pullRequestUrl,
             pull_request_action: result.pullRequestAction,
+            pull_request_error: result.pullRequestError,
+            resumed: String(result.resumed === true),
             pipeline_trigger: result.pipelineTrigger?.status,
           });
           emit(result, opts, renderHotfix);
@@ -40,9 +42,22 @@ export function registerCreateHotfix(parent: Command): void {
 
 function renderHotfix(r: HotfixWorkflowContext): string {
   const lines = [`Version: ${r.targetVersion?.version ?? "—"}`];
+  if (r.resumed) {
+    lines.push(
+      `Resumed: ${r.currentBranch} was already on origin at ${r.targetVersion?.version}`
+    );
+  }
   if (r.pullRequestUrl) {
     const verb = r.pullRequestAction === "updated" ? "Updated PR" : "Pull Request";
     lines.push(`${verb}: ${r.pullRequestUrl}`);
+  }
+  if (r.pullRequestError) {
+    lines.push(
+      `PR step failed: ${r.pullRequestError}`,
+      `  To recover, run create-hotfix again: it resumes from the push and opens ` +
+        `the pull request. Or open ${r.currentBranch} → main by hand, titled ` +
+        `"RC ${r.targetVersion?.version} to main", with the production warning.`
+    );
   }
   lines.push(...renderPipelineTrigger(r.pipelineTrigger));
   return lines.join("\n");

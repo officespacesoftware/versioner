@@ -14,6 +14,7 @@ import {
 import {
   buildChangePlan,
   type ChangePlan,
+  type CheckOutput,
   type PlannedMutation,
 } from "./change-plan.js";
 import {
@@ -109,15 +110,6 @@ function toVersionInfo(version: string): VersionInfo {
   };
 }
 
-/** `1.2.3` with "minor" → `1.3.0`; the version itself when unparseable. */
-function nextVersionFor(
-  version: string,
-  releaseType: "major" | "minor" | "patch"
-): string {
-  const parts = parseVersionParts(version);
-  return parts ? bumpVersionParts(parts, releaseType) : version;
-}
-
 export interface ReleaseWorkflowContext {
   workingDirectory: string;
   currentBranch: string;
@@ -125,8 +117,11 @@ export interface ReleaseWorkflowContext {
   targetVersion?: VersionInfo;
   dryRun: boolean;
   stepProgress: WorkflowStep[];
+  /** Set when origin already held the branch at its RC.0 and this run finished it. */
+  resumed?: boolean;
   pullRequestUrl?: string;
   pullRequestAction?: "created" | "updated";
+  pullRequestError?: string;
   pipelineTrigger?: PipelineTriggerResult;
 }
 
@@ -136,8 +131,11 @@ export interface HotfixWorkflowContext {
   targetVersion?: VersionInfo;
   dryRun: boolean;
   stepProgress: WorkflowStep[];
+  /** Set when origin already held the branch at its RC.0 and this run finished it. */
+  resumed?: boolean;
   pullRequestUrl?: string;
   pullRequestAction?: "created" | "updated";
+  pullRequestError?: string;
   /** The draft PR to develop, tracking the fix's second destination. */
   trackingPullRequestUrl?: string;
   trackingPullRequestAction?: "created" | "updated";
@@ -263,12 +261,12 @@ export class ReleaseAgent {
       releaseType,
       dryRun,
       stepProgress: [
+        { step: 1, name: "Read develop's version", status: "pending" },
         {
-          step: 1,
+          step: 2,
           name: "Verify main/develop synchronization",
           status: "pending",
         },
-        { step: 2, name: "Read develop's version", status: "pending" },
         { step: 3, name: "Create release branch", status: "pending" },
         {
           step: 4,
@@ -282,11 +280,15 @@ export class ReleaseAgent {
 
     try {
       // Execute each step of the workflow
-      await this.executeStep1_VerifyBranchSync();
-      await this.executeStep2_ReadDevelopVersion();
-      await this.executeStep3_CreateReleaseBranch();
-      await this.executeStep4_UpdateVersion();
-      await this.executeStep5_PushBranchAndTag();
+      await this.readCreationTarget(1, "develop", "release", (v) =>
+        bumpVersionParts(v, releaseType)
+      );
+      await this.executeStep2_VerifyBranchSync();
+      await this.createBranchStep(3, "develop");
+      await this.cutVersionStep(4, () =>
+        this.versionerAdapter.createReleaseCandidate(releaseType)
+      );
+      await this.pushCreatedBranchStep(5);
       await this.executeStep6_CreatePullRequest();
       await this.startPipelineIfUnbuilt("create_release_candidate");
 
@@ -351,10 +353,14 @@ export class ReleaseAgent {
 
     try {
       // Execute each step of the hotfix workflow
-      await this.executeHotfixStep1_ReadMainVersion();
-      await this.executeHotfixStep2_CreateHotfixBranch();
-      await this.executeHotfixStep3_UpdateVersion();
-      await this.executeHotfixStep4_PushBranchAndTag();
+      await this.readCreationTarget(1, "main", "hotfix", (v) =>
+        bumpVersionParts(v, "patch")
+      );
+      await this.createBranchStep(2, "main");
+      await this.cutVersionStep(3, () =>
+        this.versionerAdapter.createPatchReleaseCandidate()
+      );
+      await this.pushCreatedBranchStep(4);
       await this.executeHotfixStep5_CreatePullRequest();
       await this.executeHotfixStep6_TrackingPullRequest();
       await this.startPipelineIfUnbuilt("create_hotfix");
@@ -379,14 +385,75 @@ export class ReleaseAgent {
   }
 
   /**
-   * Step 1: Make sure main has been merged into develop already
+   * Read the base's version as origin has it, and name the new branch from it.
+   * Nothing is checked out or pulled: the branch is cut from the remote-tracking
+   * ref the plan fetched, so the version is the one approved.
+   *
+   * Also decides whether this is a resume: origin already holding the branch at
+   * exactly that RC.0 means an earlier run got as far as the push, so the
+   * remaining steps finish it rather than cut it again, as the plan said.
    */
-  private async executeStep1_VerifyBranchSync(): Promise<void> {
-    const step = this.updateStepStatus(1, "in_progress");
-    console.log("📋 Step 1: Verifying main/develop synchronization...");
+  private async readCreationTarget(
+    stepNumber: number,
+    baseBranch: "develop" | "main",
+    branchType: BranchType,
+    nextBaseVersion: (parts: VersionParts) => string
+  ): Promise<void> {
+    const step = this.updateStepStatus(stepNumber, "in_progress");
+    const ctx = this.context as ReleaseWorkflowContext | HotfixWorkflowContext;
+    console.log(`📋 Step ${stepNumber}: Reading ${baseBranch}'s version...`);
 
     try {
-      // Use GitFlowManager to verify branch synchronization with real git commands
+      const current = await this.originVersion(baseBranch);
+      const next = nextBaseVersion(current);
+      const branch = `${branchType}/${next}`;
+      const rcVersion = `${next}-RC.0`;
+      ctx.currentBranch = branch;
+      step.message = `${baseBranch} is at ${current.version}, so the ${branchType} branch is ${branch}`;
+      if (
+        (await this.gitFlowManager.remoteBranchExists(branch)) &&
+        (await this.gitFlowManager.readBranchVersion(branch, "remote")) ===
+          rcVersion
+      ) {
+        ctx.resumed = true;
+        step.message += `, already on origin at ${rcVersion}: resuming the earlier run`;
+      }
+      this.updateStepStatus(stepNumber, "completed");
+      console.log(`   ✅ ${step.message}`);
+    } catch (error) {
+      step.error = error instanceof Error ? error.message : String(error);
+      throw new Error(`Step ${stepNumber} failed: ${step.error}`);
+    }
+  }
+
+  /** The RC.0 a create action sets, from the branch it named. */
+  private createdVersion(): string {
+    return `${this.context!.currentBranch.split("/")[1]}-RC.0`;
+  }
+
+  private isResuming(): boolean {
+    return (
+      (this.context as ReleaseWorkflowContext | HotfixWorkflowContext)
+        .resumed === true
+    );
+  }
+
+  /**
+   * Step 2: Make sure main has been merged into develop already. A resumed
+   * branch was cut already, so there is nothing left for the check to protect.
+   */
+  private async executeStep2_VerifyBranchSync(): Promise<void> {
+    const step = this.updateStepStatus(2, "in_progress");
+    console.log("📋 Step 2: Verifying main/develop synchronization...");
+
+    if (this.isResuming()) {
+      step.message = `${this.context!.currentBranch} was cut by an earlier run`;
+      this.updateStepStatus(2, "skipped");
+      console.log(`   ⏭️  ${step.message}`);
+      return;
+    }
+
+    try {
       const syncResult = await this.gitFlowManager.verifyMainDevelopSync();
 
       if (!syncResult.canProceed) {
@@ -397,352 +464,207 @@ export class ReleaseAgent {
       }
 
       step.message = syncResult.message;
-      this.updateStepStatus(1, "completed");
+      this.updateStepStatus(2, "completed");
       console.log(`   ✅ ${syncResult.message}`);
     } catch (error) {
       step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 1 failed: ${step.error}`);
-    }
-  }
-
-  /**
-   * Step 2: read develop's version as origin has it, and name the release branch
-   * from it. Nothing is checked out or pulled: the branch is cut from the
-   * remote-tracking ref the plan fetched, so the version is the one approved.
-   */
-  private async executeStep2_ReadDevelopVersion(): Promise<void> {
-    const step = this.updateStepStatus(2, "in_progress");
-    console.log("📋 Step 2: Reading develop's version...");
-
-    try {
-      const releaseType = (this.context as ReleaseWorkflowContext).releaseType;
-      const current = await this.originVersion("develop");
-      const next = nextVersionFor(current.version, releaseType);
-      this.context!.currentBranch = `release/${next}`;
-      step.message = `develop is at ${current.version}, so the release branch is release/${next}`;
-      this.updateStepStatus(2, "completed");
-      console.log(`   ✅ ${step.message}`);
-    } catch (error) {
-      step.error = error instanceof Error ? error.message : String(error);
       throw new Error(`Step 2 failed: ${step.error}`);
     }
   }
 
   /**
-   * Step 3: Create the release branch at origin/develop
+   * Cut the new branch at origin's `baseBranch`, or, resuming, check out the
+   * branch an earlier run pushed, exactly as origin has it.
    */
-  private async executeStep3_CreateReleaseBranch(): Promise<void> {
-    const step = this.updateStepStatus(3, "in_progress");
-    const releaseBranch = this.context!.currentBranch;
-    console.log("📋 Step 3: Creating release branch...");
+  private async createBranchStep(
+    stepNumber: number,
+    baseBranch: "develop" | "main"
+  ): Promise<void> {
+    const step = this.updateStepStatus(stepNumber, "in_progress");
+    const branch = this.context!.currentBranch;
+    console.log(`📋 Step ${stepNumber}: Creating ${branch}...`);
 
     try {
       if (this.context!.dryRun) {
-        step.message = `[DRY RUN] Would create release branch: ${releaseBranch}`;
+        step.message = this.isResuming()
+          ? `[DRY RUN] Would check out ${branch} at origin/${branch}`
+          : `[DRY RUN] Would create ${branch} from origin/${baseBranch}`;
+      } else if (this.isResuming()) {
+        await this.gitFlowManager.checkoutBranch(branch);
+        await this.gitFlowManager.resetToOrigin(branch);
+        step.message = `Checked out ${branch} at origin/${branch}, cut by an earlier run`;
       } else {
-        await this.gitFlowManager.createBranchFromOrigin(
-          releaseBranch,
-          "develop"
-        );
-        step.message = `Created release branch: ${releaseBranch}`;
+        await this.gitFlowManager.createBranchFromOrigin(branch, baseBranch);
+        step.message = `Created ${branch} from origin/${baseBranch}`;
       }
-      this.updateStepStatus(3, "completed");
+      this.updateStepStatus(stepNumber, "completed");
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
       step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 3 failed: ${step.error}`);
+      throw new Error(`Step ${stepNumber} failed: ${step.error}`);
     }
   }
 
   /**
-   * Step 4: Update the version for the release using versioner RC tools
+   * Set the new branch to its RC.0 through the versioner. Resuming, the version
+   * commit is already on origin and is not made again.
    */
-  private async executeStep4_UpdateVersion(): Promise<void> {
-    const step = this.updateStepStatus(4, "in_progress");
-    const releaseType = (this.context! as ReleaseWorkflowContext).releaseType;
-    const rcVersion = `${this.context!.currentBranch.split("/")[1]}-RC.0`;
-    console.log(`📋 Step 4: Updating version to ${releaseType} RC...`);
+  private async cutVersionStep(
+    stepNumber: number,
+    cut: () => Promise<VersionInfo>
+  ): Promise<void> {
+    const step = this.updateStepStatus(stepNumber, "in_progress");
+    const rcVersion = this.createdVersion();
+    console.log(`📋 Step ${stepNumber}: Updating version to ${rcVersion}...`);
 
     try {
-      if (!this.context!.dryRun) {
+      if (this.isResuming()) {
+        this.context!.targetVersion = toVersionInfo(rcVersion);
+        step.message = `${this.context!.currentBranch} is already at ${rcVersion} on origin`;
+        this.updateStepStatus(stepNumber, "skipped");
+        console.log(`   ⏭️  ${step.message}`);
+        return;
+      }
+      if (this.context!.dryRun) {
+        step.message = `[DRY RUN] Would update version to: ${rcVersion}`;
+      } else {
         await this.dropStaleLocalTag(rcVersion);
-        const newVersion = await this.versionerAdapter.createReleaseCandidate(
-          releaseType
-        );
+        const newVersion = await cut();
         this.context!.targetVersion = newVersion;
         step.message = `Updated version to: ${newVersion.version}`;
-      } else {
-        step.message = `[DRY RUN] Would update version to: ${rcVersion}`;
       }
+      this.updateStepStatus(stepNumber, "completed");
       console.log(`   ✅ ${step.message}`);
-      this.updateStepStatus(4, "completed");
     } catch (error) {
       step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 4 failed: ${step.error}`);
+      throw new Error(`Step ${stepNumber} failed: ${step.error}`);
     }
   }
 
   /**
-   * Step 5: Push the release branch and git tag
+   * Push the new branch and its tag. Resuming, the branch is on origin already;
+   * the tag is pushed only if the earlier run stopped before it, recreated on the
+   * version commit rather than trusted from the clone.
    */
-  private async executeStep5_PushBranchAndTag(): Promise<void> {
-    const step = this.updateStepStatus(5, "in_progress");
-    console.log("📋 Step 5: Pushing release branch and tag...");
+  private async pushCreatedBranchStep(stepNumber: number): Promise<void> {
+    const step = this.updateStepStatus(stepNumber, "in_progress");
+    const branch = this.context!.currentBranch;
+    const rcVersion = this.createdVersion();
+    console.log(`📋 Step ${stepNumber}: Pushing ${branch} and tag ${rcVersion}...`);
 
     try {
-      if (!this.context!.dryRun) {
-        const version = this.context!.targetVersion?.version || "unknown";
-        const releaseBranch = `release/${version.split("-")[0]}`;
-
-        // Use GitFlowManager to push both branch and tag
-        await this.gitFlowManager.pushBranchAndTag(releaseBranch, version);
-        console.log(`   🔄 Pushed release branch: ${releaseBranch}`);
-        console.log(`   🔄 Pushed version tag: ${version}`);
-
-        step.message = `Pushed release branch and tag: ${version}`;
+      if (this.isResuming()) {
+        if (await this.gitFlowManager.tagExistsRemotely(rcVersion)) {
+          step.message = `${branch} and tag ${rcVersion} are already on origin`;
+          this.updateStepStatus(stepNumber, "skipped");
+          console.log(`   ⏭️  ${step.message}`);
+          return;
+        }
+        if (this.context!.dryRun) {
+          step.message = `[DRY RUN] Would tag and push ${rcVersion}`;
+        } else {
+          const bump = await this.gitFlowManager.findCommitWithSubject(
+            `refs/remotes/origin/${branch}`,
+            `To version ${rcVersion}`
+          );
+          if (bump === null) {
+            throw new Error(
+              `No commit "To version ${rcVersion}" on origin/${branch} to tag`
+            );
+          }
+          await this.gitFlowManager.deleteTagLocally(rcVersion);
+          await this.gitFlowManager.createVersionTag(rcVersion, bump);
+          await this.gitFlowManager.pushTag(rcVersion);
+          step.message = `Tagged ${bump.slice(0, 11)} as ${rcVersion} and pushed the tag`;
+        }
+      } else if (this.context!.dryRun) {
+        step.message = `[DRY RUN] Would push ${branch} and tag ${rcVersion}`;
       } else {
-        const branch = this.context!.currentBranch;
-        step.message = `[DRY RUN] Would push ${branch} and tag ${branch.split("/")[1]}-RC.0`;
+        await this.gitFlowManager.pushBranchAndTag(branch, rcVersion);
+        step.message = `Pushed ${branch} and tag ${rcVersion}`;
       }
-
-      this.updateStepStatus(5, "completed");
+      this.updateStepStatus(stepNumber, "completed");
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
       step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 5 failed: ${step.error}`);
+      throw new Error(`Step ${stepNumber} failed: ${step.error}`);
     }
   }
 
   /**
-   * Step 6: Create pull request from release branch to develop
+   * Step 6: Create pull request from release branch to develop.
+   *
+   * A failure is reported, not thrown: the branch and tag are on origin by now,
+   * the pipeline trigger still has to run for a branch with no pull request, and
+   * running the action again resumes from here.
    */
   private async executeStep6_CreatePullRequest(): Promise<void> {
-    const step = this.updateStepStatus(6, "in_progress");
-    console.log("📋 Step 6: Creating pull request to develop...");
-
-    try {
-      if (!this.context!.dryRun) {
-        // Get version from context, fallback to getting current version from versioner
-        let version = this.context!.targetVersion?.version;
-        if (!version || version === "unknown") {
-          const currentVersion =
-            await this.versionerAdapter.getCurrentVersion();
-          version = currentVersion.version;
-        }
-
-        // Get the actual branch name from context instead of reconstructing it
-        const currentBranch = (this.context! as ReleaseWorkflowContext)
-          .currentBranch;
-        const releaseBranch =
-          currentBranch || `release/${version.split("-")[0]}`;
-
-        // Generate PR title and body with version information
-        const releaseType = (this.context! as ReleaseWorkflowContext)
-          .releaseType;
-        const prTitle = `RC ${version} to develop`;
-        const prBody = this.generateReleaseCandidatePRBody(
-          version,
-          releaseBranch,
-          releaseType
-        );
-
-        // Create PR using GitFlowManager
-        const prResult = await this.gitFlowManager.createPullRequest(
-          releaseBranch,
-          "develop",
-          prTitle,
-          prBody
-        );
-
-        // Store PR URL in context
-        this.context!.pullRequestUrl = prResult.url;
-        (this.context! as ReleaseWorkflowContext).pullRequestAction =
-          prResult.action;
-
-        const verb = prResult.action === "updated" ? "Updated" : "Created";
-        console.log(`   🔄 ${verb} pull request: ${prResult.url}`);
-        step.message = `${verb} pull request: ${prResult.url}`;
-      } else {
-        // No pull request URL is invented here: a fabricated link is worse than none,
-        // because callers cannot tell it from a real one.
-        const releaseBranch = this.context!.currentBranch;
-        step.message = `Dry run: would open or update PR ${releaseBranch} → develop`;
-        console.log(`   ⏭️  ${step.message}`);
-        this.updateStepStatus(6, "skipped");
-        console.log(`   ✅ ${step.message}`);
-        return;
-      }
-
-      this.updateStepStatus(6, "completed");
-      console.log(`   ✅ ${step.message}`);
-    } catch (error) {
-      step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 6 failed: ${step.error}`);
-    }
+    const releaseBranch = this.context!.currentBranch;
+    const releaseType = (this.context! as ReleaseWorkflowContext).releaseType;
+    await this.createdBranchPullRequestStep(6, "develop", (version) =>
+      this.generateReleaseCandidatePRBody(version, releaseBranch, releaseType)
+    );
   }
 
   /**
-   * Hotfix Step 1: read main's version as origin has it, and name the hotfix
-   * branch from it. Nothing is fetched or checked out: the plan fetched.
+   * Open (or update) the new branch's pull request into `base`, titled
+   * `RC <version> to <base>`. Failure is recorded on the context and reported
+   * with the result.
    */
-  private async executeHotfixStep1_ReadMainVersion(): Promise<void> {
-    const step = this.updateStepStatus(1, "in_progress");
-    console.log("📋 Step 1: Reading main's version...");
+  private async createdBranchPullRequestStep(
+    stepNumber: number,
+    base: "develop" | "main",
+    body: (version: string) => string
+  ): Promise<void> {
+    const step = this.updateStepStatus(stepNumber, "in_progress");
+    const ctx = this.context as ReleaseWorkflowContext | HotfixWorkflowContext;
+    const branch = ctx.currentBranch;
+    console.log(`📋 Step ${stepNumber}: Creating pull request to ${base}...`);
 
+    if (ctx.dryRun) {
+      // No pull request URL is invented here: a fabricated link is worse than none,
+      // because callers cannot tell it from a real one.
+      step.message = `Dry run: would open or update PR ${branch} → ${base}`;
+      this.updateStepStatus(stepNumber, "skipped");
+      console.log(`   ⏭️  ${step.message}`);
+      return;
+    }
+
+    const version = ctx.targetVersion?.version ?? this.createdVersion();
     try {
-      const current = await this.originVersion("main");
-      const next = nextVersionFor(current.version, "patch");
-      this.context!.currentBranch = `hotfix/${next}`;
-      step.message = `main is at ${current.version}, so the hotfix branch is hotfix/${next}`;
-      this.updateStepStatus(1, "completed");
+      const prResult = await this.gitFlowManager.createPullRequest(
+        branch,
+        base,
+        `RC ${version} to ${base}`,
+        body(version)
+      );
+      ctx.pullRequestUrl = prResult.url;
+      ctx.pullRequestAction = prResult.action;
+      const verb = prResult.action === "updated" ? "Updated" : "Created";
+      step.message = `${verb} pull request: ${prResult.url}`;
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
-      step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 1 failed: ${step.error}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      ctx.pullRequestError = msg;
+      step.message = `Could not open the pull request: ${msg}`;
+      console.warn(`   ⚠️  ${step.message}`);
     }
+    this.updateStepStatus(stepNumber, "completed");
   }
 
   /**
-   * Hotfix Step 2: Create the hotfix branch at origin/main
-   */
-  private async executeHotfixStep2_CreateHotfixBranch(): Promise<void> {
-    const step = this.updateStepStatus(2, "in_progress");
-    const hotfixBranch = this.context!.currentBranch;
-    console.log("📋 Step 2: Creating hotfix branch...");
-
-    try {
-      if (this.context!.dryRun) {
-        step.message = `[DRY RUN] Would create hotfix branch: ${hotfixBranch}`;
-      } else {
-        await this.gitFlowManager.createBranchFromOrigin(hotfixBranch, "main");
-        step.message = `Created hotfix branch: ${hotfixBranch}`;
-      }
-      this.updateStepStatus(2, "completed");
-      console.log(`   ✅ ${step.message}`);
-    } catch (error) {
-      step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 2 failed: ${step.error}`);
-    }
-  }
-
-  /**
-   * Hotfix Step 3: Update version to patch RC using versioner
-   */
-  private async executeHotfixStep3_UpdateVersion(): Promise<void> {
-    const step = this.updateStepStatus(3, "in_progress");
-    const rcVersion = `${this.context!.currentBranch.split("/")[1]}-RC.0`;
-    console.log("📋 Step 3: Updating version to patch RC...");
-
-    try {
-      if (!this.context!.dryRun) {
-        await this.dropStaleLocalTag(rcVersion);
-        const newVersion =
-          await this.versionerAdapter.createPatchReleaseCandidate();
-        this.context!.targetVersion = newVersion;
-        step.message = `Updated version to: ${newVersion.version}`;
-      } else {
-        step.message = `[DRY RUN] Would update version to: ${rcVersion}`;
-      }
-      console.log(`   ✅ ${step.message}`);
-      this.updateStepStatus(3, "completed");
-    } catch (error) {
-      step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 3 failed: ${step.error}`);
-    }
-  }
-
-  /**
-   * Hotfix Step 4: Push hotfix branch and tag
-   */
-  private async executeHotfixStep4_PushBranchAndTag(): Promise<void> {
-    const step = this.updateStepStatus(4, "in_progress");
-    console.log("📋 Step 4: Pushing hotfix branch and tag...");
-
-    try {
-      if (!this.context!.dryRun) {
-        const version = this.context!.targetVersion?.version || "unknown";
-        const hotfixBranch = `hotfix/${version.split("-")[0]}`;
-
-        // Use GitFlowManager to push both branch and tag
-        await this.gitFlowManager.pushBranchAndTag(hotfixBranch, version);
-        console.log(`   🔄 Pushed hotfix branch: ${hotfixBranch}`);
-        console.log(`   🔄 Pushed version tag: ${version}`);
-
-        step.message = `Pushed hotfix branch and tag: ${version}`;
-      } else {
-        const branch = this.context!.currentBranch;
-        step.message = `[DRY RUN] Would push ${branch} and tag ${branch.split("/")[1]}-RC.0`;
-      }
-
-      this.updateStepStatus(4, "completed");
-      console.log(`   ✅ ${step.message}`);
-    } catch (error) {
-      step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 4 failed: ${step.error}`);
-    }
-  }
-
-  /**
-   * Hotfix Step 5: Create pull request from hotfix branch to main
+   * Hotfix Step 5: Create pull request from hotfix branch to main.
+   *
+   * A hotfix exists to reach production, so its pull request targets main from
+   * the outset. Every later RC increment and the final release update this same
+   * head/base pair rather than opening another. A failure is reported, as for a
+   * release candidate.
    */
   private async executeHotfixStep5_CreatePullRequest(): Promise<void> {
-    const step = this.updateStepStatus(5, "in_progress");
-    console.log("📋 Step 5: Creating pull request to main...");
-
-    try {
-      if (!this.context!.dryRun) {
-        // Get version from context, fallback to getting current version from versioner
-        let version = this.context!.targetVersion?.version;
-        if (!version || version === "unknown") {
-          const currentVersion =
-            await this.versionerAdapter.getCurrentVersion();
-          version = currentVersion.version;
-        }
-
-        // Get the actual branch name from context instead of reconstructing it
-        const currentBranch = (this.context! as HotfixWorkflowContext)
-          .currentBranch;
-        const hotfixBranch = currentBranch || `hotfix/${version.split("-")[0]}`;
-
-        // Generate PR title and body with hotfix information
-        const prTitle = `RC ${version} to main`;
-        const prBody = this.generateHotfixPRBody(version, hotfixBranch);
-
-        // A hotfix exists to reach production, so its pull request targets main
-        // from the outset. Every later RC increment and the final release update
-        // this same head/base pair rather than opening another.
-        const prResult = await this.gitFlowManager.createPullRequest(
-          hotfixBranch,
-          "main",
-          prTitle,
-          prBody
-        );
-
-        // Store PR URL in context
-        this.context!.pullRequestUrl = prResult.url;
-        (this.context! as HotfixWorkflowContext).pullRequestAction =
-          prResult.action;
-
-        const verb = prResult.action === "updated" ? "Updated" : "Created";
-        console.log(`   🔄 ${verb} pull request: ${prResult.url}`);
-        step.message = `${verb} pull request: ${prResult.url}`;
-      } else {
-        // No pull request URL is invented here: a fabricated link is worse than none,
-        // because callers cannot tell it from a real one.
-        const hotfixBranch = this.context!.currentBranch;
-        step.message = `Dry run: would open or update PR ${hotfixBranch} → main`;
-        console.log(`   ⏭️  ${step.message}`);
-        this.updateStepStatus(5, "skipped");
-        console.log(`   ✅ ${step.message}`);
-        return;
-      }
-
-      this.updateStepStatus(5, "completed");
-      console.log(`   ✅ ${step.message}`);
-    } catch (error) {
-      step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 5 failed: ${step.error}`);
-    }
+    const hotfixBranch = this.context!.currentBranch;
+    await this.createdBranchPullRequestStep(5, "main", (version) =>
+      this.generateHotfixPRBody(version, hotfixBranch)
+    );
   }
 
   /**
@@ -895,8 +817,8 @@ This pull request contains the release branch for **${version}**.
 - Git Flow workflow automation
 
 **Workflow Steps Completed:**
-1. ✅ Main/develop synchronization verified
-2. ✅ Develop's version read from origin
+1. ✅ Develop's version read from origin
+2. ✅ Main/develop synchronization verified
 3. ✅ Release branch created from develop
 4. ✅ Version bumped to release candidate
 5. ✅ Release branch and tag pushed to origin
@@ -2652,7 +2574,7 @@ ${autoGeneratedFooter()}`;
       branchType: "release",
       prBase: "develop",
       nextBaseVersion: (v) => bumpVersionParts(v, releaseType),
-      extraWarnings: [
+      cuttingChecks: async () => [
         ...(await this.refuseUnsyncedMainAndDevelop()),
         ...(await this.describeHotfixesMissingFrom("develop")),
       ],
@@ -2682,6 +2604,11 @@ ${autoGeneratedFooter()}`;
    * Shared plan shape for the two workflows that cut a branch off a base and set
    * it to an RC.0: a branch, a commit, an annotated tag, two pushes and a pull
    * request.
+   *
+   * When origin already holds the branch at exactly that RC.0, an earlier run got
+   * as far as the push and stopped, typically on its pull request. The plan then
+   * resumes it: the branch and version commit are not made again, and only what is
+   * still missing — the tag on origin, the pull requests — is planned.
    */
   private async buildBranchCreationPlan(opts: {
     action: string;
@@ -2694,7 +2621,11 @@ ${autoGeneratedFooter()}`;
      */
     trackingBase?: "develop" | "main";
     nextBaseVersion: (parts: VersionParts) => string;
-    extraWarnings?: string[];
+    /**
+     * Refusals and warnings about cutting the branch, run only when it is
+     * actually cut: a resumed branch was cut already.
+     */
+    cuttingChecks?: () => Promise<string[]>;
   }): Promise<ChangePlan> {
     const { action, baseBranch, branchType, prBase } = opts;
 
@@ -2735,38 +2666,93 @@ ${autoGeneratedFooter()}`;
     const nextVersion = opts.nextBaseVersion(parts);
     const newBranch = `${branchType}/${nextVersion}`;
     const rcVersion = `${nextVersion}-RC.0`;
-    const warnings = [...(opts.extraWarnings ?? [])];
+    const warnings: string[] = [];
     const notices: string[] = [];
+    const mutations: PlannedMutation[] = [];
+    let checkOutput: CheckOutput[] = [];
 
-    const existing = await this.gitFlowManager.findBranchesOfType(branchType);
-    const alreadyExists = existing.some(
-      (b) => b.name.replace(/^remotes\/origin\//, "") === newBranch
-    );
-    if (alreadyExists) {
-      if (await this.gitFlowManager.remoteBranchExists(newBranch)) {
-        throw new BranchSelectionError(
-          `Branch ${newBranch} already exists, so ${action} cannot create it. ` +
-            `Use list_versions to see where it stands.`
+    const resume = await this.resumableBranch(newBranch, rcVersion);
+
+    if (resume) {
+      notices.push(
+        `${newBranch} is already on origin at ${rcVersion} ` +
+          `(${resume.head.slice(0, 11)}), so an earlier run got as far as the push. ` +
+          `This resumes it: the branch and the version commit are not made again.`
+      );
+      warnings.push(
+        ...(await this.describeUnpushedCommits(newBranch, { kind: "reset" }))
+      );
+      if (!resume.tagOnOrigin) {
+        mutations.push(
+          {
+            kind: "tag",
+            summary: `annotated tag ${rcVersion} on ${resume.bumpCommit.slice(0, 11)}`,
+            detail: { message: `Release version ${rcVersion}` },
+          },
+          { kind: "push", summary: `tag ${rcVersion} to origin` }
         );
       }
-      // Only this clone has it, typically from an earlier run whose push failed.
-      // Origin is the source of truth, so the apply cuts the branch afresh.
-      warnings.push(
-        ...(await this.describeUnpushedCommits(newBranch, {
-          kind: "recreate",
-          from: baseBranch,
-        }))
+    } else {
+      warnings.push(...((await opts.cuttingChecks?.()) ?? []));
+
+      const existing = await this.gitFlowManager.findBranchesOfType(branchType);
+      const alreadyExists = existing.some(
+        (b) => b.name.replace(/^remotes\/origin\//, "") === newBranch
+      );
+      if (alreadyExists) {
+        if (await this.gitFlowManager.remoteBranchExists(newBranch)) {
+          const there = await this.gitFlowManager.readBranchVersion(
+            newBranch,
+            "remote"
+          );
+          throw new BranchSelectionError(
+            `Branch ${newBranch} already exists on origin at ` +
+              `${there ?? "no readable version"}, not ${rcVersion}, so ${action} ` +
+              `cannot create it and there is no earlier run to resume. Use ` +
+              `list_versions to see where it stands.`
+          );
+        }
+        // Only this clone has it, typically from an earlier run whose push failed.
+        // Origin is the source of truth, so the apply cuts the branch afresh.
+        warnings.push(
+          ...(await this.describeUnpushedCommits(newBranch, {
+            kind: "recreate",
+            from: baseBranch,
+          }))
+        );
+      }
+
+      await this.refuseExistingRemoteTag(rcVersion);
+
+      const checks = await this.runChecksFor(
+        action as VersionAction,
+        baseBranch,
+        baseBranchHead
+      );
+      warnings.push(...checks.warnings);
+      checkOutput = checks.checkOutput;
+
+      mutations.push(
+        {
+          kind: "branch",
+          summary: `${newBranch} off ${baseBranch}`,
+        },
+        {
+          kind: "commit",
+          summary: `"To version ${rcVersion}" on ${newBranch}`,
+          detail: { files: "VERSION" },
+        },
+        {
+          kind: "tag",
+          summary: `annotated tag ${rcVersion}`,
+          detail: { message: `Release version ${rcVersion}` },
+        },
+        {
+          kind: "push",
+          summary: `${newBranch} and tag ${rcVersion} to origin`,
+        }
       );
     }
-
-    await this.refuseExistingRemoteTag(rcVersion);
-
-    const checks = await this.runChecksFor(
-      action as VersionAction,
-      baseBranch,
-      baseBranchHead
-    );
-    warnings.push(...checks.warnings);
 
     const pipeline = await this.describePipelineFor({
       branch: newBranch,
@@ -2786,33 +2772,13 @@ ${autoGeneratedFooter()}`;
       );
     }
 
-    const mutations: PlannedMutation[] = [
-      {
-        kind: "branch",
-        summary: `${newBranch} off ${baseBranch}`,
-      },
-      {
-        kind: "commit",
-        summary: `"To version ${rcVersion}" on ${newBranch}`,
-        detail: { files: "VERSION" },
-      },
-      {
-        kind: "tag",
-        summary: `annotated tag ${rcVersion}`,
-        detail: { message: `Release version ${rcVersion}` },
-      },
-      {
-        kind: "push",
-        summary: `${newBranch} and tag ${rcVersion} to origin`,
-      },
-      {
-        kind: "pull-request",
-        summary: existingPr
-          ? `update PR #${existingPr.number} (${newBranch} → ${prBase})`
-          : `open ${newBranch} → ${prBase}`,
-        detail: { title: `RC ${rcVersion} to ${prBase}` },
-      },
-    ];
+    mutations.push({
+      kind: "pull-request",
+      summary: existingPr
+        ? `update PR #${existingPr.number} (${newBranch} → ${prBase})`
+        : `open ${newBranch} → ${prBase}`,
+      detail: { title: `RC ${rcVersion} to ${prBase}` },
+    });
 
     const trackingBase = opts.trackingBase;
     if (trackingBase && trackingBase !== prBase) {
@@ -2851,8 +2817,45 @@ ${autoGeneratedFooter()}`;
       mutations,
       warnings,
       notices,
-      checkOutput: checks.checkOutput,
+      checkOutput,
     });
+  }
+
+  /**
+   * Whether origin already holds `branch` at exactly `rcVersion`, the state an
+   * earlier create left when it stopped after the push. Returns what a resume
+   * needs: the branch head, whether the tag reached origin, and the bump commit
+   * to tag when it did not. A branch at any other version is not a resume.
+   */
+  private async resumableBranch(
+    branch: string,
+    rcVersion: string
+  ): Promise<
+    { head: string; tagOnOrigin: boolean; bumpCommit: string } | null
+  > {
+    if (!(await this.gitFlowManager.remoteBranchExists(branch))) {
+      return null;
+    }
+    const there = await this.gitFlowManager.readBranchVersion(branch, "remote");
+    if (there !== rcVersion) {
+      return null;
+    }
+    const head = await this.gitFlowManager.getBranchHead(branch);
+    const tagOnOrigin = await this.gitFlowManager.tagExistsRemotely(rcVersion);
+    const bumpCommit = tagOnOrigin
+      ? head
+      : await this.gitFlowManager.findCommitWithSubject(
+          `refs/remotes/origin/${branch}`,
+          `To version ${rcVersion}`
+        );
+    if (bumpCommit === null) {
+      throw new BranchSelectionError(
+        `${branch} is on origin at ${rcVersion} but tag ${rcVersion} is not, and ` +
+          `no commit "To version ${rcVersion}" on the branch can be tagged. Tag the ` +
+          `commit that set the version by hand, push the tag, and run this again.`
+      );
+    }
+    return { head, tagOnOrigin, bumpCommit };
   }
 
   /**

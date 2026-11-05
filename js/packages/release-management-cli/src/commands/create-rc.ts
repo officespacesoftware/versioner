@@ -41,6 +41,8 @@ export function registerCreateRC(parent: Command): void {
             version: result.targetVersion?.version,
             pull_request_url: result.pullRequestUrl,
             pull_request_action: result.pullRequestAction,
+            pull_request_error: result.pullRequestError,
+            resumed: String(result.resumed === true),
             pipeline_trigger: result.pipelineTrigger?.status,
           });
           emit(result, opts, renderCreateRC);
@@ -54,9 +56,22 @@ function renderCreateRC(r: ReleaseWorkflowContext): string {
     `Release type: ${r.releaseType}`,
     `Version:      ${r.targetVersion?.version ?? "—"}`,
   ];
+  if (r.resumed) {
+    lines.push(
+      `Resumed: ${r.currentBranch} was already on origin at ${r.targetVersion?.version}`
+    );
+  }
   if (r.pullRequestUrl) {
     const verb = r.pullRequestAction === "updated" ? "Updated PR" : "Pull Request";
     lines.push(`${verb}: ${r.pullRequestUrl}`);
+  }
+  if (r.pullRequestError) {
+    lines.push(
+      `PR step failed: ${r.pullRequestError}`,
+      `  To recover, run create-rc again with the same --release-type: it resumes ` +
+        `from the push and opens the pull request. Or open ${r.currentBranch} → ` +
+        `develop by hand, titled "RC ${r.targetVersion?.version} to develop".`
+    );
   }
   lines.push(...renderPipelineTrigger(r.pipelineTrigger));
   return lines.join("\n");

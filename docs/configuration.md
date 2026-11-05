@@ -48,7 +48,9 @@ pipeline, a `failed` result at apply time (T6). The validation messages are
 
 **When.** While a plan is built for `create_release_candidate`, `create_hotfix`,
 `increment_release_candidate` or `release_version`, and again when the plan is rebuilt to
-check a confirmation. Not for `revert_version`, downmerges or `initialize_versioner`.
+check a confirmation. Not for `revert_version`, downmerges or `initialize_versioner`, nor
+for a `create_release_candidate` or `create_hotfix` that resumes an earlier run (the version
+commit already exists).
 
 **Against what.** The commit that will be versioned:
 
@@ -82,9 +84,10 @@ builds nothing. The trigger starts the pipeline in that case.
 
 **When it runs.** After `create_release_candidate`, `create_hotfix`,
 `increment_release_candidate`, `release_version`, or a `revert_version` that rewinds a
-branch, has pushed and finished its pull-request steps. It does not run after a failure
-that stops the action (for example, `create_release_candidate` failing to open its pull
-request), on a dry run, after an abandon (the branch is gone), or after a downmerge (they
+branch, has pushed and finished its pull-request steps, including when a pull-request step
+failed (that failure is reported, not thrown, so the branch may have no pull request and the
+trigger starts its build). It does not run after a failure that stops the action (such as a
+rejected push), on a dry run, after an abandon (the branch is gone), or after a downmerge (they
 always leave a pull request open).
 
 **Decision.**

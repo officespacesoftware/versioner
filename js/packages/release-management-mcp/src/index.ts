@@ -106,6 +106,43 @@ function renderPipelineTrigger(
   return `\n${lines.join("\n")}\n`;
 }
 
+/** A line saying the run finished an earlier one, or nothing. */
+function renderResumed(result: {
+  resumed?: boolean;
+  currentBranch: string;
+  targetVersion?: { version: string };
+}): string {
+  if (!result.resumed) {
+    return "";
+  }
+  return `♻️  Resumed: ${result.currentBranch} was already on origin at ${result.targetVersion?.version}, so it was not created again\n`;
+}
+
+/**
+ * A create action's pull-request failure, with how to recover: running the same
+ * action again resumes from the push, since the branch is on origin at its RC.0.
+ */
+function renderCreationPullRequestError(
+  result: {
+    pullRequestError?: string;
+    currentBranch: string;
+    targetVersion?: { version: string };
+  },
+  toolName: string,
+  base: string
+): string {
+  if (!result.pullRequestError) {
+    return "";
+  }
+  const version = result.targetVersion?.version;
+  return (
+    `\n⚠️  PR step failed: ${result.pullRequestError}` +
+    `\n   To recover, call ${toolName} again with the same inputs: it resumes from ` +
+    `the push and opens the pull request. Or open ${result.currentBranch} → ${base} ` +
+    `by hand, titled "RC ${version} to ${base}".`
+  );
+}
+
 /**
  * Release Management MCP Server
  *
@@ -235,7 +272,13 @@ digest no longer matches and it refuses, returning a fresh plan.
 Applying creates: the branch release/X.Y.Z off develop, a commit
 "To version X.Y.Z-RC.0" touching only VERSION, an annotated tag X.Y.Z-RC.0, a push
 of the branch and a push of the tag, and a pull request release/X.Y.Z → develop
-titled "RC X.Y.Z-RC.0 to develop" (opened, or updated if one is already open).`,
+titled "RC X.Y.Z-RC.0 to develop" (opened, or updated if one is already open).
+
+If the pull request cannot be opened, that is reported with the result rather than
+failing the action: the branch and tag are already on origin. Calling the tool
+again then resumes: when origin already holds release/X.Y.Z at exactly
+X.Y.Z-RC.0, the plan says so and only the missing steps run (the tag push if it
+was missed, the pull request). A branch at any other version is refused.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -297,7 +340,12 @@ of the branch and a push of the tag, a pull request hotfix/X.Y.Z → main titled
 "RC X.Y.Z-RC.0 to main", carrying a warning not to merge before the hotfix has
 been deployed, and a draft pull request hotfix/X.Y.Z → develop titled
 "Hotfix X.Y.Z to develop". If a pull request for either head/base pair is already
-open, its title and the watermarked region of its body are updated instead.`,
+open, its title and the watermarked region of its body are updated instead.
+
+If the pull request into main cannot be opened, that is reported with the result
+rather than failing the action, and the draft is still attempted. Calling the
+tool again resumes, as for create_release_candidate, when origin already holds
+hotfix/X.Y.Z at exactly X.Y.Z-RC.0.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -1015,7 +1063,7 @@ ${
     ? `🎯 Target Version: ${workflowResult.targetVersion.version}`
     : ""
 }
-${
+${renderResumed(workflowResult)}${
   workflowResult.pullRequestUrl
     ? `🔗 ${
         workflowResult.pullRequestAction === "updated"
@@ -1023,9 +1071,17 @@ ${
           : "Pull Request"
       }: ${workflowResult.pullRequestUrl}`
     : ""
-}${renderPipelineTrigger(workflowResult.pipelineTrigger)}
+}${renderCreationPullRequestError(
+        workflowResult,
+        "create_release_candidate",
+        "develop"
+      )}${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 
-✅ All steps completed successfully. The ${releaseType} release candidate has been created and is ready for testing.
+${
+  workflowResult.pullRequestError
+    ? "⚠️  The release candidate is on origin, but its pull request was not opened."
+    : `✅ All steps completed successfully. The ${releaseType} release candidate has been created and is ready for testing.`
+}
 
 ${
   workflowResult.pullRequestUrl
@@ -1130,7 +1186,7 @@ ${
     ? `🎯 Target Version: ${workflowResult.targetVersion.version}`
     : ""
 }
-${
+${renderResumed(workflowResult)}${
   workflowResult.pullRequestUrl
     ? `🔗 ${
         workflowResult.pullRequestAction === "updated"
@@ -1138,7 +1194,11 @@ ${
           : "Pull Request"
       }: ${workflowResult.pullRequestUrl}`
     : ""
-}${
+}${renderCreationPullRequestError(
+        workflowResult,
+        "create_hotfix",
+        "main"
+      )}${
         workflowResult.trackingPullRequestUrl
           ? `\n📝 Draft PR to develop: ${workflowResult.trackingPullRequestUrl}`
           : ""
@@ -1148,7 +1208,11 @@ ${
           : ""
       }${renderPipelineTrigger(workflowResult.pipelineTrigger)}
 
-✅ All steps completed successfully.
+${
+  workflowResult.pullRequestError
+    ? "⚠️  The hotfix is on origin, but its pull request into main was not opened."
+    : "✅ All steps completed successfully."
+}
 
 ${
   workflowResult.pullRequestUrl

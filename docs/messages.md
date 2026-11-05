@@ -123,7 +123,7 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | P3 | `<base> has no readable VERSION file at <sha11>, so <action> cannot be planned. Use initialize_versioner to create one.` | refusal | RC (`develop`), HF (`main`) | The base's VERSION is missing, or its first line does not start `X.Y.Z` | Initialize or repair VERSION on the base |
 | P4 | `<base> is at <v>, which is still an active release candidate, so <action> cannot be planned. Promote or retire that candidate first — release_version on its branch, then downmerge it into <base> — so <base> holds a final version.` | refusal | RC, HF | The base's VERSION is an RC | Bring a final version into the base |
 | P5 | `<base> is at '<v>', which is not a semantic version, so <action> cannot be planned.` | refusal | RC, HF | Defensive: P3 catches the same cases first | — |
-| P6 | `Branch <branch> already exists, so <action> cannot create it. Use list_versions to see where it stands.` | refusal | RC, HF | `release/X.Y.Z` or `hotfix/X.Y.Z` exists locally or on origin | Use the existing branch, or delete a stale local one |
+| P6 | `Branch <branch> already exists on origin at <v>, not <X.Y.Z-RC.0>, so <action> cannot create it and there is no earlier run to resume. Use list_versions to see where it stands.` (`<v>` is `no readable version` when there is none) | refusal | RC, HF | `release/X.Y.Z` or `hotfix/X.Y.Z` is on origin at a version other than the planned `RC.0`. A branch only the clone has is replaced instead (W14), and one at exactly the planned `RC.0` is resumed (N5) | Use the existing branch: `increment_release_candidate` or `release_version` on it |
 | P7 | `origin/main has <n> commit(s) whose content is not in origin/develop, so the synchronization check aborts the action. Downmerge main into develop first.` | refusal | RC | After the plan's fetch, `origin/main` is not an ancestor of `origin/develop`, has commits `origin/develop` lacks, and `git diff origin/develop...origin/main` is non-empty | Run the `main` → `develop` downmerge and merge its pull request |
 | P8 | `<source> is already merged into <target>, so there is nothing to downmerge.` | refusal | DM (all routes) | The source head is an ancestor of the target head | Nothing to do |
 | P9 | `<branch> has no readable VERSION file at <sha11>, so there is nothing to revert.` | refusal | REV | The head commit has no readable VERSION | — |
@@ -131,6 +131,7 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | P11 | `<v> is already in main, so it has shipped and cannot be reverted — it can only be superseded by a new version. Cut a new release candidate instead.` | refusal | REV | The head is an ancestor of `origin/main` | Cut a new candidate |
 | P12 | `<branch> holds <n> commit(s) that are not in <base>, so abandoning it would destroy work:` then one `  <sha> <subject>` line per commit, then `Merge or cherry-pick them somewhere safe first. <v> is this branch's first version, so there is no earlier version to revert to and the branch cannot simply be rewound.` | refusal | REV (abandon shape) | Non-merge commits on the branch, other than the bump itself, are not in `origin/<base>` | Save those commits, then retry |
 | P13 | `Could not compare '<source>' with '<base>': git merge-tree exited <n> — <stderr>. Check that both refs exist and share history.` | refusal | DM (all routes) | `git merge-tree` failed for a reason other than a conflict | Fetch both branches; check they share history |
+| P14 | `<branch> is on origin at <X.Y.Z-RC.0> but tag <X.Y.Z-RC.0> is not, and no commit "To version <X.Y.Z-RC.0>" on the branch can be tagged. Tag the commit that set the version by hand, push the tag, and run this again.` | refusal | RC, HF (resume) | A resume would push the missing tag, but the branch has no version commit to put it on | Tag the commit that set `VERSION` by hand |
 
 ## Plan warnings
 
@@ -181,6 +182,7 @@ W11 in a versioning plan.
 | N2 | `The <hotfix/X.Y.Z> → develop pull request opens as a draft holding only a version bump, and conflicts on VERSION until the fix lands and it is reconciled. It is a reminder, not a merge that is ready to take.` | HF | No open `hotfix/X.Y.Z` → `develop` pull request yet |
 | N3 | `No tag <v> exists locally or on origin; nothing to delete.` | REV | The tag is already gone everywhere |
 | N4 | `Deleting a tag does not undo a build or deployment it already triggered. Pushing to <branch> may itself trigger a new one.` | REV | Always |
+| N5 | `<branch> is already on origin at <X.Y.Z-RC.0> (<sha11>), so an earlier run got as far as the push. This resumes it: the branch and the version commit are not made again.` | RC, HF | Origin holds the branch the action would create, at exactly the version it would set. The plan lists only the missing steps |
 
 The merge-branch downmerges (m→d, r→m, h→d) produce no notes and no warnings. A downmerge
 prints its notes with the result, because it applies straight away.
@@ -273,16 +275,17 @@ Each message is prefixed `Step <n> failed: `.
 
 | ID | Exact text after the prefix | Step | Actions | Condition |
 | --- | --- | --- | --- | --- |
-| A1 | `Branch synchronization check failed: Main has <n> commits with actual content differences not in develop. Main must be merged into develop before creating release.` | 1 | RC | `origin/main` holds content `origin/develop` lacks. In practice unreachable: the rebuilt plan refuses first (P7) |
-| A2 | `Branch synchronization check failed: Failed to verify branch synchronization: <err>` | 1 | RC | The comparison failed |
-| A3 | `<develop\|main> has no readable VERSION file` | 2 (RC), 1 (HF) | RC, HF | `origin/<base>` has no readable VERSION (the plan refuses this first, P3) |
+| A1 | `Branch synchronization check failed: Main has <n> commits with actual content differences not in develop. Main must be merged into develop before creating release.` | 2 | RC | `origin/main` holds content `origin/develop` lacks. In practice unreachable: the rebuilt plan refuses first (P7) |
+| A2 | `Branch synchronization check failed: Failed to verify branch synchronization: <err>` | 2 | RC | The comparison failed |
+| A3 | `<develop\|main> has no readable VERSION file` | 1 | RC, HF | `origin/<base>` has no readable VERSION (the plan refuses this first, P3) |
 | A4 | `Failed to create branch '<branch>' from refs/remotes/origin/<base>: <err>` | 3 (RC), 2 (HF) | RC, HF | `git checkout -B` failed, for example over an uncommitted change it would overwrite |
 | A5 | Retired: the hotfix apply no longer fetches or runs a bare `git checkout -b` | — | — | — |
 | A6 | `Failed to create <major\|minor\|patch> release candidate: <err>` | 4 (RC), 3 (HF) | RC, HF | The versioner refused or failed: commit or tag creation, including `Tag '<v>' already exists.` |
 | A7 | `Failed to push branch '<branch>' and tag '<tag>': <err>` | 5 (RC), 4 (HF) | RC, HF | Either push was rejected |
-| A8 | `Failed to create pull request: <err>` | 6 (RC), 5 (HF) | RC, HF | GitHub refused the pull request, other than "already exists" |
-| A9 | `No open PR found for head '<branch>' into '<base>'` | 6 (RC), 5 (HF) | RC, HF (also any PR step below) | GitHub said a pull request exists, but none could be found to update |
-| A10 | `Failed to edit PR #<n>: <err>` | 6 (RC), 5 (HF) | as A9 | Updating the existing pull request failed |
+| A8 | `Failed to create pull request: <err>` | — | RC, HF, and every pull-request step below | GitHub refused the pull request, other than "already exists". No longer thrown by RC or HF: reported as R1 |
+| A9 | `No open PR found for head '<branch>' into '<base>'` | — | as A8 | GitHub said a pull request exists, but none could be found to update. Reported as R1 by RC and HF |
+| A10 | `Failed to edit PR #<n>: <err>` | — | as A8 | Updating the existing pull request failed. Reported as R1 by RC and HF |
+| A36 | `No commit "To version <X.Y.Z-RC.0>" on origin/<branch> to tag` | 5 (RC), 4 (HF) | RC, HF (resume) | The tag is missing on origin and the version commit cannot be found. In practice unreachable: the rebuilt plan refuses first (P14) |
 
 ### `increment_release_candidate` and `release_version`
 
@@ -342,7 +345,7 @@ Problems an apply reports alongside a successful result.
 
 | ID | Exact text | Where it appears | Actions | Condition | What to do |
 | --- | --- | --- | --- | --- | --- |
-| R1 | the pull-request error (A8–A10 text, or G7–G9) | MCP `⚠️  PR step failed: <err>`; CLI `PR step failed: <err>`; `pull_request_error` | INC, REL (step 7) | The pull request to the base could not be opened or updated | Open or edit it by hand |
+| R1 | the pull-request error (A8–A10 text, or G7–G9) | MCP `⚠️  PR step failed: <err>`; CLI `PR step failed: <err>`; `pull_request_error`. For RC and HF followed by `To recover, call <tool> again with the same inputs: it resumes from the push and opens the pull request. Or open <branch> → <base> by hand, titled "RC <v> to <base>".` (CLI: `To recover, run <command> again …`) | RC (step 6), HF (step 5), INC, REL (step 7) | The pull request to the base could not be opened or updated | RC, HF: run the action again, which resumes. INC, REL: open or edit it by hand |
 | R2 | `GitHub returned empty release notes for <v> on <branch> (attempt <i>/3).` | MCP `⚠️  Release notes: …`; CLI `Release notes warning: …`; `release_notes_warning` | REL | Every notes request returned an empty body | Generate the notes on the release page |
 | R3 | `generateReleaseNotes failed (attempt <i>/3): <err>` | as R2 | REL | The last notes request failed | as R2 |
 | R4 | `GitHub returned empty release notes — generate them manually from the release page.` | as R2 | REL | No body and no recorded error | as R2 |
