@@ -139,9 +139,10 @@ test("a hotfix is cut off main at the next patch", async () => {
     plan.mutations.at(-2).detail.title,
     "RC 4.124.1-RC.0 to main"
   );
+  // The title the apply uses, capitalised as GitHub will show it.
   assert.equal(
     plan.mutations.at(-1).detail.title,
-    "hotfix 4.124.1 to develop"
+    "Hotfix 4.124.1 to develop"
   );
   // The draft is unmergeable on arrival and the plan has to say so, or it reads as
   // a second route to production rather than a placeholder. It is expected, so it

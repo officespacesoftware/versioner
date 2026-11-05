@@ -294,3 +294,28 @@ test("a shipped hotfix missing from the release branch is a warning", async () =
       "increment_release_candidate, so the fix is tested before release/1.5.0 ships.",
   ]);
 });
+
+test("every pull request a version bump plans names the title the apply uses", async () => {
+  const titles = (plan) =>
+    plan.mutations
+      .filter((m) => m.kind === "pull-request")
+      .map((m) => m.detail?.title);
+
+  const release = makeAgent({ "release/1.4.0": "1.4.0-RC.2\nabc1234" });
+  assert.deepEqual(titles(await release.planIncrementRC("1.4.0")), [
+    "RC 1.4.0-RC.3 to develop",
+  ]);
+  assert.deepEqual(titles(await release.planReleaseVersion("1.4.0")), [
+    "Release 1.4.0 to main",
+    "Release 1.4.0 to develop",
+  ]);
+
+  const hotfix = makeAgent({ "hotfix/1.3.1": "1.3.1-RC.0\nabc1234" });
+  assert.deepEqual(titles(await hotfix.planIncrementRC("1.3.1")), [
+    "RC 1.3.1-RC.1 to main",
+  ]);
+  assert.deepEqual(titles(await hotfix.planReleaseVersion("1.3.1")), [
+    "Release 1.3.1 to main",
+    "Hotfix 1.3.1 to develop",
+  ]);
+});

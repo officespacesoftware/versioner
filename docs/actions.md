@@ -446,8 +446,8 @@ visible from the start.
 **Plan.** Anchored on `main`. It does not check `main`/`develop` synchronization or missing
 hotfixes. Mutations: branch, commit, tag and push as for a release candidate; pull request
 `open hotfix/X.Y.Z → main` (or update); pull request `open draft hotfix/X.Y.Z → develop`
-(or `update PR #n (…)`). That last one's detail line reads `title: hotfix X.Y.Z to
-develop`; the title actually used is `Hotfix X.Y.Z to develop`. Pre-version checks run
+(or `update PR #n (…)`), each with a `title:` detail line naming the title the apply uses
+(`RC X.Y.Z-RC.0 to main`, `Hotfix X.Y.Z to develop`). Pre-version checks run
 against `main`'s head. A `hotfix/X.Y.Z` on origin at exactly `X.Y.Z-RC.0` is resumed as for
 a [release candidate](#create_release_candidate), N5.
 
@@ -547,7 +547,8 @@ branch second.
 **Plan.** Anchored on the branch (`origin/<branch>` when it exists). Mutations: commit
 `"To version X.Y.Z-RC.(n+1)" on <branch>`; tag; push `<branch> and tag … to origin`; pull
 request `open <branch> → <base>` or `update PR #n (<branch> → <base>)`, where `<base>` is
-`develop` for a release branch and `main` for a hotfix branch. Pre-version checks run
+`develop` for a release branch and `main` for a hotfix branch, with the detail
+`title: RC X.Y.Z-RC.(n+1) to <base>`. Pre-version checks run
 against the branch head. W1 is checked for release branches only.
 
 **Apply, in order.**
@@ -616,8 +617,9 @@ to `develop`.
 **Mode.** Plan → confirm.
 
 **Plan.** Anchored on the branch. Mutations: commit `"To version X.Y.Z" on <branch>`; tag;
-push; pull request `open <branch> → main` (or update); GitHub release `X.Y.Z with
-auto-generated notes`; pull request `open <branch> → develop` (or update). The plan also
+push; pull request `open <branch> → main` (or update), detail `title: Release X.Y.Z to main`;
+GitHub release `X.Y.Z with auto-generated notes`; pull request `open <branch> → develop` (or
+update), detail `title: Release X.Y.Z to develop` or `title: Hotfix X.Y.Z to develop`. The plan also
 rehearses the eventual merge into `main`, read-only (`git rev-list`, `git diff`,
 `git merge-tree`), and warns (W3–W6) rather than refusing: promotion is the last cheap
 moment to take `main`'s changes in first. W1 is checked for release branches only.
@@ -746,7 +748,8 @@ candidate's pull request into `develop` is merged. The diagram is in
   (`<v> locally`, `<v> on origin`) for whichever exist; for a final with a GitHub release,
   its deletion (details: its URL, `the Latest marker moves to the previous release`,
   `release notes are destroyed, including any hand edits`); push `<branch> to origin`;
-  pull request `update PR #n to <resulting>` if one is open on the base.
+  pull request `update PR #n to <resulting>` if one is open on the base, detail
+  `title: RC <resulting> to <base>`.
 - Abandon shape: tag deletions; GitHub release deletion; pull request `close PR #n, with a
   comment explaining why`; branch `<branch> on origin and locally, at <sha11>` with the
   detail `recovery: git branch <branch> <sha11> — if you act before gc`.
