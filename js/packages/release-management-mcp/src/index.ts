@@ -225,7 +225,9 @@ Cuts a new release branch off develop and sets it to an RC.0 version.
 - Aborts unless main is already merged into develop: a release must not be cut
   from a develop that is missing production changes.
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin's main, develop, release/* and hotfix/*
+first, so the plan reflects origin): it returns a plan listing the
 branch, commit, tag, pushes and pull request it would create, plus a digest. Pass
 that digest back as 'confirm' to apply. If the repository changed in between, the
 digest no longer matches and it refuses, returning a fresh plan.
@@ -282,7 +284,9 @@ Cuts a hotfix branch off main and sets it to the next patch RC.0 version.
   the hotfix into develop — the hotfix → develop downmerge still does that, from a
   merge branch, once the fix is written and deployed
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin's main, develop, release/* and hotfix/*
+first, so the plan reflects origin): it returns a plan listing the
 branch, commit, tag, pushes and pull request it would create, plus a digest. Pass
 that digest back as 'confirm' to apply. If the repository changed in between, the
 digest no longer matches and it refuses, returning a fresh plan.
@@ -337,7 +341,9 @@ Bumps the RC number for an existing release or hotfix branch (e.g. RC.1 → RC.2
   see every candidate, then pass the version you want.
 - Works with both release/X.Y.0 and hotfix/X.Y.Z
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin's main, develop, release/* and hotfix/*
+first, so the plan reflects origin): it returns a plan listing the
 commit, tag, pushes and pull request it would create, plus a digest. Pass that
 digest back as 'confirm' to apply. If the repository changed in between, the
 digest no longer matches and it refuses, returning a fresh plan.
@@ -394,7 +400,9 @@ Promotes a release candidate to a final version (e.g. 1.2.0-RC.3 → 1.2.0).
 - If a release/hotfix branch IS checked out but does not hold an RC, this ABORTS
   rather than promoting a different release train. Use list_versions first.
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing the
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin's main, develop, release/* and hotfix/*
+first, so the plan reflects origin): it returns a plan listing the
 commit, tag, pushes, pull request and GitHub release it would create, plus a
 digest. Pass that digest back as 'confirm' to apply. If the repository changed in
 between, the digest no longer matches and it refuses, returning a fresh plan.
@@ -593,7 +601,9 @@ Refuses outright when: the version is already merged into the production branch
 (it shipped, so it can only be superseded); the branch head is not the version
 bump commit; or the branch has no readable VERSION.
 
-Called WITHOUT 'confirm', this changes nothing: it returns a plan listing what it
+Called WITHOUT 'confirm', this changes nothing except refreshing the
+remote-tracking refs (it fetches origin first, so the plan reflects origin): it
+returns a plan listing what it
 would revert and delete, plus a digest. Pass that digest back as 'confirm' to
 apply. If the repository changed in between, the digest no longer matches and it
 refuses, returning a fresh plan.

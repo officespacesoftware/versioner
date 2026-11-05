@@ -131,6 +131,7 @@ test("a dry-run hotfix is computed from main", async () => {
   const ctx = await makeAgent().executeHotfixWorkflow(repo, true);
 
   assert.equal(ctx.currentBranch, "hotfix/1.2.1");
-  assert.match(stepMessage(ctx, 4), /1\.2\.1-RC\.0/);
+  assert.match(stepMessage(ctx, 3), /1\.2\.1-RC\.0/);
+  assert.match(stepMessage(ctx, 4), /hotfix\/1\.2\.1 and tag 1\.2\.1-RC\.0/);
   assert.deepEqual(snapshot(), before);
 });

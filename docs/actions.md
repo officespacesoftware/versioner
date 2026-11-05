@@ -51,14 +51,27 @@ tree.
 
 ### Remote state
 
-Plans never fetch. They read commits and `VERSION` files from the remote-tracking refs
-(`origin/<branch>`) as they stand in the clone, ask origin live only which branch names
-and tags exist (`git ls-remote`), and ask GitHub about pull requests and releases. Applies then fetch or pull before changing anything. So:
+Every plan starts by fetching origin, so it always reflects origin:
 
-- **Fetch before planning** (`git fetch origin`). A plan built on stale refs can be
-  approved, and the apply then acts on the newer state it pulls. For example, the version
-  `create_release_candidate` computes comes from the `develop` it pulls, not from the one
-  the plan read.
+```sh
+git ls-remote --heads origin refs/heads/main refs/heads/develop
+git fetch --prune --no-tags origin '+refs/heads/main:refs/remotes/origin/main' \
+  '+refs/heads/develop:refs/remotes/origin/develop' \
+  '+refs/heads/release/*:refs/remotes/origin/release/*' \
+  '+refs/heads/hotfix/*:refs/remotes/origin/hotfix/*'
+```
+
+(`main` and `develop` only when origin has them.) That writes remote-tracking refs and
+nothing else: no tag, no local branch, no working tree. The plan then reads commits and
+`VERSION` files from those refs (`origin/<branch>`), asks origin live which branch names and
+tags exist (`git ls-remote`), and asks GitHub about pull requests and releases.
+
+**Applies do not fetch or pull.** An apply rebuilds the plan, which fetches, compares the
+digest, and then acts on exactly the remote-tracking refs that rebuilt plan read: new
+branches are cut from `origin/<base>`, existing ones are reset to `origin/<branch>`, and
+merge branches merge `origin/<source>` into `origin/<target>`. If origin moved after the
+plan was approved, the rebuilt plan differs and the apply refuses with D1 and the new plan.
+
 - **Origin is the source of truth; the clone is disposable.** `increment_release_candidate`,
   `release_version` and `revert_version` act on the branch exactly as origin has it: the
   apply checks the branch out and resets it to `origin/<branch>` (`git reset --keep`), so
@@ -127,7 +140,7 @@ request.
 | `downmerge` `main` → `develop`, `release` → `main`, `hotfix` → `develop` | the merge branch |
 | `downmerge` `release` → `develop` | `develop` |
 | `downmerge` `hotfix` → `main` | unchanged |
-| `initialize_versioner`, `list_versions`, `health_check`, any plan | unchanged |
+| `initialize_versioner`, `list_versions`, `health_check`, any plan | unchanged (a plan updates remote-tracking refs only) |
 
 ### Git timeouts
 
@@ -146,15 +159,17 @@ because the pull request it opens is the review: closing it unmerged rejects the
 downmerge. `initialize_versioner` applies immediately because everything it creates is
 local. The diagram is in [flows.md](flows.md#plan-and-confirm).
 
-1. **Called without a confirmation, the action returns a plan and changes nothing.**
-   Building it runs the preconditions, branch selection, every refusal, the read-only
-   checks behind the warnings and notes, and the configured pre-version checks.
+1. **Called without a confirmation, the action returns a plan and changes nothing**
+   beyond the fetch into remote-tracking refs described in [Remote state](#remote-state).
+   Building it runs the preconditions, the fetch, branch selection, every refusal, the
+   read-only checks behind the warnings and notes, and the configured pre-version checks.
 2. **A human approves by handing the plan's digest back**, as `confirm` (MCP) or
    `--confirm <digest>` (CLI). The MCP tool descriptions require the round trip: an agent
    must present the plan, end its turn, and let a person send the digest.
-3. **The action rebuilds the plan and compares digests.** If they differ it refuses with
-   D1 and returns the fresh plan and its digest; nothing is changed. If they match, it
-   applies. Refusals are re-evaluated at this point, and the pre-version checks run again.
+3. **The action rebuilds the plan, fetching again, and compares digests.** If they differ
+   it refuses with D1 and returns the fresh plan and its digest; nothing is changed. If
+   they match, it applies, to the state it has just fetched. Refusals are re-evaluated at
+   this point, and the pre-version checks run again.
 
 A plan (`ChangePlan` in `js/packages/release-management-core/src/change-plan.ts`) holds:
 
@@ -222,7 +237,7 @@ A notice and a warning with the same text digest differently.
 | mutation `detail` lines (pull request titles, tag messages, file lists, recovery commands, release URLs) | Derived from covered facts, or presentation |
 | `checkOutput` | Output carries timings and download progress that differ between two runs of the same check; the warning naming the failure is covered |
 | `pipelineTrigger` | It depends on pull requests to any base, which open and close without the repository moving; the apply checks again after the push regardless. The configuration it reads is covered through the branch head |
-| anything the clone has not fetched | Plans read remote-tracking refs. See [Remote state](#remote-state) |
+| local branches other than the one acted on | Applies cut and reset from origin's refs, which the plan fetched. See [Remote state](#remote-state) |
 | local commits not on origin | Version reads prefer origin, and the apply resets the branch to origin. The commits it drops are named in W14, which is covered |
 
 ### `dryRun`
@@ -328,14 +343,14 @@ checks run against `develop`'s head.
 
 **Apply, in order.**
 
-1. Fetch `main` and `develop` into their remote-tracking refs
-   (`git fetch origin '+refs/heads/main:refs/remotes/origin/main' '+refs/heads/develop:refs/remotes/origin/develop'`),
-   then require `origin/main` to be in `origin/develop`, or to add no commits, or to add
-   commits with no content difference. Otherwise A1. Runs on a dry run too.
-2. `git checkout develop` and `git pull origin develop` (or create `develop` from
-   `FETCH_HEAD` when there is no local branch).
-3. Compute the version from the working tree's `VERSION`, and `git checkout -b
-   release/X.Y.Z`.
+Nothing is fetched or pulled: the plan rebuilt just before the apply fetched, and every
+step reads the remote-tracking refs it fetched.
+
+1. Require `origin/main` to be in `origin/develop`, or to add no commits, or to add commits
+   with no content difference. Otherwise A1. Runs on a dry run too.
+2. Read `origin/develop`'s `VERSION` and compute the version and branch name from it.
+3. `git checkout -B release/X.Y.Z origin/develop`. A local `release/X.Y.Z` that origin does
+   not have is replaced (the plan warned, W14). Skipped on a dry run.
 4. Delete a stale local tag `X.Y.Z-RC.0`; the versioner writes `VERSION`, commits and tags.
 5. `git push -u origin release/X.Y.Z`, then `git push origin X.Y.Z-RC.0`.
 6. Open the pull request (or update it, on 422). **A failure here fails the action.**
@@ -348,8 +363,8 @@ branch, target and type (such as `Minor Release Candidate`), the changes, and th
 completed workflow steps.
 
 **Messages.** Refusals G1, G2, G4, G6, G7–G9, G14, U4/U5, P2–P7, D1. Warnings W1
-(`develop`), W2, W7–W11. Notes N1. Pipeline T2–T10. Apply failures A1–A4, A6–A10, G12,
-G13.
+(`develop`), W2, W7–W11, W14. Notes N1. Pipeline T2–T10. Apply failures A1–A4, A6–A10,
+G12, G13.
 
 **CLI `$GITHUB_OUTPUT`.** `release_type`, `version`, `pull_request_url`,
 `pull_request_action`, `pipeline_trigger`.
@@ -362,7 +377,8 @@ G13.
 | `origin/main` holds content `origin/develop` lacks | P7 refusal |
 | `develop` has no readable `VERSION` | P3 refusal |
 | `develop`'s `VERSION` is an RC | P4 refusal |
-| `release/X.Y.Z` exists locally or on origin | P6 refusal |
+| `release/X.Y.Z` exists on origin | P6 refusal |
+| `release/X.Y.Z` exists only locally | Replaced by the apply; W14 names any commits it holds that `origin/develop` does not |
 | Tag `X.Y.Z-RC.0` exists on origin | P2 refusal |
 | Tag `X.Y.Z-RC.0` exists only locally | No message; the apply deletes it before tagging |
 | A shipped `hotfix/*` is not in `develop` | W1 warning |
@@ -372,16 +388,16 @@ G13.
 | No `confirm` | Plan returned, nothing changed |
 | `confirm` differs from the rebuilt plan | D1 refusal with a fresh plan |
 | `confirm` matches | Apply |
-| After the apply's fetch, `main` holds content `develop` lacks | A1; nothing created |
+| At apply, `origin/main` holds content `origin/develop` lacks | A1; nothing created. In practice unreachable: the rebuilt plan refuses first (P7) |
 
 ### `create_release_candidate`: partial failure and recovery
 
 | Failed at | Left behind | Recover |
 | --- | --- | --- |
-| 1 | Updated remote-tracking refs | Downmerge `main` into `develop`, plan again |
-| 2 | Possibly `develop` checked out, or a conflicted pull | Repair the local `develop`, plan again |
-| 3–4 | Local `release/X.Y.Z`, maybe a local commit and tag | `git checkout develop && git branch -D release/X.Y.Z`; the local tag is dropped automatically next time. Plans refuse (P6) until the local branch is gone |
-| 5, branch push | Local branch, commit and tag | As 3–4, or push both by hand and open the pull request by hand |
+| 1 | Nothing | Downmerge `main` into `develop`, plan again |
+| 2 | Nothing | Repair `develop`'s `VERSION`, plan again |
+| 3–4 | Local `release/X.Y.Z`, maybe a local commit and tag | Plan again: the local branch is replaced from `origin/develop` (W14) and the local tag dropped before tagging |
+| 5, branch push | Local branch, commit and tag | As 3–4 |
 | 5, tag push | Branch on origin without its tag | `git push origin X.Y.Z-RC.0`, then open the pull request by hand. Rerunning is refused (P6) |
 | 6 | Branch and tag on origin, no pull request, and the pipeline trigger has not run | Open `release/X.Y.Z` → `develop` titled `RC X.Y.Z-RC.0 to develop` by hand (`gh pr create --base develop --head release/X.Y.Z`). Rerunning is refused (P6) |
 
@@ -414,14 +430,16 @@ against `main`'s head.
 
 **Apply, in order.**
 
-1. `git fetch origin 'main'` (to `FETCH_HEAD`).
-2. `git checkout main` and `git pull origin main`.
-3. `git checkout -b hotfix/X.Y.Z`, the version computed from the working tree.
-4. Delete a stale local tag; the versioner commits and tags.
-5. `git push -u origin hotfix/X.Y.Z`, then `git push origin X.Y.Z-RC.0`.
-6. Pull request into `main`. **A failure here fails the action.**
-7. Draft pull request into `develop`. A failure is reported (R7), not thrown.
-8. Pipeline trigger: normally `skipped`.
+Nothing is fetched or pulled, as for a release candidate.
+
+1. Read `origin/main`'s `VERSION` and compute the version and branch name from it.
+2. `git checkout -B hotfix/X.Y.Z origin/main`, replacing a local-only `hotfix/X.Y.Z` (W14).
+   Skipped on a dry run.
+3. Delete a stale local tag; the versioner commits and tags.
+4. `git push -u origin hotfix/X.Y.Z`, then `git push origin X.Y.Z-RC.0`.
+5. Pull request into `main`. **A failure here fails the action.**
+6. Draft pull request into `develop`. A failure is reported (R7), not thrown.
+7. Pipeline trigger: normally `skipped`.
 
 **Pull requests.**
 
@@ -431,7 +449,7 @@ against `main`'s head.
 | `hotfix/X.Y.Z` → `develop` | `Hotfix X.Y.Z to develop` | yes (an already-open one keeps its state) | `## Hotfix X.Y.Z to develop`, "Draft placeholder…", **This is not ready to merge** (it conflicts on `VERSION` by construction), next steps: ship through `main`, run the `hotfix` → `develop` downmerge after the deploy, close this draft once that one is merged |
 
 **Messages.** Refusals G1, G2, G4, G6, G7–G9, G14, P2–P6, D1. Warnings W7–W11. Notes N1
-(either pair), N2. Pipeline T2–T10. Apply failures A3, A5–A10. Report R7.
+(either pair), N2. Warning W14. Pipeline T2–T10. Apply failures A3, A6–A10. Report R7.
 
 **CLI `$GITHUB_OUTPUT`.** `version`, `pull_request_url`, `pull_request_action`,
 `pipeline_trigger`. The draft pull request's URL and error appear only in `--json`
@@ -443,7 +461,8 @@ against `main`'s head.
 | --- | --- |
 | `main` has no readable `VERSION` | P3 refusal |
 | `main`'s `VERSION` is an RC | P4 refusal |
-| `hotfix/X.Y.Z` exists locally or on origin | P6 refusal |
+| `hotfix/X.Y.Z` exists on origin | P6 refusal |
+| `hotfix/X.Y.Z` exists only locally | Replaced by the apply; W14 names any commits it holds that `origin/main` does not |
 | Tag `X.Y.Z-RC.0` on origin | P2 refusal |
 | Check or configuration problems | W7–W11 warnings |
 | `hotfix/X.Y.Z` → `main` already open | N1; updated |
@@ -454,8 +473,8 @@ against `main`'s head.
 ### `create_hotfix`: partial failure and recovery
 
 As [`create_release_candidate`](#create_release_candidate-partial-failure-and-recovery),
-with `hotfix/X.Y.Z` and `main`. If step 3 fails because a local `hotfix/X.Y.Z` exists
-(A5), delete it. If step 7 fails, open the draft by hand, or skip it: the
+with `hotfix/X.Y.Z` and `main`, and every step number one lower (there is no
+synchronization step). If step 6 fails, open the draft by hand, or skip it: the
 `hotfix` → `develop` downmerge does not need it.
 
 ---
@@ -863,20 +882,21 @@ updated.
 
 ### Apply, per route
 
+The plan built first fetched origin ([Remote state](#remote-state)); the merge-branch routes
+fetch and pull nothing more, and merge only remote-tracking refs, so the pull request
+carries exactly what the plan previewed and no commit that only the clone has.
+
 **`main` → `develop`.**
 
-1. Fetch `main` and `develop` into their remote-tracking refs.
-2. `git checkout main`, `git pull origin main`, `git checkout develop`,
-   `git pull origin develop`.
-3. Title from `main`'s newest non-merge commit (`git log -1 --no-merges origin/main`):
+1. Title from `main`'s newest non-merge commit (`git log -1 --no-merges origin/main`):
    `To version <v>` gives `Release <v> to develop`; anything else gives
    `Downmerge main into develop`.
-4. Check out and pull `develop`, `git checkout -b main-into-develop-<ts>`,
-   `git merge --no-ff -m "Downmerge main into develop" main`. A conflict aborts the merge,
-   deletes the local branch, returns to `develop` and hands off H1. A merge that adds
+2. `git checkout -b main-into-develop-<ts> origin/develop`,
+   `git merge --no-ff -m "Downmerge main into develop" origin/main`. A conflict aborts the
+   merge, deletes the local branch, returns to `develop` and hands off H1. A merge that adds
    nothing deletes the local branch and fails with A28.
-5. `git push -u origin main-into-develop-<ts>`.
-6. Open the pull request into `develop`. Body: `## Downmerge Main to Develop`, source,
+3. `git push -u origin main-into-develop-<ts>`.
+4. Open the pull request into `develop`. Body: `## Downmerge Main to Develop`, source,
    target, and the version when detected. No warning.
 
 The result reports only the pull request URL; the merge branch name is not returned
@@ -896,11 +916,11 @@ The result reports only the pull request URL; the merge branch name is not retur
 
 **`release` → `main`.**
 
-1. Check out and pull `main`, then `release/X.Y.Z`.
-2. As `main` → `develop` step 4, off `main`, branch `release-X.Y.Z-into-main-<ts>`, message
-   `Merge release/X.Y.Z into main`. A conflict hands off H2.
-3. `git push -u origin release-X.Y.Z-into-main-<ts>`.
-4. Open the pull request into `main`, titled `Release X.Y.Z to main`. Body:
+1. As `main` → `develop` step 2: `release-X.Y.Z-into-main-<ts>` off `origin/main`, merging
+   `origin/release/X.Y.Z` with the message `Merge release/X.Y.Z into main`. A conflict hands
+   off H2.
+2. `git push -u origin release-X.Y.Z-into-main-<ts>`.
+3. Open the pull request into `main`, titled `Release X.Y.Z to main`. Body:
    `## Release X.Y.Z to main`, the production warning, why a merge branch is used, and the
    version, source, target and merge branch.
 
@@ -910,23 +930,21 @@ is in `main`.
 
 **`hotfix` → `develop`.**
 
-1. Check out and pull `develop`, then `hotfix/X.Y.Z`.
-2. As `main` → `develop` step 4, off `develop`, branch `hotfix-X.Y.Z-into-develop-<ts>`,
-   message `Merge hotfix/X.Y.Z into develop`. A conflict hands off H1.
-3. `git push -u origin hotfix-X.Y.Z-into-develop-<ts>`.
-4. Open the pull request into `develop`, titled `Hotfix X.Y.Z to develop`. Body:
+1. As `main` → `develop` step 2: `hotfix-X.Y.Z-into-develop-<ts>` off `origin/develop`,
+   merging `origin/hotfix/X.Y.Z` with the message `Merge hotfix/X.Y.Z into develop`. A
+   conflict hands off H1.
+2. `git push -u origin hotfix-X.Y.Z-into-develop-<ts>`.
+3. Open the pull request into `develop`, titled `Hotfix X.Y.Z to develop`. Body:
    `## Hotfix X.Y.Z to develop`, why a merge branch is used, version details. No warning.
-5. Find the open `hotfix/X.Y.Z` → `develop` pull request (the draft from `create_hotfix`, or
+4. Find the open `hotfix/X.Y.Z` → `develop` pull request (the draft from `create_hotfix`, or
    the one `release_version` opened), comment `Superseded by <url>…` and close it. A
    failure is only logged (R9).
 
 **`hotfix` → `main`.**
 
-1. Fetch `main` and `develop` into their remote-tracking refs, and `git fetch origin
-   hotfix/X.Y.Z`. No checkout.
-2. Preview the merge of `origin/hotfix/X.Y.Z` into `origin/main` again; a conflict hands off
-   H2.
-3. Open or update `hotfix/X.Y.Z` → `main` (normally the one `create_hotfix` opened), titled
+1. Preview the merge of `origin/hotfix/X.Y.Z` into `origin/main` again, on the refs the plan
+   fetched; a conflict hands off H2. No checkout.
+2. Open or update `hotfix/X.Y.Z` → `main` (normally the one `create_hotfix` opened), titled
    `Release X.Y.Z to main`. Body: `## Hotfix X.Y.Z to main`, the production warning, and
    version details.
 

@@ -36,7 +36,7 @@ pull request.** See [Maintaining these documents](README.md#maintaining-these-do
 
 | Category | Meaning | What has changed when you see it |
 | --- | --- | --- |
-| refusal | The action stopped before changing anything. An approval cannot get past it. | Nothing (at most, remote-tracking refs were fetched) |
+| refusal | The action stopped before changing anything. An approval cannot get past it. | Nothing but remote-tracking refs, which every plan fetches |
 | warning | Listed under "Warnings:" in a plan. The action can go ahead; a human should weigh it before confirming. Covered by the digest. | Nothing yet |
 | note | Listed under "Notes:" in a plan. Informational. Covered by the digest. | Nothing yet |
 | handoff | A downmerge conflicts. Nothing was created; the message is the procedure to finish by hand, or the decision to make. | Nothing |
@@ -124,7 +124,7 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | P4 | `<base> is at <v>, which is still an active release candidate, so <action> cannot be planned. Promote or retire that candidate first — release_version on its branch, then downmerge it into <base> — so <base> holds a final version.` | refusal | RC, HF | The base's VERSION is an RC | Bring a final version into the base |
 | P5 | `<base> is at '<v>', which is not a semantic version, so <action> cannot be planned.` | refusal | RC, HF | Defensive: P3 catches the same cases first | — |
 | P6 | `Branch <branch> already exists, so <action> cannot create it. Use list_versions to see where it stands.` | refusal | RC, HF | `release/X.Y.Z` or `hotfix/X.Y.Z` exists locally or on origin | Use the existing branch, or delete a stale local one |
-| P7 | `origin/main has <n> commit(s) whose content is not in origin/develop, so the synchronization check aborts the action. This compares the remote-tracking refs as they stand; the action fetches them first. Downmerge main into develop first.` | refusal | RC | `origin/main` is not an ancestor of `origin/develop`, has commits `origin/develop` lacks, and `git diff origin/develop...origin/main` is non-empty | Run the `main` → `develop` downmerge and merge its pull request |
+| P7 | `origin/main has <n> commit(s) whose content is not in origin/develop, so the synchronization check aborts the action. Downmerge main into develop first.` | refusal | RC | After the plan's fetch, `origin/main` is not an ancestor of `origin/develop`, has commits `origin/develop` lacks, and `git diff origin/develop...origin/main` is non-empty | Run the `main` → `develop` downmerge and merge its pull request |
 | P8 | `<source> is already merged into <target>, so there is nothing to downmerge.` | refusal | DM (all routes) | The source head is an ancestor of the target head | Nothing to do |
 | P9 | `<branch> has no readable VERSION file at <sha11>, so there is nothing to revert.` | refusal | REV | The head commit has no readable VERSION | — |
 | P10 | `The head of <branch> is "<subject>", not "To version <v>". revert_version undoes a version bump and will not guess which earlier commit set the version. Revert by hand, or land the bump you mean to undo at the head of the branch.` | refusal | REV | The head commit's subject is not the bump of the version it holds (for example, a fix was pushed after the bump) | Revert by hand, or only revert immediately after a bump |
@@ -273,16 +273,16 @@ Each message is prefixed `Step <n> failed: `.
 
 | ID | Exact text after the prefix | Step | Actions | Condition |
 | --- | --- | --- | --- | --- |
-| A1 | `Branch synchronization check failed: Main has <n> commits with actual content differences not in develop. Main must be merged into develop before creating release.` | 1 | RC | After fetching, `main` still holds content `develop` lacks (origin moved since the plan) |
-| A2 | `Branch synchronization check failed: Failed to verify branch synchronization: <err>` | 1 | RC | The fetch or comparison failed |
-| A3 | `Failed to checkout and pull branch '<develop\|main>': <err>` | 2 | RC, HF | Checkout or pull of the base failed |
-| A4 | `Failed to create release branch for version '<X.Y.Z>': Error: Release branch 'release/<X.Y.Z>' already exists` | 3 | RC | A local `release/X.Y.Z` exists (the plan refuses this first) |
-| A5 | `Git command failed: <err>` | 1, 3 | HF | Fetching `main`, or `git checkout -b hotfix/X.Y.Z` (for example the branch exists locally) |
-| A6 | `Failed to create <major\|minor\|patch> release candidate: <err>` | 4 | RC, HF | The versioner refused or failed: commit or tag creation, including `Tag '<v>' already exists.` |
-| A7 | `Failed to push branch '<branch>' and tag '<tag>': <err>` | 5 | RC, HF | Either push was rejected |
-| A8 | `Failed to create pull request: <err>` | 6 | RC, HF | GitHub refused the pull request, other than "already exists" |
-| A9 | `No open PR found for head '<branch>' into '<base>'` | 6 | RC, HF (also any PR step below) | GitHub said a pull request exists, but none could be found to update |
-| A10 | `Failed to edit PR #<n>: <err>` | 6 | as A9 | Updating the existing pull request failed |
+| A1 | `Branch synchronization check failed: Main has <n> commits with actual content differences not in develop. Main must be merged into develop before creating release.` | 1 | RC | `origin/main` holds content `origin/develop` lacks. In practice unreachable: the rebuilt plan refuses first (P7) |
+| A2 | `Branch synchronization check failed: Failed to verify branch synchronization: <err>` | 1 | RC | The comparison failed |
+| A3 | `<develop\|main> has no readable VERSION file` | 2 (RC), 1 (HF) | RC, HF | `origin/<base>` has no readable VERSION (the plan refuses this first, P3) |
+| A4 | `Failed to create branch '<branch>' from refs/remotes/origin/<base>: <err>` | 3 (RC), 2 (HF) | RC, HF | `git checkout -B` failed, for example over an uncommitted change it would overwrite |
+| A5 | Retired: the hotfix apply no longer fetches or runs a bare `git checkout -b` | — | — | — |
+| A6 | `Failed to create <major\|minor\|patch> release candidate: <err>` | 4 (RC), 3 (HF) | RC, HF | The versioner refused or failed: commit or tag creation, including `Tag '<v>' already exists.` |
+| A7 | `Failed to push branch '<branch>' and tag '<tag>': <err>` | 5 (RC), 4 (HF) | RC, HF | Either push was rejected |
+| A8 | `Failed to create pull request: <err>` | 6 (RC), 5 (HF) | RC, HF | GitHub refused the pull request, other than "already exists" |
+| A9 | `No open PR found for head '<branch>' into '<base>'` | 6 (RC), 5 (HF) | RC, HF (also any PR step below) | GitHub said a pull request exists, but none could be found to update |
+| A10 | `Failed to edit PR #<n>: <err>` | 6 (RC), 5 (HF) | as A9 | Updating the existing pull request failed |
 
 ### `increment_release_candidate` and `release_version`
 
@@ -348,7 +348,7 @@ Problems an apply reports alongside a successful result.
 | R4 | `GitHub returned empty release notes — generate them manually from the release page.` | as R2 | REL | No body and no recorded error | as R2 |
 | R5 | `Failed to patch release notes after creation: <err>` | as R2 | REL | Notes appeared on the retry but the release could not be updated | as R2 |
 | R6 | the pull-request error | MCP `⚠️  <main\|develop> PR refresh failed: <err>`; CLI `<targetBranch> PR refresh failed: <err>`; `own_base_pull_request_error` | REL (step 10) | The `develop` pull request could not be opened or updated. The label shows the branch's PR target (`main` for a hotfix), not `develop` | Open or edit it by hand |
-| R7 | the pull-request error | MCP `⚠️  Could not open the develop PR: <err>`; CLI only in `--json` (`trackingPullRequestError`) | HF (step 7) | The draft `develop` pull request could not be opened | Open it by hand, or rely on the `hotfix` → `develop` downmerge later |
+| R7 | the pull-request error | MCP `⚠️  Could not open the develop PR: <err>`; CLI only in `--json` (`trackingPullRequestError`) | HF (step 6) | The draft `develop` pull request could not be opened | Open it by hand, or rely on the `hotfix` → `develop` downmerge later |
 | R8 | the pull-request error | MCP `⚠️  Pull request step failed: <err>`; CLI `PR step failed: <err>`; `pull_request_error` | REV | Updating (revert) or closing (abandon) the pull request failed | Edit or close it by hand |
 | R9 | `⚠️  Could not close the superseded <hotfix/X.Y.Z> → develop PR: <err>` | log only | DM h→d | Closing the draft tracking pull request failed. Not in the result | Close it by hand |
 

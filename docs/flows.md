@@ -80,7 +80,8 @@ sequenceDiagram
   participant R as Repository and GitHub
 
   C->>T: call without confirm
-  T->>R: preconditions, branch selection, read-only facts, pre-version checks
+  T->>R: preconditions, fetch origin into remote-tracking refs
+  T->>R: branch selection, read-only facts, pre-version checks
   alt a refusal applies
     T-->>C: refusal, nothing changed
   else
@@ -88,11 +89,11 @@ sequenceDiagram
     C->>H: present the plan and stop
     H->>C: approve by sending the digest
     C->>T: call again with confirm set to the digest
-    T->>R: rebuild the plan, run the checks again
+    T->>R: fetch again, rebuild the plan, run the checks again
     alt digest differs
       T-->>C: D1 refusal with the fresh plan and its digest
     else digest matches
-      T->>R: fetch or pull, then commit, tag, push, pull requests, release
+      T->>R: on the refs just fetched: commit, tag, push, pull requests, release
       T->>R: pipeline trigger when the branch heads no open PR
       T-->>C: result, with any apply reports
     end
@@ -111,7 +112,8 @@ flowchart TD
   ROUTE -->|no| U6["U6 refusal"]
   ROUTE -->|yes| GUARD{"git repository, nothing staged?"}
   GUARD -->|no| G["G1 or G2 refusal"]
-  GUARD -->|yes| SRC{"source"}
+  GUARD -->|yes| FETCHO["fetch origin into remote-tracking refs"]
+  FETCHO --> SRC{"source"}
   SRC -->|main| PREVIEW
   SRC -->|"release or hotfix"| SEL{"version given?"}
   SEL -->|yes| BYNAME["branch named release/version or hotfix/version<br/>none: S12"]
@@ -125,7 +127,7 @@ flowchart TD
   PREVIEW -->|clean| ANC{"source already in target?"}
   ANC -->|yes| P8["P8 refusal"]
   ANC -->|no| KIND{"route"}
-  KIND -->|"main → develop, release → main, hotfix → develop"| MB["pull both, cut merge branch off target,<br/>git merge --no-ff source"]
+  KIND -->|"main → develop, release → main, hotfix → develop"| MB["cut merge branch off origin/target,<br/>git merge --no-ff origin/source"]
   MB -->|conflict| HX["H1 or H2, local branch deleted"]
   MB -->|no new commit| A28["A28, nothing pushed"]
   MB -->|merged| PUSH["push merge branch, open PR into target"]
@@ -133,7 +135,7 @@ flowchart TD
   KIND -->|"release → develop"| TRIAL["trial merge in the working tree, then abort"]
   TRIAL -->|conflict| H1B["H1"]
   TRIAL -->|clean| DPR["open or update release → develop PR"]
-  KIND -->|"hotfix → main"| FETCH["fetch, preview again"]
+  KIND -->|"hotfix → main"| FETCH["preview again on the fetched refs"]
   FETCH -->|conflict| H2B["H2"]
   FETCH -->|clean| HPR["open or update hotfix → main PR"]
 ```

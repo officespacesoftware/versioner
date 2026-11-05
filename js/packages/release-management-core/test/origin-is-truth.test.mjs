@@ -198,3 +198,62 @@ test("a local branch behind origin is fast-forwarded without a warning", async (
   assert.equal(result.targetVersion.version, "1.4.0-RC.3");
   assert.equal(originVersion("release/1.4.0"), "1.4.0-RC.3");
 });
+
+/** Push a commit to `branch` from a second clone, as a colleague would. */
+function pushFromAnotherClone(branch, file) {
+  const other = mkdtempSync(join(tmpdir(), "truth-other-"));
+  const run = (...args) =>
+    execFileSync("git", args, { cwd: other, encoding: "utf8" }).trim();
+  try {
+    execFileSync("git", ["clone", "-q", "-b", branch, origin, other]);
+    run("config", "user.email", "other@example.com");
+    run("config", "user.name", "Other");
+    run("config", "commit.gpgsign", "false");
+    writeFileSync(join(other, file), `${file}\n`);
+    run("add", "-A");
+    run("commit", "-q", "-m", `Add ${file}`);
+    run("push", "-q", "origin", branch);
+    return run("rev-parse", "HEAD");
+  } finally {
+    rmSync(other, { recursive: true, force: true });
+  }
+}
+
+test("a plan fetches, so a push from another clone moves its digest", async () => {
+  const agent = makeAgent();
+  const first = await agent.planIncrementRC("1.4.0");
+
+  const pushed = pushFromAnotherClone("release/1.4.0", "fix.txt");
+  const second = await agent.planIncrementRC("1.4.0");
+
+  assert.equal(second.targetBranchHead, pushed);
+  assert.notEqual(second.digest, first.digest);
+});
+
+test("a release candidate is cut from the develop the plan read", async () => {
+  const agent = makeAgent();
+  agent.versionerAdapter.createReleaseCandidate = async () => {
+    const [major, minor] = git("show", "HEAD:VERSION").split(".").map(Number);
+    const next = `${major}.${minor + 1}.0-RC.0`;
+    commit("VERSION", version(next), `To version ${next}`);
+    tagVersion(next);
+    return parseVersion(next);
+  };
+  // Only develop and main: no release in flight.
+  git("checkout", "-q", "develop");
+  git("push", "-q", "origin", ":release/1.4.0", ":refs/tags/1.4.0-RC.1");
+  git("branch", "-q", "-D", "release/1.4.0");
+  git("tag", "-d", "1.4.0-RC.1");
+
+  const plan = await agent.planCreateReleaseCandidate("minor");
+  // develop moves after the plan was approved; the apply must not pick it up.
+  pushFromAnotherClone("develop", "late.txt");
+
+  await agent.executeRCWorkflow("minor", repo, false);
+
+  assert.equal(git("rev-parse", "release/1.4.0^"), plan.targetBranchHead);
+  assert.equal(
+    git("rev-parse", "origin/release/1.4.0^"),
+    plan.targetBranchHead
+  );
+});

@@ -6,6 +6,9 @@
 // cannot move HEAD, switch branches, or touch the working tree. Every builder is
 // run against real git and the repository is compared byte for byte afterwards.
 //
+// A plan does fetch, so that it reflects origin. That writes remote-tracking refs
+// and nothing else, which the last test pins.
+//
 // findOpenPullRequest is the one call that reaches GitHub rather than git, so it
 // is the one thing stubbed out.
 
@@ -187,4 +190,36 @@ test("a commit on the source branch invalidates the downmerge digest", async () 
   const after = await makeAgent().planDownmergeHotfixToMain();
 
   assert.notEqual(before.digest, after.digest);
+});
+
+test("a plan fetches origin, moving remote-tracking refs and nothing else", async () => {
+  const other = mkdtempSync(join(tmpdir(), "plan-other-"));
+  const run = (...args) =>
+    execFileSync("git", args, { cwd: other, encoding: "utf8" }).trim();
+  let pushed;
+  try {
+    execFileSync("git", ["clone", "-q", "-b", "develop", origin, other]);
+    run("config", "user.email", "other@example.com");
+    run("config", "user.name", "Other");
+    run("config", "commit.gpgsign", "false");
+    writeFileSync(join(other, "late.txt"), "late\n");
+    run("add", "-A");
+    run("commit", "-q", "-m", "a later change");
+    run("push", "-q", "origin", "develop");
+    pushed = run("rev-parse", "HEAD");
+  } finally {
+    rmSync(other, { recursive: true, force: true });
+  }
+
+  const local = () => ({
+    ...snapshot(),
+    refs: git("for-each-ref", "--format=%(refname) %(objectname)", "refs/heads", "refs/tags"),
+  });
+  const before = local();
+
+  const plan = await makeAgent().planDownmergeMainToDevelop();
+
+  assert.equal(plan.targetBranchHead, pushed);
+  assert.equal(git("rev-parse", "refs/remotes/origin/develop"), pushed);
+  assert.deepEqual(local(), before);
 });

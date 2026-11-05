@@ -268,7 +268,7 @@ export class ReleaseAgent {
           name: "Verify main/develop synchronization",
           status: "pending",
         },
-        { step: 2, name: "Checkout develop branch", status: "pending" },
+        { step: 2, name: "Read develop's version", status: "pending" },
         { step: 3, name: "Create release branch", status: "pending" },
         {
           step: 4,
@@ -283,7 +283,7 @@ export class ReleaseAgent {
     try {
       // Execute each step of the workflow
       await this.executeStep1_VerifyBranchSync();
-      await this.executeStep2_CheckoutDevelop();
+      await this.executeStep2_ReadDevelopVersion();
       await this.executeStep3_CreateReleaseBranch();
       await this.executeStep4_UpdateVersion();
       await this.executeStep5_PushBranchAndTag();
@@ -336,14 +336,13 @@ export class ReleaseAgent {
       currentBranch: "unknown",
       dryRun,
       stepProgress: [
-        { step: 1, name: "Fetch latest main branch", status: "pending" },
-        { step: 2, name: "Checkout main branch", status: "pending" },
-        { step: 3, name: "Create hotfix branch", status: "pending" },
-        { step: 4, name: "Update version to patch RC", status: "pending" },
-        { step: 5, name: "Push hotfix branch and tag", status: "pending" },
-        { step: 6, name: "Create pull request to main", status: "pending" },
+        { step: 1, name: "Read main's version", status: "pending" },
+        { step: 2, name: "Create hotfix branch", status: "pending" },
+        { step: 3, name: "Update version to patch RC", status: "pending" },
+        { step: 4, name: "Push hotfix branch and tag", status: "pending" },
+        { step: 5, name: "Create pull request to main", status: "pending" },
         {
-          step: 7,
+          step: 6,
           name: "Open draft pull request to develop",
           status: "pending",
         },
@@ -352,13 +351,12 @@ export class ReleaseAgent {
 
     try {
       // Execute each step of the hotfix workflow
-      await this.executeHotfixStep1_FetchMain();
-      await this.executeHotfixStep2_CheckoutMain();
-      await this.executeHotfixStep3_CreateHotfixBranch();
-      await this.executeHotfixStep4_UpdateVersion();
-      await this.executeHotfixStep5_PushBranchAndTag();
-      await this.executeHotfixStep6_CreatePullRequest();
-      await this.executeHotfixStep7_TrackingPullRequest();
+      await this.executeHotfixStep1_ReadMainVersion();
+      await this.executeHotfixStep2_CreateHotfixBranch();
+      await this.executeHotfixStep3_UpdateVersion();
+      await this.executeHotfixStep4_PushBranchAndTag();
+      await this.executeHotfixStep5_CreatePullRequest();
+      await this.executeHotfixStep6_TrackingPullRequest();
       await this.startPipelineIfUnbuilt("create_hotfix");
 
       console.log(`\n✅ Hotfix Workflow completed successfully!`);
@@ -408,28 +406,20 @@ export class ReleaseAgent {
   }
 
   /**
-   * Step 2: Checkout the develop branch (with fresh git pull)
+   * Step 2: read develop's version as origin has it, and name the release branch
+   * from it. Nothing is checked out or pulled: the branch is cut from the
+   * remote-tracking ref the plan fetched, so the version is the one approved.
    */
-  private async executeStep2_CheckoutDevelop(): Promise<void> {
+  private async executeStep2_ReadDevelopVersion(): Promise<void> {
     const step = this.updateStepStatus(2, "in_progress");
-    console.log("📋 Step 2: Checking out develop branch...");
+    console.log("📋 Step 2: Reading develop's version...");
 
     try {
-      if (!this.context!.dryRun) {
-        // Use GitFlowManager to checkout develop and pull latest changes
-        await this.gitFlowManager.checkoutAndPull("develop");
-        console.log(
-          "   🔄 Checked out develop branch and pulled latest changes"
-        );
-      } else {
-        console.log(
-          "   🔄 [DRY RUN] Would checkout develop and pull latest changes"
-        );
-      }
-
-      this.context!.currentBranch = "develop";
-      step.message =
-        "Successfully checked out develop branch and pulled latest changes";
+      const releaseType = (this.context as ReleaseWorkflowContext).releaseType;
+      const current = await this.originVersion("develop");
+      const next = nextVersionFor(current.version, releaseType);
+      this.context!.currentBranch = `release/${next}`;
+      step.message = `develop is at ${current.version}, so the release branch is release/${next}`;
       this.updateStepStatus(2, "completed");
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
@@ -439,52 +429,23 @@ export class ReleaseAgent {
   }
 
   /**
-   * Step 3: Create a new release branch from develop
+   * Step 3: Create the release branch at origin/develop
    */
   private async executeStep3_CreateReleaseBranch(): Promise<void> {
     const step = this.updateStepStatus(3, "in_progress");
+    const releaseBranch = this.context!.currentBranch;
     console.log("📋 Step 3: Creating release branch...");
 
     try {
-      // Get current version to determine the release branch name
-      const currentVersion = await this.workingVersion("develop");
-      const releaseType = (this.context! as ReleaseWorkflowContext).releaseType;
-
-      // Calculate next version based on release type
-      let nextVersion: string;
-      switch (releaseType) {
-        case "major":
-          nextVersion = `${currentVersion.major + 1}.0.0`;
-          break;
-        case "minor":
-          nextVersion = `${currentVersion.major}.${currentVersion.minor + 1}.0`;
-          break;
-        case "patch":
-          nextVersion = `${currentVersion.major}.${currentVersion.minor}.${currentVersion.patch + 1}`;
-          break;
-        default:
-          throw new Error(`Invalid release type: ${releaseType}`);
-      }
-
-      if (!this.context!.dryRun) {
-        // Use GitFlowManager to create the release branch
-        const releaseBranchName = await this.gitFlowManager.createReleaseBranch(
-          nextVersion
-        );
-        console.log(`   🔄 Created release branch: ${releaseBranchName}`);
-        step.message = `Created release branch: ${releaseBranchName}`;
-        // Update context with the actual release branch name
-        this.context!.currentBranch = releaseBranchName;
+      if (this.context!.dryRun) {
+        step.message = `[DRY RUN] Would create release branch: ${releaseBranch}`;
       } else {
-        const releaseBranchName = `release/${nextVersion}`;
-        console.log(
-          `   🔄 [DRY RUN] Would create branch: ${releaseBranchName}`
+        await this.gitFlowManager.createBranchFromOrigin(
+          releaseBranch,
+          "develop"
         );
-        step.message = `[DRY RUN] Would create release branch: ${releaseBranchName}`;
-        // Update context for dry run as well
-        this.context!.currentBranch = releaseBranchName;
+        step.message = `Created release branch: ${releaseBranch}`;
       }
-
       this.updateStepStatus(3, "completed");
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
@@ -499,49 +460,21 @@ export class ReleaseAgent {
   private async executeStep4_UpdateVersion(): Promise<void> {
     const step = this.updateStepStatus(4, "in_progress");
     const releaseType = (this.context! as ReleaseWorkflowContext).releaseType;
+    const rcVersion = `${this.context!.currentBranch.split("/")[1]}-RC.0`;
     console.log(`📋 Step 4: Updating version to ${releaseType} RC...`);
 
     try {
       if (!this.context!.dryRun) {
-        // Use versioner-mcp to create RC based on type
-        await this.dropStaleLocalTag(
-          `${nextVersionFor(
-            (await this.versionerAdapter.getCurrentVersion()).version,
-            releaseType
-          )}-RC.0`
-        );
+        await this.dropStaleLocalTag(rcVersion);
         const newVersion = await this.versionerAdapter.createReleaseCandidate(
           releaseType
         );
         this.context!.targetVersion = newVersion;
         step.message = `Updated version to: ${newVersion.version}`;
-        console.log(`   ✅ ${step.message}`);
       } else {
-        const currentVersion = await this.workingVersion("develop");
-        let mockNewVersion: string;
-
-        switch (releaseType) {
-          case "major":
-            mockNewVersion = `${currentVersion.major + 1}.0.0-RC.0`;
-            break;
-          case "minor":
-            mockNewVersion = `${currentVersion.major}.${
-              currentVersion.minor + 1
-            }.0-RC.0`;
-            break;
-          case "patch":
-            mockNewVersion = `${currentVersion.major}.${currentVersion.minor}.${
-              currentVersion.patch + 1
-            }-RC.0`;
-            break;
-          default:
-            throw new Error(`Invalid release type: ${releaseType}`);
-        }
-
-        step.message = `[DRY RUN] Would update version to: ${mockNewVersion}`;
-        console.log(`   ✅ ${step.message}`);
+        step.message = `[DRY RUN] Would update version to: ${rcVersion}`;
       }
-
+      console.log(`   ✅ ${step.message}`);
       this.updateStepStatus(4, "completed");
     } catch (error) {
       step.error = error instanceof Error ? error.message : String(error);
@@ -568,8 +501,8 @@ export class ReleaseAgent {
 
         step.message = `Pushed release branch and tag: ${version}`;
       } else {
-        const version = this.context!.targetVersion?.version || "mock-version";
-        step.message = `[DRY RUN] Would push release branch and tag: ${version}`;
+        const branch = this.context!.currentBranch;
+        step.message = `[DRY RUN] Would push ${branch} and tag ${branch.split("/")[1]}-RC.0`;
       }
 
       this.updateStepStatus(5, "completed");
@@ -649,24 +582,18 @@ export class ReleaseAgent {
   }
 
   /**
-   * Hotfix Step 1: Fetch latest main branch
+   * Hotfix Step 1: read main's version as origin has it, and name the hotfix
+   * branch from it. Nothing is fetched or checked out: the plan fetched.
    */
-  private async executeHotfixStep1_FetchMain(): Promise<void> {
+  private async executeHotfixStep1_ReadMainVersion(): Promise<void> {
     const step = this.updateStepStatus(1, "in_progress");
-    console.log("📋 Step 1: Fetching latest main branch...");
+    console.log("📋 Step 1: Reading main's version...");
 
     try {
-      if (!this.context!.dryRun) {
-        // Fetch only main; broad fetches can fail on unrelated branch-name conflicts.
-        await this.gitFlowManager.fetchBranch("main");
-        console.log("   🔄 Fetched latest main branch from origin");
-      } else {
-        console.log(
-          "   🔄 [DRY RUN] Would fetch latest main branch from origin"
-        );
-      }
-
-      step.message = "Successfully fetched latest main branch";
+      const current = await this.originVersion("main");
+      const next = nextVersionFor(current.version, "patch");
+      this.context!.currentBranch = `hotfix/${next}`;
+      step.message = `main is at ${current.version}, so the hotfix branch is hotfix/${next}`;
       this.updateStepStatus(1, "completed");
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
@@ -676,26 +603,20 @@ export class ReleaseAgent {
   }
 
   /**
-   * Hotfix Step 2: Checkout main branch
+   * Hotfix Step 2: Create the hotfix branch at origin/main
    */
-  private async executeHotfixStep2_CheckoutMain(): Promise<void> {
+  private async executeHotfixStep2_CreateHotfixBranch(): Promise<void> {
     const step = this.updateStepStatus(2, "in_progress");
-    console.log("📋 Step 2: Checking out main branch...");
+    const hotfixBranch = this.context!.currentBranch;
+    console.log("📋 Step 2: Creating hotfix branch...");
 
     try {
-      if (!this.context!.dryRun) {
-        // Use GitFlowManager to checkout main and pull latest changes
-        await this.gitFlowManager.checkoutAndPull("main");
-        console.log("   🔄 Checked out main branch and pulled latest changes");
+      if (this.context!.dryRun) {
+        step.message = `[DRY RUN] Would create hotfix branch: ${hotfixBranch}`;
       } else {
-        console.log(
-          "   🔄 [DRY RUN] Would checkout main and pull latest changes"
-        );
+        await this.gitFlowManager.createBranchFromOrigin(hotfixBranch, "main");
+        step.message = `Created hotfix branch: ${hotfixBranch}`;
       }
-
-      this.context!.currentBranch = "main";
-      step.message =
-        "Successfully checked out main branch and pulled latest changes";
       this.updateStepStatus(2, "completed");
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
@@ -705,37 +626,25 @@ export class ReleaseAgent {
   }
 
   /**
-   * Hotfix Step 3: Create hotfix branch from main
+   * Hotfix Step 3: Update version to patch RC using versioner
    */
-  private async executeHotfixStep3_CreateHotfixBranch(): Promise<void> {
+  private async executeHotfixStep3_UpdateVersion(): Promise<void> {
     const step = this.updateStepStatus(3, "in_progress");
-    console.log("📋 Step 3: Creating hotfix branch...");
+    const rcVersion = `${this.context!.currentBranch.split("/")[1]}-RC.0`;
+    console.log("📋 Step 3: Updating version to patch RC...");
 
     try {
-      // Get current version to determine the hotfix branch name
-      const currentVersion = await this.workingVersion("main");
-      const nextVersion = `${currentVersion.major}.${currentVersion.minor}.${
-        currentVersion.patch + 1
-      }`;
-
       if (!this.context!.dryRun) {
-        // Create hotfix branch (using hotfix/ prefix instead of release/)
-        const hotfixBranchName = `hotfix/${nextVersion}`;
-        await this.gitFlowManager["execGit"](`checkout -b ${hotfixBranchName}`);
-        console.log(`   🔄 Created hotfix branch: ${hotfixBranchName}`);
-        step.message = `Created hotfix branch: ${hotfixBranchName}`;
-        // Update context with the actual hotfix branch name
-        this.context!.currentBranch = hotfixBranchName;
+        await this.dropStaleLocalTag(rcVersion);
+        const newVersion =
+          await this.versionerAdapter.createPatchReleaseCandidate();
+        this.context!.targetVersion = newVersion;
+        step.message = `Updated version to: ${newVersion.version}`;
       } else {
-        const hotfixBranchName = `hotfix/${nextVersion}`;
-        console.log(`   🔄 [DRY RUN] Would create branch: ${hotfixBranchName}`);
-        step.message = `[DRY RUN] Would create hotfix branch: ${hotfixBranchName}`;
-        // Update context for dry run as well
-        this.context!.currentBranch = hotfixBranchName;
+        step.message = `[DRY RUN] Would update version to: ${rcVersion}`;
       }
-
-      this.updateStepStatus(3, "completed");
       console.log(`   ✅ ${step.message}`);
+      this.updateStepStatus(3, "completed");
     } catch (error) {
       step.error = error instanceof Error ? error.message : String(error);
       throw new Error(`Step 3 failed: ${step.error}`);
@@ -743,48 +652,11 @@ export class ReleaseAgent {
   }
 
   /**
-   * Hotfix Step 4: Update version to patch RC using versioner
+   * Hotfix Step 4: Push hotfix branch and tag
    */
-  private async executeHotfixStep4_UpdateVersion(): Promise<void> {
+  private async executeHotfixStep4_PushBranchAndTag(): Promise<void> {
     const step = this.updateStepStatus(4, "in_progress");
-    console.log("📋 Step 4: Updating version to patch RC...");
-
-    try {
-      if (!this.context!.dryRun) {
-        // Use versioner-mcp to create patch RC
-        await this.dropStaleLocalTag(
-          `${nextVersionFor(
-            (await this.versionerAdapter.getCurrentVersion()).version,
-            "patch"
-          )}-RC.0`
-        );
-        const newVersion =
-          await this.versionerAdapter.createPatchReleaseCandidate();
-        this.context!.targetVersion = newVersion;
-        step.message = `Updated version to: ${newVersion.version}`;
-        console.log(`   ✅ ${step.message}`);
-      } else {
-        const currentVersion = await this.workingVersion("main");
-        const mockNewVersion = `${currentVersion.major}.${
-          currentVersion.minor
-        }.${currentVersion.patch + 1}-RC.0`;
-        step.message = `[DRY RUN] Would update version to: ${mockNewVersion}`;
-        console.log(`   ✅ ${step.message}`);
-      }
-
-      this.updateStepStatus(4, "completed");
-    } catch (error) {
-      step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 4 failed: ${step.error}`);
-    }
-  }
-
-  /**
-   * Hotfix Step 5: Push hotfix branch and tag
-   */
-  private async executeHotfixStep5_PushBranchAndTag(): Promise<void> {
-    const step = this.updateStepStatus(5, "in_progress");
-    console.log("📋 Step 5: Pushing hotfix branch and tag...");
+    console.log("📋 Step 4: Pushing hotfix branch and tag...");
 
     try {
       if (!this.context!.dryRun) {
@@ -798,24 +670,24 @@ export class ReleaseAgent {
 
         step.message = `Pushed hotfix branch and tag: ${version}`;
       } else {
-        const version = this.context!.targetVersion?.version || "mock-version";
-        step.message = `[DRY RUN] Would push hotfix branch and tag: ${version}`;
+        const branch = this.context!.currentBranch;
+        step.message = `[DRY RUN] Would push ${branch} and tag ${branch.split("/")[1]}-RC.0`;
       }
 
-      this.updateStepStatus(5, "completed");
+      this.updateStepStatus(4, "completed");
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
       step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 5 failed: ${step.error}`);
+      throw new Error(`Step 4 failed: ${step.error}`);
     }
   }
 
   /**
-   * Hotfix Step 6: Create pull request from hotfix branch to main
+   * Hotfix Step 5: Create pull request from hotfix branch to main
    */
-  private async executeHotfixStep6_CreatePullRequest(): Promise<void> {
-    const step = this.updateStepStatus(6, "in_progress");
-    console.log("📋 Step 6: Creating pull request to main...");
+  private async executeHotfixStep5_CreatePullRequest(): Promise<void> {
+    const step = this.updateStepStatus(5, "in_progress");
+    console.log("📋 Step 5: Creating pull request to main...");
 
     try {
       if (!this.context!.dryRun) {
@@ -860,21 +732,21 @@ export class ReleaseAgent {
         const hotfixBranch = this.context!.currentBranch;
         step.message = `Dry run: would open or update PR ${hotfixBranch} → main`;
         console.log(`   ⏭️  ${step.message}`);
-        this.updateStepStatus(6, "skipped");
+        this.updateStepStatus(5, "skipped");
         console.log(`   ✅ ${step.message}`);
         return;
       }
 
-      this.updateStepStatus(6, "completed");
+      this.updateStepStatus(5, "completed");
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
       step.error = error instanceof Error ? error.message : String(error);
-      throw new Error(`Step 6 failed: ${step.error}`);
+      throw new Error(`Step 5 failed: ${step.error}`);
     }
   }
 
   /**
-   * Hotfix Step 7: open (or refresh) the draft pull request into develop.
+   * Hotfix Step 6: open (or refresh) the draft pull request into develop.
    *
    * A hotfix ships through main, so nothing in the main-bound workflow ever puts the
    * fix in front of develop, and a fix that reaches production but not develop is
@@ -889,19 +761,19 @@ export class ReleaseAgent {
    * Failure is recorded and reported, never fatal — the branch, the tag and the
    * main-bound pull request all already exist by the time this runs.
    */
-  private async executeHotfixStep7_TrackingPullRequest(): Promise<void> {
-    const step = this.updateStepStatus(7, "in_progress");
+  private async executeHotfixStep6_TrackingPullRequest(): Promise<void> {
+    const step = this.updateStepStatus(6, "in_progress");
     const context = this.context as HotfixWorkflowContext;
     const hotfixBranch = context.currentBranch;
 
     if (context.dryRun) {
       step.message = `Dry run: would open draft PR ${hotfixBranch} → develop`;
-      this.updateStepStatus(7, "skipped");
+      this.updateStepStatus(6, "skipped");
       console.log(`   ⏭️  ${step.message}`);
       return;
     }
 
-    console.log("📋 Step 7: Opening draft pull request to develop...");
+    console.log("📋 Step 6: Opening draft pull request to develop...");
 
     try {
       const version =
@@ -921,13 +793,13 @@ export class ReleaseAgent {
       context.trackingPullRequestAction = result.action;
       const verb = result.action === "updated" ? "Updated" : "Opened";
       step.message = `${verb} draft pull request: ${result.url}`;
-      this.updateStepStatus(7, "completed");
+      this.updateStepStatus(6, "completed");
       console.log(`   ✅ ${step.message}`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       context.trackingPullRequestError = msg;
       step.message = `Could not open the develop pull request: ${msg}`;
-      this.updateStepStatus(7, "completed");
+      this.updateStepStatus(6, "completed");
       console.warn(`   ⚠️  ${step.message}`);
     }
   }
@@ -985,12 +857,11 @@ This pull request carries the hotfix release candidate **${version}** to main. E
 5. **Reconcile develop**: use \`downmerge\` from hotfix to develop
 
 **Workflow Steps Completed:**
-1. ✅ Latest main branch fetched
-2. ✅ Main branch checked out and updated
-3. ✅ Hotfix branch created from main
-4. ✅ Version bumped to patch release candidate
-5. ✅ Hotfix branch and tag pushed to origin
-6. ✅ Pull request opened to main
+1. ✅ Main's version read from origin
+2. ✅ Hotfix branch created from main
+3. ✅ Version bumped to patch release candidate
+4. ✅ Hotfix branch and tag pushed to origin
+5. ✅ Pull request opened to main
 
 ---
 ${autoGeneratedFooter()}
@@ -1025,7 +896,7 @@ This pull request contains the release branch for **${version}**.
 
 **Workflow Steps Completed:**
 1. ✅ Main/develop synchronization verified
-2. ✅ Develop branch checked out and updated
+2. ✅ Develop's version read from origin
 3. ✅ Release branch created from develop
 4. ✅ Version bumped to release candidate
 5. ✅ Release branch and tag pushed to origin
@@ -1065,6 +936,11 @@ ${autoGeneratedFooter()}
     if (!this.isDryRun()) {
       return this.versionerAdapter.getCurrentVersion();
     }
+    return this.originVersion(branch);
+  }
+
+  /** `branch`'s version as the plan reads it: origin's first, then the local one. */
+  private async originVersion(branch: string): Promise<VersionInfo> {
     const version = await this.gitFlowManager.readBranchVersion(
       branch,
       "remote"
@@ -1635,6 +1511,7 @@ ${autoGeneratedFooter()}`;
    * primitives, so this is safe to call before the operator has decided anything.
    */
   async planIncrementRC(version?: string): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     const branchInfo = await this.selectTargetReleaseBranch(version);
     const branch = branchInfo.name.replace(/^remotes\/origin\//, "");
     const currentVersion = branchInfo.version.full;
@@ -1668,6 +1545,7 @@ ${autoGeneratedFooter()}`;
    * changing nothing.
    */
   async planReleaseVersion(version?: string): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     const branchInfo = await this.selectTargetReleaseBranch(version);
     const branch = branchInfo.name.replace(/^remotes\/origin\//, "");
     const currentVersion = branchInfo.version.full;
@@ -2292,8 +2170,8 @@ ${autoGeneratedFooter()}`;
       const step = this.updateStepStatus(3, "skipped");
       step.message = `Dry run: would delete ${target.branch}`;
     } else {
-      // Step off the branch before deleting it locally.
-      await this.gitFlowManager.checkoutAndPull(target.prBase);
+      // Step off the branch before deleting it locally. Nothing is pulled.
+      await this.gitFlowManager.checkoutBranch(target.prBase);
       await this.gitFlowManager.deleteRemoteBranch(target.branch);
       await this.gitFlowManager.deleteLocalBranch(target.branch);
       ctx.branchDeleted = true;
@@ -2458,6 +2336,7 @@ ${autoGeneratedFooter()}`;
    * return to, so the honest outcome is to abandon the branch entirely.
    */
   async planRevertVersion(version?: string): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     const target = await this.resolveRevertTarget(version);
     return this.buildRevertPlan({
       action: "revert_version",
@@ -2766,6 +2645,7 @@ ${autoGeneratedFooter()}`;
   async planCreateReleaseCandidate(
     releaseType: "major" | "minor" | "patch"
   ): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     return this.buildBranchCreationPlan({
       action: "create_release_candidate",
       baseBranch: "develop",
@@ -2783,6 +2663,7 @@ ${autoGeneratedFooter()}`;
    * Describe what cutting a new hotfix branch off main would do, changing nothing.
    */
   async planCreateHotfix(): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     return this.buildBranchCreationPlan({
       action: "create_hotfix",
       baseBranch: "main",
@@ -2862,9 +2743,19 @@ ${autoGeneratedFooter()}`;
       (b) => b.name.replace(/^remotes\/origin\//, "") === newBranch
     );
     if (alreadyExists) {
-      throw new BranchSelectionError(
-        `Branch ${newBranch} already exists, so ${action} cannot create it. ` +
-          `Use list_versions to see where it stands.`
+      if (await this.gitFlowManager.remoteBranchExists(newBranch)) {
+        throw new BranchSelectionError(
+          `Branch ${newBranch} already exists, so ${action} cannot create it. ` +
+            `Use list_versions to see where it stands.`
+        );
+      }
+      // Only this clone has it, typically from an earlier run whose push failed.
+      // Origin is the source of truth, so the apply cuts the branch afresh.
+      warnings.push(
+        ...(await this.describeUnpushedCommits(newBranch, {
+          kind: "recreate",
+          from: baseBranch,
+        }))
       );
     }
 
@@ -3013,6 +2904,7 @@ ${autoGeneratedFooter()}`;
    * Describe what merging main back into develop would do, changing nothing.
    */
   async planDownmergeMainToDevelop(): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     const { title } = await this.gitFlowManager.describeMainDownmerge();
 
     return this.buildMergeBranchDownmergePlan({
@@ -3028,6 +2920,7 @@ ${autoGeneratedFooter()}`;
    * Describe what merging a release branch into main would do, changing nothing.
    */
   async planDownmergeReleaseToMain(version?: string): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     const route: DownmergeRoute = { source: "release", target: "main" };
     const { branch, cleanName } =
       await this.gitFlowManager.resolveDownmergeBranch("release", version);
@@ -3046,6 +2939,7 @@ ${autoGeneratedFooter()}`;
    * Describe what merging a hotfix back into develop would do, changing nothing.
    */
   async planDownmergeHotfixToDevelop(version?: string): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     const route: DownmergeRoute = { source: "hotfix", target: "develop" };
     const { branch, cleanName } =
       await this.gitFlowManager.resolveDownmergeBranch("hotfix", version);
@@ -3184,6 +3078,7 @@ ${autoGeneratedFooter()}`;
    * nothing: one pull request straight from the release branch.
    */
   async planDownmergeReleaseToDevelop(version?: string): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     const route: DownmergeRoute = { source: "release", target: "develop" };
     const { branch, cleanName } =
       await this.gitFlowManager.resolveDownmergeBranch("release", version);
@@ -3245,6 +3140,7 @@ ${autoGeneratedFooter()}`;
    * nothing.
    */
   async planDownmergeHotfixToMain(version?: string): Promise<ChangePlan> {
+    await this.gitFlowManager.fetchOrigin();
     const route: DownmergeRoute = { source: "hotfix", target: "main" };
     const { branch, cleanName } =
       await this.gitFlowManager.resolveDownmergeBranch("hotfix", version);
@@ -3353,8 +3249,7 @@ ${autoGeneratedFooter()}`;
    * The read-only half of the main/develop synchronisation check that gates
    * creating a release branch.
    *
-   * Compares the remote-tracking refs as they currently stand, because planning
-   * must not write refs and a fetch would.
+   * Compares the remote-tracking refs the plan has just fetched.
    */
   private async refuseUnsyncedMainAndDevelop(): Promise<string[]> {
     const problems = await this.describeMainDevelopSync();
@@ -3393,8 +3288,7 @@ ${autoGeneratedFooter()}`;
 
     return [
       `origin/main has ${ahead} commit(s) whose content is not in origin/develop, ` +
-        `so the synchronization check aborts the action. This compares the ` +
-        `remote-tracking refs as they stand; the action fetches them first.`,
+        `so the synchronization check aborts the action.`,
     ];
   }
 

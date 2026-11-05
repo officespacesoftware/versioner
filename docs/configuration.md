@@ -58,7 +58,7 @@ check a confirmation. Not for `revert_version`, downmerges or `initialize_versio
 | `create_hotfix` | `main`'s head | `main` |
 | `increment_release_candidate`, `release_version` | the branch head | the branch |
 
-The head is `origin/<branch>` when it exists, so fetch first.
+The head is `origin/<branch>` when it exists. The plan fetches origin before reading it.
 
 **How.** The configuration is read from that commit. If any check applies to the action,
 the commit is checked out with `git worktree add --detach` into a temporary directory,

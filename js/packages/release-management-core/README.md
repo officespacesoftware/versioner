@@ -95,7 +95,12 @@ the operation may have partly completed. `isNetworkGitCommand` decides which app
 
 **Fetch and checkout**
 
-`fetchBaseBranches()`, `fetchBranch(name)`, `pullBranch(name)`, `checkoutAndPull(name)`.
+`fetchOrigin()` (what every plan calls first: main, develop, `release/*` and `hotfix/*` into
+their remote-tracking refs, pruned, no tags), `fetchBaseBranches()`, `fetchBranch(name)`,
+`pullBranch(name)`, `checkoutAndPull(name)`, `checkoutBranch(name)` (local, or created from
+`origin/<name>`; nothing pulled), `resetToOrigin(name)` (`git reset --keep origin/<name>`),
+`createBranchFromOrigin(name, base)`, `remoteBranchExists(name)`,
+`unpushedCommits(name, againstRef)`.
 
 **Branches and tags**
 

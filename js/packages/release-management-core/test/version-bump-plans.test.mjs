@@ -34,6 +34,7 @@ function makeAgent(branches, overrides = {}) {
   const all = Object.keys(branches).map(branchInfo);
 
   const fakeGfm = {
+    fetchOrigin: async () => {},
     getStatus: async () => ({ currentBranch: "develop" }),
     detectBranchType: (name) =>
       /^(release|hotfix)\//.test(name) ? name.split("/")[0] : null,

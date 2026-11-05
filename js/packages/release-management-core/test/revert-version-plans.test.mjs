@@ -35,6 +35,7 @@ function branchInfo(name) {
  */
 function makeAgent(branch, versions, overrides = {}) {
   const fakeGfm = {
+    fetchOrigin: async () => {},
     getStatus: async () => ({ currentBranch: branch }),
     detectBranchType: (name) =>
       /^(release|hotfix)\//.test(name) ? name.split("/")[0] : null,

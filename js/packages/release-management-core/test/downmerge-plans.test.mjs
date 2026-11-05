@@ -36,6 +36,7 @@ function branchInfo(name) {
 
 function makeAgent(overrides = {}) {
   const fakeGfm = {
+    fetchOrigin: async () => {},
     getBranchHead: async (branch) => HEADS[branch],
     // Mirrors GitFlowManager.resolveDownmergeBranch: the exact version, or the
     // newest branch of that type.
