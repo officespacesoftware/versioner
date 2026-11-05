@@ -161,8 +161,8 @@ the first token it finds:
 3. `github.com.oauth_token` in `~/.config/gh/hosts.yml` (older `gh` versions).
 
 An empty variable counts as unset: `GH_TOKEN=""` falls through to `GITHUB_TOKEN`. With no
-token, any call to GitHub fails with G7. The token needs `repo` scope (pull requests,
-releases, comments); pushes use git's own credentials, not this token.
+token, any call to GitHub fails with G7. Pushes use git's own credentials, not this
+token; see [Token scopes](#token-scopes) for when those are the same token.
 
 `owner` and `repo` come from `git remote get-url origin`, which must be
 `git@github.com:owner/repo(.git)` or `https://github.com/owner/repo(.git)` (G8). Clients
@@ -173,6 +173,30 @@ writes; release lookups for `revert_version`; release creation for `release_vers
 every downmerge apply, and the `release` → `develop`, `hotfix` → `develop` and
 `hotfix` → `main` downmerge plans. `list_versions`, `initialize_versioner` and
 `health_check` do not.
+
+### Token scopes
+
+A classic personal access token that runs the tools (and, in an automation, installs
+them and pushes for them) needs three scopes:
+
+| Scope | Why |
+| --- | --- |
+| `repo` | Pull requests, releases and comments. Tick the parent `repo` box: its sub-scopes (`repo:status`, `public_repo`, ...) do not grant access to private repositories, and a token with only those gets 404s |
+| `read:packages` | Installing the `@officespacesoftware` packages from GitHub Packages |
+| `workflow` | Pushing a commit that adds or changes a file under `.github/workflows/`. GitHub refuses such a push from a token without this scope ("refusing to allow a Personal Access Token to create or update workflow ... without `workflow` scope"). Downmerges, release candidates and hotfixes push whatever commits the source branch carries, so this fails only on the releases that include a workflow change |
+
+`workflow` matters only when git pushes with the same token, as it does in an automation
+whose git credential is the token. If the organization enforces SAML SSO, authorize the
+token for it (**Configure SSO** on the token page) or calls return 403 or 404 despite the
+scopes.
+
+To check a token's scopes, read the `X-OAuth-Scopes` header without putting the token on a
+command line:
+
+```sh
+printf 'header = "Authorization: token %s"\n' "$GH_TOKEN" |
+  curl -sI -K - https://api.github.com/user | grep -i x-oauth-scopes
+```
 
 ## Environment variables
 
