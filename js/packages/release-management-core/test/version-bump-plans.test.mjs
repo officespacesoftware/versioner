@@ -53,6 +53,12 @@ function makeAgent(branches, overrides = {}) {
       hasConflicts: false,
       conflictedFiles: [],
     }),
+    validateBranchVersion: async () => ({
+      valid: true,
+      behind: false,
+      baseVersion: null,
+      message: "",
+    }),
     ...overrides,
   };
 
