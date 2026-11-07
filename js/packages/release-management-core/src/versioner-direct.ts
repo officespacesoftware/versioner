@@ -20,17 +20,27 @@ import {
  * Direct client for versioner operations
  * Provides a clean interface for versioner operations using direct function calls
  */
+export interface VersionerClientOptions {
+  gitEnvironment?: () => Promise<Record<string, string>>;
+}
+
 export class VersionerDirectClient {
   private workingDirectory: string | undefined;
   private originalCwd: string | undefined;
+  private gitEnvironment: (() => Promise<Record<string, string>>) | undefined;
 
   /**
    * Initialize the versioner client
    * @param _versionerMCPCommand - Ignored, kept for compatibility
    * @param workingDirectory - Directory to run versioner commands in
    */
-  async connect(_versionerMCPCommand?: string, workingDirectory?: string): Promise<void> {
+  async connect(
+    _versionerMCPCommand?: string,
+    workingDirectory?: string,
+    options: VersionerClientOptions = {}
+  ): Promise<void> {
     this.workingDirectory = workingDirectory;
+    this.gitEnvironment = options.gitEnvironment;
 
     // Store original working directory
     if (workingDirectory) {
@@ -63,10 +73,19 @@ export class VersionerDirectClient {
    * Execute a versioner function in the configured working directory
    */
   private async executeInWorkingDirectory<T>(fn: () => T): Promise<T> {
+    const env = this.gitEnvironment ? await this.gitEnvironment() : {};
+    const saved = Object.keys(env).map(
+      (name) => [name, process.env[name]] as const
+    );
     try {
       this.changeToWorkingDirectory();
+      Object.assign(process.env, env);
       return fn();
     } finally {
+      for (const [name, value] of saved) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
       this.restoreWorkingDirectory();
     }
   }

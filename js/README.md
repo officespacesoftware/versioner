@@ -154,8 +154,8 @@ prerelease" once a stable line exists.
 - Node.js 18 or newer (14 or newer for `@officespacesoftware/versioner` on its own)
 - pnpm 9 or newer for workspace development
 - Git
-- A GitHub token, or an authenticated `gh` CLI, for any action that opens a pull request or
-  creates a release
+- A GitHub token, an authenticated `gh` CLI, or a GitHub App (`GITHUB_APP_ID` and a private
+  key), for any action that opens a pull request or creates a release
 
 ## License
 

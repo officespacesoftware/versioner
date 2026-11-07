@@ -3,7 +3,10 @@
  * Provides a clean interface between Release Management workflows and versioner
  */
 
-import { VersionerDirectClient } from "./versioner-direct.js";
+import {
+  VersionerDirectClient,
+  type VersionerClientOptions,
+} from "./versioner-direct.js";
 
 export interface VersionInfo {
   version: string;
@@ -30,10 +33,15 @@ export class VersionerAdapter {
    */
   async initialize(
     versionerMCPCommand?: string,
-    workingDirectory?: string
+    workingDirectory?: string,
+    options: VersionerClientOptions = {}
   ): Promise<void> {
     try {
-      await this.versionerClient.connect(versionerMCPCommand, workingDirectory);
+      await this.versionerClient.connect(
+        versionerMCPCommand,
+        workingDirectory,
+        options
+      );
       this.isConnected = true;
       console.log("VersionerAdapter: Successfully initialized versioner");
       if (workingDirectory) {

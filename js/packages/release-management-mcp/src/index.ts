@@ -232,19 +232,31 @@ class ReleaseManagementMCPServer {
             title: "Health Check",
             description: `🩺  Health Check (read-only)
 
-Reports whether the Release Management MCP server process is responsive.
+Reports whether the Release Management MCP server process is responsive, and
+which GitHub credential the tools would use.
 
-Creates nothing. It does not read the repository, run git, or contact GitHub.
+Creates nothing. The auth field names the credential source: "app <slug>" for a
+GitHub App, "GH_TOKEN", "GITHUB_TOKEN", "gh", "gh hosts.yml", or "none". It never
+shows a secret. Only with a GitHub App configured does it read the origin remote
+of workingDirectory and contact GitHub, to mint an installation token for that
+repository and report the permissions the installation granted, or the error.
 
 Returns the server name, its package version, the commit and time it was built
-from, the status, an ISO timestamp, and a list of capability descriptions.
+from, the status, an ISO timestamp, the auth field, and a list of capability
+descriptions.
 
 The build fields identify which copy is answering, which the package version alone
 cannot do when a local build and a published release share a version number. A
 commit suffixed "-dirty" was built from an uncommitted working tree.`,
             inputSchema: {
               type: "object",
-              properties: {},
+              properties: {
+                workingDirectory: {
+                  type: "string",
+                  description:
+                    "The repository whose GitHub App installation to check (optional, defaults to current directory). Used only when a GitHub App is configured",
+                },
+              },
             },
           },
           {
@@ -728,7 +740,7 @@ the tag already triggered.`,
 
         switch (name) {
           case "health_check":
-            result = await this.handleHealthCheck();
+            result = await this.handleHealthCheck(args);
             break;
 
           case "create_release_candidate":
@@ -981,13 +993,16 @@ Common issues:
     }
   }
 
-  private async handleHealthCheck(): Promise<string> {
+  private async handleHealthCheck(args: any): Promise<string> {
+    const workingDirectory: string = args?.workingDirectory || process.cwd();
+    const auth = await new GitFlowManager(workingDirectory).describeGitHubAuth();
     const status = {
       server: "Release Management MCP Server",
       version: SERVER_VERSION,
       build: { commit: BUILD_COMMIT, time: BUILD_TIME },
       status: "healthy",
       timestamp: new Date().toISOString(),
+      auth,
       capabilities: [
         "Plan/confirm protocol: mutating tools describe their git objects and " +
           "change nothing until a plan digest is confirmed; downmerges apply " +

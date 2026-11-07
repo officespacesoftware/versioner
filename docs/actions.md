@@ -22,7 +22,7 @@ a conflicting downmerge.
 
 | Action | MCP tool | CLI command | Mode | Creates or changes |
 | --- | --- | --- | --- | --- |
-| Health check | `health_check` | — | read-only | Nothing |
+| Health check | `health_check` | — | read-only | Nothing (with a GitHub App, an installation token, cached in memory) |
 | List versions | `list_versions` | `list-versions` | read-only | Nothing |
 | Create release candidate | `create_release_candidate` | `create-rc` | plan → confirm | Branch `release/X.Y.Z`, commit, tag `X.Y.Z-RC.0`, two pushes, PR → `develop` |
 | Create hotfix | `create_hotfix` | `create-hotfix` | plan → confirm | Branch `hotfix/X.Y.Z`, commit, tag `X.Y.Z-RC.0`, two pushes, PR → `main`, draft PR → `develop` |
@@ -276,15 +276,29 @@ conflicting pull request into `develop` to a manual downmerge instead of opening
 
 ## `health_check`
 
-**Purpose.** Confirm the MCP server process is responsive. MCP only.
+**Purpose.** Confirm the MCP server process is responsive, and show which GitHub
+credential the tools would use. MCP only.
 
-**Inputs.** None. **Mode.** Read-only. It does not read the repository, run git or contact
-GitHub.
+**Inputs.** `workingDirectory` (optional, default the server's current directory): the
+repository whose GitHub App installation to check. **Mode.** Read-only. Without a GitHub
+App configured it does not read the repository, run git or contact GitHub; it only checks
+the token variables and, failing those, runs `gh auth token`. With an app it reads
+`workingDirectory`'s `origin` and contacts GitHub to sign in as the app and mint (or
+reuse) the installation token, which the next action reuses.
 
 **Returns** pretty-printed JSON: `server` (`Release Management MCP Server`), `version` (the
 package version), `build` (`commit` and `time` of the build; a commit suffixed `-dirty`
-was built from an uncommitted tree), `status` (`healthy`), `timestamp` (ISO), and
+was built from an uncommitted tree), `status` (`healthy`), `timestamp` (ISO), `auth`, and
 `capabilities` (a list of descriptions).
+
+`auth.source` is the credential that [token resolution](configuration.md#github-token-resolution)
+picks: `app <slug>`, `GH_TOKEN`, `GITHUB_TOKEN`, `gh` (from `gh auth token`),
+`gh hosts.yml`, or `none` (with G7 in `auth.error`). For an app it adds `appId`,
+`repository`, `installationId`, `permissions` (what the installation token was granted, for
+example `{"contents": "write", "pull_requests": "write", "metadata": "read"}`) and
+`tokenExpiresAt`. When the app cannot be used, `source` is `app` and `auth.error` holds
+the message (G8, G16–G25); `status` stays `healthy`, since it describes the server process.
+No secret appears in the result.
 
 ---
 

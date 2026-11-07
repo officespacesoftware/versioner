@@ -54,7 +54,7 @@ const listing = await gfm.listVersions("main"); // read-only
 
 `src/index.ts` re-exports six of the seven modules: `change-plan`, `git-flow`,
 `release-agent`, `versioner-adapter`, `versioner-direct`, and `guards`.
-`github-client.ts` is deliberately left out — see
+`github-client.ts` is deliberately left out, apart from the `GitHubAuthStatus` type — see
 [GitHub credentials](#github-credentials).
 
 ## `GitFlowManager`
@@ -125,6 +125,12 @@ the banner every PR into the production branch carries.
 
 `getGitHubRelease(tag)`, `createGitHubRelease(version, branch)`,
 `deleteGitHubRelease(id)`.
+
+**Credentials**
+
+`describeGitHubAuth()` returns a `GitHubAuthStatus`: the credential source (`app <slug>`,
+`GH_TOKEN`, `GITHUB_TOKEN`, `gh`, `gh hosts.yml` or `none`) and, for a GitHub App, its
+installation's granted permissions, or the error that stops it. Never a secret.
 
 **Merge analysis**
 
@@ -270,15 +276,25 @@ process.
 
 ## GitHub credentials
 
-`createGitHubClient` resolves a token from the first non-empty of:
+`createGitHubClient` uses the first of:
 
-1. `GH_TOKEN`
-2. `GITHUB_TOKEN`
-3. the output of `gh auth token`
-4. `~/.config/gh/hosts.yml` → `github.com.oauth_token`
+1. a GitHub App installation token, when `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (or
+   `GITHUB_APP_PRIVATE_KEY_PATH`) are set
+2. `GH_TOKEN`
+3. `GITHUB_TOKEN`
+4. the output of `gh auth token`
+5. `~/.config/gh/hosts.yml` → `github.com.oauth_token`
 
-Locally, `gh auth login` once is enough — step 3 picks it up. For non-interactive shells or
-hosts without `gh`, set `GH_TOKEN` to a PAT with `repo` scope. `owner` and `repo` come from
+Locally, `gh auth login` once is enough — step 4 picks it up. For non-interactive shells or
+hosts without `gh`, set `GH_TOKEN` to a PAT with `repo` scope, or configure a GitHub App.
+
+With a GitHub App, the tools act as the app's bot user: installation tokens are minted from
+the app ID and private key (a JWT signed with `node:crypto`), scoped to `origin`'s
+repository, and refreshed when less than five minutes remain. `GitFlowManager` passes the
+current token to git's network commands through `GIT_CONFIG_COUNT` environment entries
+(never argv or the remote URL), and the bot's name and email to the git and versioner
+processes that commit or tag. Variables, required app permissions and the details are in
+[docs/configuration.md](../../../docs/configuration.md#github-app-authentication). `owner` and `repo` come from
 `git remote get-url origin`; only `github.com` SSH and HTTPS forms parse. Clients are cached
 per working directory.
 

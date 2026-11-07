@@ -7,7 +7,17 @@ import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
-import { createGitHubClient } from "./github-client.js";
+import {
+  createGitHubClient,
+  describeGitHubAuth,
+  gitCredentialEnv,
+  gitIdentityEnv,
+  type GitHubAuthStatus,
+} from "./github-client.js";
+import {
+  isGitHubAppAuthConfigured,
+  redactGitHubSecrets,
+} from "./github-app-auth.js";
 import {
   ManualDownmergeRequired,
   describeManualDownmerge,
@@ -143,6 +153,22 @@ const NETWORK_GIT_SUBCOMMANDS = [
 export function isNetworkGitCommand(command: string): boolean {
   const subcommand = command.trim().split(/\s+/)[0] ?? "";
   return NETWORK_GIT_SUBCOMMANDS.includes(subcommand);
+}
+
+const IDENTITY_GIT_SUBCOMMANDS = [
+  "am",
+  "cherry-pick",
+  "commit",
+  "merge",
+  "pull",
+  "rebase",
+  "revert",
+  "tag",
+];
+
+function createsGitObjects(command: string): boolean {
+  const subcommand = command.trim().split(/\s+/)[0] ?? "";
+  return IDENTITY_GIT_SUBCOMMANDS.includes(subcommand);
 }
 
 function isTimeoutError(error: unknown): boolean {
@@ -306,14 +332,16 @@ export class GitFlowManager {
       ? this.networkTimeoutMs
       : this.localTimeoutMs;
 
+    const env = await this.gitEnvironment(command);
     try {
       const { stdout, stderr } = await execAsync(`git ${command}`, {
         cwd: this.workingDirectory,
         timeout,
+        ...(env ? { env } : {}),
       });
 
       if (stderr) {
-        console.warn(`Git warning: ${stderr}`);
+        console.warn(redactGitHubSecrets(`Git warning: ${stderr}`));
       }
 
       return stdout.trim();
@@ -324,8 +352,25 @@ export class GitFlowManager {
             `The operation may have partially completed — inspect the repository before retrying.`
         );
       }
-      throw new Error(`Git command failed: ${error}`);
+      throw new Error(redactGitHubSecrets(`Git command failed: ${error}`));
     }
+  }
+
+  private async gitEnvironment(
+    command: string
+  ): Promise<NodeJS.ProcessEnv | undefined> {
+    if (!isGitHubAppAuthConfigured()) return undefined;
+    const credentials = isNetworkGitCommand(command)
+      ? await gitCredentialEnv(this.workingDirectory)
+      : {};
+    const identity = createsGitObjects(command)
+      ? await gitIdentityEnv(this.workingDirectory)
+      : {};
+    return { ...process.env, ...credentials, ...identity };
+  }
+
+  async describeGitHubAuth(): Promise<GitHubAuthStatus> {
+    return describeGitHubAuth(this.workingDirectory);
   }
 
   /**
@@ -341,12 +386,18 @@ export class GitFlowManager {
       ? this.networkTimeoutMs
       : this.localTimeoutMs;
 
+    const env = await this.gitEnvironment(command);
     try {
       const { stdout, stderr } = await execAsync(`git ${command}`, {
         cwd: this.workingDirectory,
         timeout,
+        ...(env ? { env } : {}),
       });
-      return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode: 0 };
+      return {
+        stdout: stdout.trim(),
+        stderr: redactGitHubSecrets(stderr.trim()),
+        exitCode: 0,
+      };
     } catch (error) {
       if (isTimeoutError(error)) {
         throw new Error(
@@ -361,11 +412,11 @@ export class GitFlowManager {
       if (typeof shaped.code === "number") {
         return {
           stdout: (shaped.stdout ?? "").trim(),
-          stderr: (shaped.stderr ?? "").trim(),
+          stderr: redactGitHubSecrets((shaped.stderr ?? "").trim()),
           exitCode: shaped.code,
         };
       }
-      throw new Error(`Git command failed: ${error}`);
+      throw new Error(redactGitHubSecrets(`Git command failed: ${error}`));
     }
   }
 

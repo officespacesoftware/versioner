@@ -41,17 +41,28 @@ This step is not needed if you [install from a local build](#install-from-a-loca
 ### 2. A GitHub token — for what the server does
 
 The server itself calls the GitHub API to open pull requests and create releases. It
-resolves a token from the first non-empty of:
+uses the first of:
 
-1. `GH_TOKEN`
-2. `GITHUB_TOKEN`
-3. the output of `gh auth token`
-4. `~/.config/gh/hosts.yml` → `github.com.oauth_token`
+1. a GitHub App installation token, when `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (or
+   `GITHUB_APP_PRIVATE_KEY_PATH`) are set
+2. `GH_TOKEN`
+3. `GITHUB_TOKEN`
+4. the output of `gh auth token`
+5. `~/.config/gh/hosts.yml` → `github.com.oauth_token`
 
-**Run `gh auth login` once and no client config needs an `env` block at all** — step 3 picks
-it up, including from the macOS keychain. `gh` is not required at runtime; it is only one of
-four ways to find a token. On a host without `gh`, set `GH_TOKEN` to a PAT with `repo`
-scope, as shown in the fallback snippets below.
+**Run `gh auth login` once and no client config needs an `env` block at all** — step 4 picks
+it up, including from the macOS keychain. `gh` is not required at runtime. On a host without
+`gh`, set `GH_TOKEN` to a PAT with `repo` scope, as shown in the fallback snippets below.
+
+For unattended use, a GitHub App is the better credential: the server then acts as the
+app's bot user, so a person can approve the pull requests it opens, and it mints
+hour-long tokens instead of holding a personal one. Put `GITHUB_APP_ID` and
+`GITHUB_APP_PRIVATE_KEY` (or `GITHUB_APP_PRIVATE_KEY_PATH`) in the server's `env` the same
+way as `GH_TOKEN`. Git fetches and pushes then use the app's token as well. Required app
+permissions and the details:
+[GitHub App authentication](../../../docs/configuration.md#github-app-authentication).
+Installing the server from GitHub Packages still needs a `read:packages` token
+(step 1).
 
 `owner` and `repo` come from the repository's `origin` remote, which must be a `github.com`
 SSH or HTTPS URL.
@@ -227,7 +238,7 @@ Ask the assistant to run `health_check`, or to list the release branches with
 `list_versions` — both are read-only and neither touches the repository.
 
 `health_check` answers with the server name, its package version, the commit and time it
-was built from, and its capability list:
+was built from, the GitHub credential in use, and its capability list:
 
 ```json
 {
@@ -236,9 +247,15 @@ was built from, and its capability list:
   "build": { "commit": "d239ec470d1", "time": "2026-08-06T14:02:11.417Z" },
   "status": "healthy",
   "timestamp": "2026-08-06T14:05:44.902Z",
+  "auth": { "source": "GH_TOKEN" },
   "capabilities": ["..."]
 }
 ```
+
+`auth.source` is `app <slug>`, `GH_TOKEN`, `GITHUB_TOKEN`, `gh`, `gh hosts.yml` or `none`.
+With a GitHub App, pass `workingDirectory` and it also reports the repository, the
+installation and the permissions the installation granted, or `auth.error` when the app
+cannot be used; that is the one case in which it contacts GitHub. No secret is shown.
 
 The `build` fields are the useful part when you have both a published and a local server
 registered: the package version alone cannot tell you which copy answered. A commit
@@ -252,7 +269,7 @@ Nine tools. Full step-by-step behaviour and the exact git objects each creates a
 
 | Tool | Inputs beyond `workingDirectory` | What it does |
 | --- | --- | --- |
-| [`health_check`](../../../docs/actions.md#health_check) | *none* | Reports that the server is responsive. Reads nothing. |
+| [`health_check`](../../../docs/actions.md#health_check) | *none* | Reports that the server is responsive and which GitHub credential it would use; with a GitHub App, the installation's permissions. |
 | [`list_versions`](../../../docs/actions.md#list_versions--read-only) | `productionBranch` | Every release/hotfix branch with its version, tag presence and merge status. Read-only. |
 | [`create_release_candidate`](../../../docs/actions.md#create_release_candidate) | `confirm`, `releaseType`, `dryRun` | Cuts `release/X.Y.0` off `develop` at `RC.0`. |
 | [`create_hotfix`](../../../docs/actions.md#create_hotfix) | `confirm`, `dryRun` | Cuts `hotfix/X.Y.Z` off the production branch at `RC.0`. |
@@ -323,7 +340,7 @@ and that the token has `read:packages`. Test outside the client:
 `next` dist-tag; `@next` resolves it, and a bare package name resolves whatever `latest`
 points at, which is not guaranteed to be this line.
 
-**"No GitHub token available".** Nothing in the four-step resolution order produced one. Run
+**"No GitHub token available".** Nothing in the resolution order produced one. Run
 `gh auth login`, or add `GH_TOKEN` to the server's `env` in your client config. Note that a
 GUI-launched client may not inherit a shell-exported variable — the `env` block is the
 reliable route there.

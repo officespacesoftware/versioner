@@ -3,6 +3,7 @@
  */
 
 import { VersionerAdapter, VersionInfo } from "./versioner-adapter.js";
+import { gitIdentityEnv } from "./github-client.js";
 import {
   GitFlowManager,
   BranchType,
@@ -248,7 +249,9 @@ export class ReleaseAgent {
    */
   async initialize(): Promise<void> {
     try {
-      await this.versionerAdapter.initialize(undefined, this.workingDirectory);
+      await this.versionerAdapter.initialize(undefined, this.workingDirectory, {
+        gitEnvironment: () => gitIdentityEnv(this.workingDirectory),
+      });
       console.log("ReleaseAgent: Initialized successfully");
     } catch (error) {
       throw new Error(`Failed to initialize ReleaseAgent: ${error}`);
