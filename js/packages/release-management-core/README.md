@@ -150,7 +150,9 @@ second. A conflict creates nothing and throws
 `ManualDownmergeRequired`, whose `handoff` holds the conflicted files, the branch to
 resolve them on, the pull request title and numbered steps; `renderManualDownmerge`
 formats it. `ReleaseAgent.planDownmerge(route, version?)` is the matching plan, and throws
-the same handoff when the preview conflicts.
+the same handoff when the preview conflicts. `executeIncrementRCWorkflow` returns the
+`release` → `develop` handoff as `manualDownmerge`, with `increment` set, instead of
+throwing it ([docs/actions.md](../../../docs/actions.md#conflicts-into-develop)).
 
 `MergeConflictError` carries `conflictedFiles`.
 
@@ -229,7 +231,9 @@ assertPlanIsCurrent(await agent.planReleaseVersion(), providedDigest);
 The digest covers the target branch's `HEAD` — so a push to that branch invalidates the
 plan — and the warnings and notices, because those encode remote facts a sha does not:
 whether a tag already exists, whether a pull request will be updated rather than created.
-Warnings call for a decision before approving; notices only explain the plan.
+Warnings call for a decision before approving; notices only explain the plan. Two plan
+fields stay out of the digest: `pipelineTrigger` and `mergePreview`, an increment's
+prediction of a conflict into `develop`, rendered under "Notes:".
 
 The protocol both front-ends build on top of this is documented in
 [docs/actions.md](../../../docs/actions.md#the-planconfirm-protocol).
@@ -297,7 +301,7 @@ pnpm test          # node --test test/*.test.mjs, preceded by pretest: tsc
 pnpm clean         # rm -rf lib/
 ```
 
-The suite is twenty-three files under `test/`, covering branch selection, change plans, the
+The suite is twenty-four files under `test/`, covering branch selection, change plans, the
 creation/downmerge/version-bump/revert plan builders and applies, merge previews, PR
 bodies, release notes, version listing, dry runs, resuming a creation, origin as the source
 of truth, `initialize_versioner`, token resolution, and that plans change nothing but

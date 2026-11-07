@@ -1,7 +1,8 @@
 # Flows
 
 Diagrams of the release lifecycle, the hotfix lifecycle, the plan/confirm protocol, the
-downmerge decisions, the revert shape and the pipeline trigger. They summarise
+downmerge decisions, the revert shape, an increment's pull request and the pipeline
+trigger. They summarise
 [actions.md](actions.md), which is authoritative on detail; message IDs refer to
 [messages.md](messages.md). GitHub renders the Mermaid blocks.
 
@@ -21,10 +22,14 @@ flowchart TD
   MAIN["main at 1.4.0"]
   MD["merge branch main-into-develop-ts<br/>PR → develop: Release 1.4.0 to develop"]
   RD["PR release/1.4.0 → develop updated"]
+  RCH["H1 Manual downmerge needed: release/1.4.0 → develop<br/>no new PR into develop; the pipeline trigger starts the build"]
+  RES["merge branch release-1.4.0-into-develop-ts<br/>PR → develop: Release 1.4.0 to develop"]
 
   DEV -->|"create_release_candidate (refused unless main is in develop)"| RC0
   RC0 -->|"fixes pushed, increment_release_candidate"| RCN
   RCN -->|"more fixes, increment_release_candidate"| RCN
+  RCN -.->|"increment conflicts with develop,<br/>pipeline trigger configured"| RCH
+  RCH -->|"resolved as for a downmerge"| RES
   RC0 -->|"release_version"| FIN
   RCN -->|"release_version"| FIN
   FIN -->|"outside these tools"| DEP
@@ -38,7 +43,9 @@ Each RC can be undone with `revert_version` (RC.n back to RC.n-1, a final back t
 RC.0 abandons the branch); see [Revert shape](#revert-shape). `release_version` warns when
 `main` holds commits the branch lacks or would conflict with it (W3, W4), and
 `increment_release_candidate` and `release_version` warn when a shipped hotfix is missing
-from the release branch (W1).
+from the release branch (W1). An increment whose release branch conflicts with `develop`
+hands the conflict off when a pipeline trigger is configured; see
+[Increment pull request](#increment-pull-request).
 
 ## Hotfix lifecycle
 
@@ -163,6 +170,33 @@ flowchart TD
   PARENT -->|no| UNIQUE{"other commits not in the base?"}
   UNIQUE -->|yes| P12["P12 refusal"]
   UNIQUE -->|no| ABANDON["abandon shape, W13<br/>delete tag, delete release if final,<br/>close PR with comment, delete branch"]
+```
+
+## Increment pull request
+
+What `increment_release_candidate` does at step 7, after the push. The plan predicts the
+same from the branch head before the version commit (N8–N10, W15); the apply decides on
+the pushed head. See [actions.md](actions.md#conflicts-into-develop).
+
+```mermaid
+flowchart TD
+  PUSHED["version commit and tag pushed"] --> TYPE{"branch type"}
+  TYPE -->|hotfix| HPR["open or update PR → main<br/>the plan warned W15 if it conflicts"]
+  TYPE -->|release| CFG{"valid pipeline.trigger at the pushed head?"}
+  CFG -->|no| OPEN["open or update PR → develop,<br/>conflicting or not"]
+  CFG -->|yes| PREVIEW{"git merge-tree: pushed head into origin/develop"}
+  PREVIEW -->|clean| OPEN
+  PREVIEW -->|"cannot compare, logged"| OPEN
+  PREVIEW -->|conflicts| ISOPEN{"release → develop PR open?"}
+  ISOPEN -->|no| NOPR["no PR opened<br/>H1 handoff in the result"]
+  ISOPEN -->|yes| UPD["PR updated<br/>H1 handoff in the result"]
+  OPEN --> TRIG["pipeline trigger"]
+  HPR --> TRIG
+  UPD --> TRIG
+  NOPR --> TRIG
+  TRIG -->|"no pipeline section"| NONE["nothing"]
+  TRIG -->|"PR open"| T3["skipped T3"]
+  TRIG -->|"no PR open"| T2["started T2"]
 ```
 
 ## Pipeline trigger

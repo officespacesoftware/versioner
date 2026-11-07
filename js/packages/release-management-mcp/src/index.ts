@@ -12,6 +12,10 @@
 
 import { createRequire } from "node:module";
 import { BUILD_COMMIT, BUILD_TIME } from "./build-info.js";
+import {
+  renderIncrementResult,
+  renderPipelineTrigger,
+} from "./render.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -30,7 +34,6 @@ import {
   renderManualDownmerge,
   type ChangePlan,
   type DownmergeResult,
-  type PipelineTriggerResult,
   type SupersededPullRequest,
 } from "@officespacesoftware/release-management-core";
 
@@ -87,24 +90,6 @@ function renderBullets(title: string, items: string[]): string {
     return "";
   }
   return `\n${title}\n${items.map((item) => `  - ${item}`).join("\n")}\n`;
-}
-
-/** The pipeline trigger's outcome and the tail of its output, or nothing. */
-function renderPipelineTrigger(
-  result: PipelineTriggerResult | undefined
-): string {
-  if (!result) {
-    return "";
-  }
-  const icon = result.status === "failed" ? "⚠️ " : "🔧";
-  const lines = [`${icon} Pipeline: ${result.message}`];
-  if (result.output !== undefined) {
-    lines.push(
-      "Output of the pipeline trigger:",
-      ...result.output.split("\n").map((line) => `  ${line}`)
-    );
-  }
-  return `\n${lines.join("\n")}\n`;
 }
 
 /** What became of the pull request a downmerge superseded, or nothing. */
@@ -412,7 +397,16 @@ digest no longer matches and it refuses, returning a fresh plan.
 Applying creates: a commit "To version X.Y.Z-RC.<n+1>" touching only VERSION, an
 annotated tag of the same name, a push of both to origin, and a pull request to the
 branch's own base — develop for release/X.Y.Z, main for hotfix/X.Y.Z — opened, or
-updated if one is already open.`,
+updated if one is already open.
+
+When .release-management.json configures a pipeline trigger and the pushed
+release branch conflicts with develop (previewed with git merge-tree), the result
+also carries a "Manual downmerge needed: release/X.Y.Z → develop" handoff, the same
+one the release → develop downmerge returns: carry it out as for a downmerge. No
+pull request into develop is opened while it conflicts (one already open is still
+updated), so the pipeline trigger starts the build. The plan says so in a note.
+A hotfix whose pull request into main would conflict gets a plan warning instead:
+that is a human decision, and the pull request is still opened.`,
             inputSchema: {
               type: "object",
               properties: {
@@ -1326,38 +1320,12 @@ Please review the error and fix any issues before retrying the workflow.`;
       // Generate workflow summary
       const progressSummary = this.releaseAgent!.getProgressSummary();
 
-      return `🚀 Increment Release Candidate Workflow ${
-        dryRun ? "(Dry Run) " : ""
-      }Completed Successfully!
-
-📁 Working Directory: ${workingDirectory}
-📋 Branch Type: ${workflowResult.branchType.toUpperCase()}
-🎯 Selected Branch: ${workflowResult.branchInfo.name}
-
-📋 Workflow Progress:
-${progressSummary}
-
-${
-  workflowResult.targetVersion
-    ? `🎯 New Version: ${workflowResult.targetVersion.version}`
-    : ""
-}
-${
-  workflowResult.pullRequestUrl
-    ? `🔗 ${
-        workflowResult.pullRequestAction === "updated"
-          ? "Updated PR"
-          : "Pull Request"
-      }: ${workflowResult.pullRequestUrl}`
-    : ""
-}
-${
-  workflowResult.pullRequestError
-    ? `⚠️  PR step failed: ${workflowResult.pullRequestError}`
-    : ""
-}${renderPipelineTrigger(workflowResult.pipelineTrigger)}
-
-✅ All steps completed successfully.`;
+      return renderIncrementResult({
+        result: workflowResult,
+        workingDirectory,
+        dryRun,
+        progressSummary,
+      });
     } catch (error) {
       if (error instanceof StalePlanError) {
         return renderStalePlan(error, "increment_release_candidate");

@@ -256,7 +256,7 @@ Nine tools. Full step-by-step behaviour and the exact git objects each creates a
 | [`list_versions`](../../../docs/actions.md#list_versions--read-only) | `productionBranch` | Every release/hotfix branch with its version, tag presence and merge status. Read-only. |
 | [`create_release_candidate`](../../../docs/actions.md#create_release_candidate) | `confirm`, `releaseType`, `dryRun` | Cuts `release/X.Y.0` off `develop` at `RC.0`. |
 | [`create_hotfix`](../../../docs/actions.md#create_hotfix) | `confirm`, `dryRun` | Cuts `hotfix/X.Y.Z` off the production branch at `RC.0`. |
-| [`increment_release_candidate`](../../../docs/actions.md#increment_release_candidate) | `confirm`, `version`, `dryRun` | Bumps the RC suffix on a release or hotfix branch. |
+| [`increment_release_candidate`](../../../docs/actions.md#increment_release_candidate) | `confirm`, `version`, `dryRun` | Bumps the RC suffix on a release or hotfix branch. With a pipeline trigger configured, a release branch that conflicts with `develop` gets the [manual downmerge](../../../docs/manual-downmerge.md) handoff instead of a new pull request into `develop`. |
 | [`release_version`](../../../docs/actions.md#release_version) | `confirm`, `version`, `dryRun` | Promotes an RC to a final version, tags it, creates the GitHub release. |
 | [`revert_version`](../../../docs/actions.md#revert_version) | `confirm`, `version`, `dryRun` | Undoes the most recent version bump and deletes its tag. |
 | [`initialize_versioner`](../../../docs/actions.md#initialize_versioner) | `version` | Creates the `VERSION` file and its initial tag. Local only. |

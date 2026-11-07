@@ -14,7 +14,7 @@ From the source, not from older documents. Every string below was found with:
 
 ```sh
 cd js/packages
-grep -nE 'throw new|warnings\.push|notices\.push|pipelineTrigger:|message:|notesWarning|lastWarning =|UsageError\(|console\.warn|step\.message' \
+grep -nE 'throw new|warnings\.push|notices\.push|pipelineTrigger:|message:|notesWarning|lastWarning =|UsageError\(|console\.warn|step\.message|mergePreview =|manualDownmerge =' \
   release-management-core/src/*.ts \
   release-management-cli/src/*.ts release-management-cli/src/commands/*.ts \
   release-management-mcp/src/index.ts
@@ -145,7 +145,7 @@ All are covered by the digest. None blocks the apply.
 | W2 | `Could not check for hotfixes missing from <target>: <err>` | as W1 | The W1 check failed | Check by hand with `list_versions` and `git merge-base --is-ancestor` |
 | W3 | `main holds <n> commit(s) that <branch> does not, touching <k> file(s)<: file, file>. The artifact tagged from <branch> will not contain them, so main after the release merge will not match what was deployed, and the next branch cut from main inherits the difference. Merge main into <branch> and cut a new release candidate before promoting, so the two agree.` | REL | `origin/main` has non-merge commits the branch lacks | Usually: merge `main` into the branch, `increment_release_candidate`, then promote |
 | W4 | `Merging <branch> into main conflicts in <n> file(s): <files>. The downmerge into main will create nothing and stop for a human decision until this is resolved.` | REL | `git merge-tree` of the branch into `origin/main` conflicts | As W3, before promoting |
-| W5 | `Could not check whether <branch> merges cleanly into main: <err>` | REL | The W4 preview failed | Check by hand |
+| W5 | `Could not check whether <branch> merges cleanly into main: <err>` | REL; INC (hotfix branches) | The W4 or W15 preview failed, or a head for W15 did not resolve | Check by hand |
 | W6 | `Could not resolve <branch> or main, so the merge into main was not checked: <err>` | REL | A head for W3/W4 did not resolve | Fetch, then plan again |
 | W7 | `.release-management.json on <ref> at <sha11> is not valid (<reason>), so no pre-version checks ran.` | RC, HF, INC, REL | The configuration at the commit being versioned does not parse; `<reason>` is one of [C1–C10](#configuration-reasons) | Fix the file on that branch |
 | W8 | `Pre-version check "<name>" failed on <ref> at <sha11> (exit <code>). Its output is at the end of the plan.` | RC, HF, INC, REL | A configured check exited non-zero. The tail of its output follows the plan as `Output of <name>:` (not in the digest) | Read the output; fix, or approve knowingly |
@@ -155,6 +155,7 @@ All are covered by the digest. None blocks the apply.
 | W12 | `<v> is a FINAL version, not a release candidate.` | REV | The version being reverted is final: its GitHub release will be deleted | Approve only if the promotion was a mistake |
 | W13 | `<v> is the first version on <branch>, so there is no earlier version to return to. The branch is abandoned rather than rewound.` | REV (abandon shape) | The bump's parent carries another release's version, or none | Approve only if the branch should be deleted |
 | W14 | `Local <branch> has <n> commit(s) that origin/<branch> does not: <sha11> <subject>; …. ` then, by what the apply does with the branch: `Origin is the source of truth, so the apply resets <branch> to origin/<branch> and drops them from it.` (INC, REL, REV revert shape) or `The apply deletes <branch> locally as well as on origin, so they are dropped with it.` (REV abandon shape); then `To keep them, run git branch unpushed/<branch> <sha11> before confirming.` | INC, REL, REV | The local branch holds commits its remote-tracking ref does not, typically an earlier run's version commit whose push failed | Confirm to drop them, or keep them first with the command given |
+| W15 | `Merging <branch> into main conflicts in <n> file(s): <files>. The apply still opens or updates the <branch> → main pull request, which cannot merge until this is resolved. main mirrors production, so how to resolve it is a human decision: see docs/manual-downmerge.md.` | INC (hotfix branches) | `git merge-tree` of the hotfix branch head into `origin/main` conflicts. Checked whatever the configuration | Decide as for H2 ([manual-downmerge.md](manual-downmerge.md#into-main-a-decision-not-a-resolution)) before or after approving; the pull request opens either way |
 
 ### Configuration reasons
 
@@ -187,6 +188,13 @@ W11 in a versioning plan.
 | N5 | `<branch> is already on origin at <X.Y.Z-RC.0> (<sha11>), so an earlier run got as far as the push. This resumes it: the branch and the version commit are not made again.` | RC, HF | Origin holds the branch the action would create, at exactly the version it would set. The plan lists only the missing steps |
 | N6 | `No <hotfix/X.Y.Z> → develop pull request is open, so one opens as a draft placeholder: it conflicts on VERSION by construction, and the hotfix → develop downmerge supersedes it after the deploy.` | REL (hotfix) | Promoting a hotfix with no open `develop` pull request |
 | N7 | `PR #<n> (<merge-branch> → <target>) is already open from an earlier downmerge and holds <source> at <sha11>, so nothing new is created. Review and merge that one, or close it to reject the downmerge.` | DM m→d, r→m, h→d | An open pull request into the target heads on an earlier merge branch of the same route, which already contains the source head |
+| N8 | `<branch> conflicts with develop in <n> file(s): <files>. No <branch> → develop pull request is open, so the apply will not open the one listed above: it returns a "Manual downmerge needed" handoff to resolve the conflicts on a merge branch instead, and the pipeline trigger starts the build. Checked again after the push.` | INC (release branches) | `.release-management.json` at the branch head has a valid `pipeline.trigger`, `git merge-tree` of the branch head into `origin/develop` conflicts, and no `<branch>` → `develop` pull request is open |
+| N9 | `<branch> conflicts with develop in <n> file(s): <files>. PR #<n> stays open and is updated, and the apply also returns a "Manual downmerge needed" handoff to resolve the conflicts on a merge branch. Checked again after the push.` | INC (release branches) | As N8, with that pull request open |
+| N10 | `Could not check whether <branch> merges cleanly into develop (<err>). The apply checks again after the push.` | INC (release branches) | As N8, but the preview failed or a head did not resolve |
+
+N8–N10 are listed under "Notes:" but are not covered by the digest: they are the plan's
+`mergePreview` field, not its `notices`. The apply previews the pushed commit again and acts
+on that ([actions.md](actions.md#conflicts-into-develop)).
 
 
 Otherwise the merge-branch downmerges (m→d, r→m, h→d) produce no notes and no warnings. A
@@ -194,12 +202,13 @@ downmerge prints its notes with the result, because it applies straight away.
 
 ## Downmerge handoffs
 
-A conflicting downmerge returns one of these instead of a result, and creates nothing.
-The procedure behind them is [manual-downmerge.md](manual-downmerge.md).
+A conflicting downmerge returns one of these instead of a result, and creates nothing. An
+increment of a release branch can return H1 alongside its result, after pushing the
+version. The procedure behind them is [manual-downmerge.md](manual-downmerge.md).
 
 | ID | First line | Actions | Condition |
 | --- | --- | --- | --- |
-| H1 | `Manual downmerge needed: <source> → develop` | DM m→d, r→d, h→d | `git merge-tree` of the source into `develop` reports conflicts, in the plan or again during the apply |
+| H1 | `Manual downmerge needed: <source> → develop` | DM m→d, r→d, h→d; INC (release branches, `<source>` = `release/X.Y.Z`) | `git merge-tree` of the source into `develop` reports conflicts, in the plan or again during the apply. For INC: on the pushed head, with a valid `pipeline.trigger` configured ([actions.md](actions.md#conflicts-into-develop)) |
 | H2 | `Decision needed: <source> → main conflicts` | DM r→m, h→m | The same, into `main` |
 
 The rest of the handoff, exactly:
@@ -217,6 +226,20 @@ Steps:                                   # H1
 
 The full procedure is docs/manual-downmerge.md in the versioner repository (https://github.com/officespacesoftware/versioner/blob/master/docs/manual-downmerge.md).
 ```
+
+From an increment, the second line reads instead, with no pull request open:
+
+```text
+<v> is pushed and tagged, but <source> conflicts with develop, so no pull request into develop was opened. Conflicted files:
+```
+
+or, with one open:
+
+```text
+<v> is pushed and tagged, and PR #<n> (<source> → develop) stays open, but it cannot merge: <source> conflicts with develop. Conflicted files:
+```
+
+Everything else, steps included, is the `release` → `develop` downmerge's.
 
 `<resolution-branch>` is `main-into-develop-<unix-timestamp>`,
 `release-X.Y.Z-into-develop-<unix-timestamp>` or `hotfix-X.Y.Z-into-develop-<unix-timestamp>`.
@@ -244,7 +267,10 @@ which the MCP server and the CLI replace with the rendering above:
 `<source> conflicts with <target> in <n> file(s): <files>. Nothing was created; follow docs/manual-downmerge.md to downmerge by hand.`
 (into `develop`) or `...; a human has to choose how to proceed, see docs/manual-downmerge.md.`
 (into `main`). The MCP server prefixes the rendering with `⚠️  `; the CLI prints it to
-stderr and exits `1`.
+stderr and exits `1`. An increment throws nothing: its result carries the handoff as
+`manualDownmerge`, the MCP server prints it after the pull request lines with the same
+`⚠️  ` prefix, and the CLI prints it with the result, writes it to `$GITHUB_OUTPUT` as
+`manual_downmerge`, and exits `0`.
 
 ## Pipeline trigger
 
@@ -252,7 +278,7 @@ See [configuration.md](configuration.md#pipeline-trigger) for when the trigger r
 
 | ID | Exact text | Status | Actions | Condition | What to do |
 | --- | --- | --- | --- | --- | --- |
-| T1 | `Would start the pipeline for <branch>: it has no open pull request. Checked again after the push.` | plan line under `Pipeline:`; not in the digest | REV (revert shape) in practice | A `pipeline` section is configured, the action will not itself open or update a pull request on the branch, and the branch heads none | Nothing; informational |
+| T1 | `Would start the pipeline for <branch>: it has no open pull request. Checked again after the push.` | plan line under `Pipeline:`; not in the digest | REV (revert shape); INC (release branches) with N8 | A `pipeline` section is configured, the action will not itself open or update a pull request on the branch, and the branch heads none | Nothing; informational |
 | T2 | `Started the pipeline for <branch>: it has no open pull request.` | `started` | RC, HF, INC, REL, REV (revert shape) | The trigger ran and exited 0 | Nothing |
 | T3 | `Did not start the pipeline for <branch>: PR #<n> is open, so its own build runs on the push.` | `skipped` | as T2 | The branch heads an open pull request, against any base | Nothing |
 | T4 | `Could not read .release-management.json at <sha11> (<err>), so the pipeline trigger did not run. If <branch> has no open pull request, start its build by hand.` | `failed` | as T2 | Reading the file at the pushed commit failed | Start the build by hand if needed |
@@ -375,6 +401,8 @@ Problems an apply reports alongside a successful result.
 | `🧹 Deleted stale local tag <tag>, which origin does not have` | RC, HF, INC, REL | Before tagging, a local tag of the same name that origin lacks was deleted (for example, left over from a reverted version) |
 | `⚠️  HOTFIX WARNING: This PR must be merged ONLY AFTER the hotfix has been deployed to production!` | REL (hotfix) | Step 8; the same warning is in the pull request body |
 | `ℹ️  No open PR for <branch>; nothing to update` / `ℹ️  No open PR for <branch>` | REV | No pull request to update or close |
+| `⚠️  <branch> conflicts with develop; not opening a pull request into develop. Manual downmerge needed.` | INC (release branches) | Step 7 found a conflict and no open pull request; the handoff is in the result |
+| `⚠️  Could not check whether <branch> merges cleanly into develop (<err>), so the pull request is opened or updated as usual.` | INC (release branches) | Step 7's preview failed, or the pushed head did not resolve; the increment behaves as without a trigger |
 | S6 | INC, REL | See [Branch selection](#branch-selection) |
 
 ## Text written to GitHub
@@ -395,6 +423,6 @@ Not messages to the operator, but fixed text the actions put on GitHub.
 | Code | Meaning | Raised for |
 | --- | --- | --- |
 | 0 | success | — |
-| 1 | user error | S1–S5, S8–S11 and P1–P12 (branch-selection refusals), U1–U4, D1, H1, H2, A24, and any message containing `not a git repository`, `staged changes detected`, `not found`, `no release branches`, `no hotfix branches`, `is already merged into`, `refusing to`, `versioner mcp is not available` |
+| 1 | user error | S1–S5, S8–S11 and P1–P12 (branch-selection refusals), U1–U4, D1, H1 and H2 from a downmerge (an increment that returns H1 exits `0`), A24, and any message containing `not a git repository`, `staged changes detected`, `not found`, `no release branches`, `no hotfix branches`, `is already merged into`, `refusing to`, `versioner mcp is not available` |
 | 2 | environment error | everything else, including every apply failure not matched above, and `Fatal: <err>` from argument parsing |
 | 3 | reserved for partial success | never returned |

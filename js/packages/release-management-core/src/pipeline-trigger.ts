@@ -67,6 +67,16 @@ async function readPipelineConfig(
   }
 }
 
+export async function hasValidPipelineTrigger(
+  readConfig: () => Promise<string | null>
+): Promise<boolean> {
+  try {
+    return (await readPipelineConfig(readConfig)).kind === "valid";
+  } catch {
+    return false;
+  }
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
