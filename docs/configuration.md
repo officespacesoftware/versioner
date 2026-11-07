@@ -122,9 +122,19 @@ hand. The CLI writes the status to `$GITHUB_OUTPUT` as `pipeline_trigger`.
 
 **In plans.** A plan warns when the section is invalid (W11). When the action will not
 itself open or update a pull request on the branch and the branch heads none, the plan
-shows T1 under `Pipeline:`. In practice only a rewinding `revert_version` shows it, since
-every other versioning action writes a pull request on the branch. The line is not covered
-by the digest.
+shows T1 under `Pipeline:`. A rewinding `revert_version` shows it, and an
+`increment_release_candidate` that predicts a conflict into `develop` with no pull request
+open (N8); every other versioning action writes a pull request on the branch. The line is
+not covered by the digest.
+
+**What a valid trigger changes in `increment_release_candidate`.** On a release branch,
+after the push, the increment previews the merge of the pushed head into `develop`. If it
+conflicts, the increment does not open a pull request into `develop` (one already open is
+still updated) and returns the same "Manual downmerge needed" handoff as the `release` →
+`develop` downmerge, so the conflict gets resolved; the trigger then starts the build of a
+branch left without an open pull request. Without a valid trigger nothing else would start
+that build, so the pull request is opened even when it conflicts. Hotfix branches are not
+affected. Details are in [actions.md](actions.md#conflicts-into-develop).
 
 **Examples.** A CircleCI pipeline through its API:
 

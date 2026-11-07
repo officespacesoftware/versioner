@@ -7,6 +7,12 @@ steps. This document is the procedure behind those steps. Into `develop` the han
 work to carry out; into `main` it is a decision for a human. It is written for an agent
 carrying out the handoff, and works the same for a person.
 
+`increment_release_candidate` returns the same "Manual downmerge needed" handoff for a
+release branch whose pushed candidate conflicts with `develop`, when the repository
+configures a pipeline trigger ([actions.md](actions.md#conflicts-into-develop)). By then it
+has pushed and tagged the new version, and either opened no pull request into `develop` or
+updated the one already open; nothing else. Carry it out exactly as a downmerge's.
+
 Follow the handoff's names exactly. They match the ones the tools use for a clean merge,
 so a reviewer sees the same branch and title either way.
 
@@ -54,9 +60,12 @@ request as a reminder, and `release_version` kept it a draft (or opened a new dr
 it had been closed). Close it with a comment linking the new pull request, so `develop`
 has one open pull request for the hotfix.
 
-**Release source.** The `release/X.Y.Z` → `develop` pull request that `release_version`
-opened stays open. GitHub marks it merged once your pull request lands, because its head
-is then contained in `develop`.
+**Release source.** A `release/X.Y.Z` → `develop` pull request that is open, the one
+`release_version` opened or, for a handoff from an increment, the candidate's
+`RC X.Y.Z-RC.n to develop`, stays open. GitHub marks it merged once your pull request
+lands, because its head is then contained in `develop`. A handoff from an increment with no
+such pull request open leaves none to deal with: yours is the one that brings the release
+into `develop`.
 
 ## Into `main`: a decision, not a resolution
 

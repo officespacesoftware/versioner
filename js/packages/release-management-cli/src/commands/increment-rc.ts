@@ -1,5 +1,8 @@
 import { Command } from "commander";
-import type { IncrementRCWorkflowContext } from "@officespacesoftware/release-management-core";
+import {
+  renderManualDownmerge,
+  type IncrementRCWorkflowContext,
+} from "@officespacesoftware/release-management-core";
 import { emit, renderPipelineTrigger, writeGithubOutput } from "../output.js";
 import { runPlanAwareCommand } from "../plan.js";
 import { resolveBaseOptions } from "../run.js";
@@ -31,21 +34,30 @@ export function registerIncrementRC(parent: Command): void {
             opts.dryRun
           ),
         onExecuted: (result) => {
-          writeGithubOutput({
-            branch: result.branchInfo?.name,
-            version: result.targetVersion?.version,
-            pull_request_url: result.pullRequestUrl,
-            pull_request_action: result.pullRequestAction,
-            pull_request_error: result.pullRequestError,
-            pipeline_trigger: result.pipelineTrigger?.status,
-          });
+          writeGithubOutput(incrementRCOutputs(result));
           emit(result, opts, renderIncrementRC);
         },
       });
     });
 }
 
-function renderIncrementRC(r: IncrementRCWorkflowContext): string {
+export function incrementRCOutputs(
+  result: IncrementRCWorkflowContext
+): Record<string, string | undefined> {
+  return {
+    branch: result.branchInfo?.name,
+    version: result.targetVersion?.version,
+    pull_request_url: result.pullRequestUrl,
+    pull_request_action: result.pullRequestAction,
+    pull_request_error: result.pullRequestError,
+    manual_downmerge: result.manualDownmerge
+      ? renderManualDownmerge(result.manualDownmerge)
+      : undefined,
+    pipeline_trigger: result.pipelineTrigger?.status,
+  };
+}
+
+export function renderIncrementRC(r: IncrementRCWorkflowContext): string {
   const lines = [
     `Branch type: ${r.branchType}`,
     `Branch:      ${r.branchInfo?.name ?? "—"}`,
@@ -58,6 +70,13 @@ function renderIncrementRC(r: IncrementRCWorkflowContext): string {
   if (r.pullRequestError) {
     lines.push(`PR step failed: ${r.pullRequestError}`);
   }
-  lines.push(...renderPipelineTrigger(r.pipelineTrigger));
+  if (r.manualDownmerge) {
+    lines.push("", renderManualDownmerge(r.manualDownmerge));
+  }
+  const pipeline = renderPipelineTrigger(r.pipelineTrigger);
+  if (r.manualDownmerge && pipeline.length > 0) {
+    lines.push("");
+  }
+  lines.push(...pipeline);
   return lines.join("\n");
 }

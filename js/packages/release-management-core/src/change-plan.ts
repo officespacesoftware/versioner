@@ -74,6 +74,7 @@ export interface ChangePlan {
    * repository moving, and the apply checks again after the push regardless.
    */
   pipelineTrigger?: string;
+  mergePreview?: string;
   digest: string;
 }
 
@@ -220,9 +221,13 @@ export function renderChangePlan(plan: ChangePlan): string {
     }
   }
 
-  if (plan.notices.length > 0) {
+  const notes = [
+    ...plan.notices,
+    ...(plan.mergePreview === undefined ? [] : [plan.mergePreview]),
+  ];
+  if (notes.length > 0) {
     lines.push("", "Notes:");
-    for (const notice of plan.notices) {
+    for (const notice of notes) {
       lines.push(`  - ${notice}`);
     }
   }

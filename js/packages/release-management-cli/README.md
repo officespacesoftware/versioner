@@ -215,7 +215,7 @@ Three things that are easy to get wrong:
 | `list-versions` | `current_branch`, `release_candidates` |
 | `create-rc` | `release_type`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `resumed`, `pipeline_trigger` |
 | `create-hotfix` | `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `tracking_pull_request_url`, `tracking_pull_request_action`, `tracking_pull_request_error`, `resumed`, `pipeline_trigger` |
-| `increment-rc` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `pipeline_trigger` |
+| `increment-rc` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `manual_downmerge`, `pipeline_trigger` |
 | `release-version` | `branch`, `version`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `release_url`, `release_notes_warning`, `own_base_pull_request_url`, `own_base_pull_request_action`, `own_base_pull_request_error`, `pipeline_trigger` |
 | `revert-version` | `branch`, `shape`, `reverted_version`, `resulting_version`, `tag_deleted_remotely`, `branch_deleted`, `pull_request_url`, `pull_request_action`, `pull_request_error`, `promotion_pull_request_url`, `promotion_pull_request_error`, `pipeline_trigger` |
 | `initialize-versioner` | `version`, `is_release_candidate` |
@@ -225,6 +225,9 @@ Three things that are easy to get wrong:
 (rewind one version) or `abandon` (delete the branch). A downmerge's `kind` is `direct` or
 `merge-branch`. A conflicting downmerge creates nothing, prints the steps from
 [manual-downmerge.md](../../../docs/manual-downmerge.md), and exits with the user-error code.
+`increment-rc` prints the same handoff with its result, exits `0`, and writes it to
+`manual_downmerge` when the release branch it pushed conflicts with `develop` and a
+pipeline trigger is configured ([actions.md](../../../docs/actions.md#conflicts-into-develop)).
 
 With `--json`, the full result object goes to stdout as one line and every human-facing
 note — progress, apply instructions — goes to stderr, so the document on stdout stays

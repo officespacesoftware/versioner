@@ -87,6 +87,12 @@ export interface ManualDownmerge {
   resolutionBase: string;
   pullRequestTitle: string;
   steps: string[];
+  increment?: IncrementConflict;
+}
+
+export interface IncrementConflict {
+  version: string;
+  openPullRequest?: number;
 }
 
 export class ManualDownmergeRequired extends Error {
@@ -194,6 +200,25 @@ export function describeManualDownmerge(opts: {
   };
 }
 
+function conflictSummary(handoff: ManualDownmerge): string {
+  const { increment, sourceBranch } = handoff;
+  const target = handoff.route.target;
+  if (!increment) {
+    return "The merge conflicts, so nothing was created.";
+  }
+  if (increment.openPullRequest === undefined) {
+    return (
+      `${increment.version} is pushed and tagged, but ${sourceBranch} ` +
+      `conflicts with ${target}, so no pull request into ${target} was opened.`
+    );
+  }
+  return (
+    `${increment.version} is pushed and tagged, and PR ` +
+    `#${increment.openPullRequest} (${sourceBranch} → ${target}) stays open, ` +
+    `but it cannot merge: ${sourceBranch} conflicts with ${target}.`
+  );
+}
+
 export function renderManualDownmerge(handoff: ManualDownmerge): string {
   const target = handoff.route.target;
   return [
@@ -201,7 +226,7 @@ export function renderManualDownmerge(handoff: ManualDownmerge): string {
       ? `Decision needed: ${handoff.sourceBranch} → ${target} conflicts`
       : `Manual downmerge needed: ${handoff.sourceBranch} → ${target}`,
     "",
-    "The merge conflicts, so nothing was created. Conflicted files:",
+    `${conflictSummary(handoff)} Conflicted files:`,
     ...handoff.conflictedFiles.map((f) => `  - ${f}`),
     "",
     ...(handoff.requiresDecision

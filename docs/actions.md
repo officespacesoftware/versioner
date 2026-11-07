@@ -26,7 +26,7 @@ a conflicting downmerge.
 | List versions | `list_versions` | `list-versions` | read-only | Nothing |
 | Create release candidate | `create_release_candidate` | `create-rc` | plan → confirm | Branch `release/X.Y.Z`, commit, tag `X.Y.Z-RC.0`, two pushes, PR → `develop` |
 | Create hotfix | `create_hotfix` | `create-hotfix` | plan → confirm | Branch `hotfix/X.Y.Z`, commit, tag `X.Y.Z-RC.0`, two pushes, PR → `main`, draft PR → `develop` |
-| Increment release candidate | `increment_release_candidate` | `increment-rc` | plan → confirm | Commit, tag `X.Y.Z-RC.n`, two pushes, PR → the branch's base |
+| Increment release candidate | `increment_release_candidate` | `increment-rc` | plan → confirm | Commit, tag `X.Y.Z-RC.n`, two pushes, PR → the branch's base, or, for a release branch that conflicts with `develop` when a pipeline trigger is configured, a [handoff](#conflicts-into-develop) instead of a new PR |
 | Release version | `release_version` | `release-version` | plan → confirm | Commit, tag `X.Y.Z`, two pushes, PR → `main`, GitHub release, PR → `develop` |
 | Revert version | `revert_version` | `revert-version` | plan → confirm | Revert: revert commit, push, tag deleted, GitHub release deleted for a final, PR updated; for a release's final, its PR into `main` closed. Abandon: tag deleted, PR closed, branch deleted |
 | Initialize versioner | `initialize_versioner` | `initialize-versioner` | immediate, local only | `VERSION` file, commit, tag |
@@ -121,7 +121,7 @@ then retitled as the branch moves on:
 
 | Head → base | Opened by | Then updated by | Closed by | Titles | Draft |
 | --- | --- | --- | --- | --- | --- |
-| `release/X.Y.Z` → `develop` | `create_release_candidate` | `increment_release_candidate`, `release_version` (step 10), the `release` → `develop` downmerge, `revert_version` (revert shape). All but the revert open it when none is open | `revert_version` (abandon), with a comment | `RC X.Y.Z-RC.n to develop`, then `Release X.Y.Z to develop` | no |
+| `release/X.Y.Z` → `develop` | `create_release_candidate` | `increment_release_candidate`, `release_version` (step 10), the `release` → `develop` downmerge, `revert_version` (revert shape). All but the revert open it when none is open; the increment not while it [conflicts](#conflicts-into-develop) and a pipeline trigger is configured | `revert_version` (abandon), with a comment | `RC X.Y.Z-RC.n to develop`, then `Release X.Y.Z to develop` | no |
 | `release/X.Y.Z` → `main` | `release_version` (step 7) | — | the `release` → `main` downmerge, with a comment, as superseded by its merge-branch pull request; `revert_version` reverting the promotion, with a comment | `Release X.Y.Z to main` | no |
 | `hotfix/X.Y.Z` → `main` | `create_hotfix` | `increment_release_candidate`, `release_version` (step 7), the `hotfix` → `main` downmerge, `revert_version` (revert shape). All but the revert open it when none is open | `revert_version` (abandon), with a comment | `RC X.Y.Z-RC.n to main`, then `Release X.Y.Z to main` | no |
 | `hotfix/X.Y.Z` → `develop` | `create_hotfix` (as a draft) | `release_version` (step 10), which opens it as a draft when none is open | the `hotfix` → `develop` downmerge, with a comment | `Hotfix X.Y.Z to develop` | yes, whoever opens it; one already open keeps its state |
@@ -187,6 +187,7 @@ A plan (`ChangePlan` in `js/packages/release-management-core/src/change-plan.ts`
 | `notices` | Facts that shape the plan without risk (N1–N4), rendered as "Notes:" |
 | `checkOutput` | The tail of each failing pre-version check's output |
 | `pipelineTrigger` | T1, when the apply is expected to start the pipeline |
+| `mergePreview` | N8–N10: what an increment's merge preview into `develop` found. Rendered as the last line under "Notes:" |
 | `digest` | The confirmation token |
 
 Rendered, a plan reads:
@@ -242,6 +243,7 @@ A notice and a warning with the same text digest differently.
 | mutation `detail` lines (pull request titles, tag messages, file lists, recovery commands, release URLs) | Derived from covered facts, or presentation |
 | `checkOutput` | Output carries timings and download progress that differ between two runs of the same check; the warning naming the failure is covered |
 | `pipelineTrigger` | It depends on pull requests to any base, which open and close without the repository moving; the apply checks again after the push regardless. The configuration it reads is covered through the branch head |
+| `mergePreview` | It depends on `develop`'s head, which moves without the branch moving, and the plan previews the head before the version commit. The apply previews the pushed commit again and acts on that, so a plan approved before `develop` moved still does the right thing, and a `develop` push does not send an auto-applied increment back for approval. Whether a pull request is open, which it also names, is covered by N1 |
 | local branches other than the one acted on | Applies cut and reset from origin's refs, which the plan fetched. See [Remote state](#remote-state) |
 | local commits not on origin | Version reads prefer origin, and the apply resets the branch to origin. The commits it drops are named in W14, which is covered |
 
@@ -265,7 +267,10 @@ older than the plan and less reliable; **use the plan instead**. Specifically:
 A repository can configure commands in `.release-management.json`: checks that run while a
 plan is built for the four versioning actions, turning failures into warnings W7–W10, and
 a trigger that starts CI after a push when the branch has no open pull request (T1–T10).
-Both are described in [configuration.md](configuration.md).
+A configured trigger also lets `increment_release_candidate` hand a release branch's
+conflicting pull request into `develop` to a manual downmerge instead of opening it
+([Conflicts into develop](#conflicts-into-develop)). Both are described in
+[configuration.md](configuration.md).
 
 ---
 
@@ -411,6 +416,7 @@ carries R1; the MCP tool and the CLI print it with how to recover.
 | A configured check fails, times out or cannot run; its configuration is invalid | W7–W10 warning |
 | `pipeline` section invalid | W11 warning |
 | `release/X.Y.Z` → `develop` already open | N1 note; the pull request is updated |
+| Pull request into `develop` would conflict | Not checked: the branch is cut from `origin/develop`'s head and differs from it only in `VERSION`, so there is nothing to conflict on when it opens. Later conflicts surface at [increment](#conflicts-into-develop) |
 | No `confirm` | Plan returned, nothing changed |
 | `confirm` differs from the rebuilt plan | D1 refusal with a fresh plan |
 | `confirm` matches | Apply |
@@ -558,6 +564,22 @@ request `open <branch> → <base>` or `update PR #n (<branch> → <base>)`, wher
 `title: RC X.Y.Z-RC.(n+1) to <base>`. Pre-version checks run
 against the branch head. W1 is checked for release branches only.
 
+The plan also previews the merge of the branch head into `origin/<base>` with
+`git merge-tree`, the same read-only preview the downmerge uses:
+
+- **Release branch, valid `pipeline.trigger`** in `.release-management.json` at the branch
+  head. A conflict is a note, never a warning, because the apply hands it off by itself
+  ([Conflicts into develop](#conflicts-into-develop)): N8 when no `<branch>` → `develop` pull
+  request is open (the apply will not open the one listed, and the plan's `Pipeline:` line
+  predicts T1), N9 when one is open. N10 when the preview cannot run. These are listed under
+  `Notes:` but held in the plan's `mergePreview` field, which the digest does not cover:
+  `develop` can move without the branch moving, and the apply previews again on the pushed
+  commit, which is what decides.
+- **Release branch without a valid trigger.** No preview.
+- **Hotfix branch**, whatever the configuration. A conflict is W15, a warning, so a human
+  approves: a conflict with `main` is a decision, not a resolution. W5 when the preview
+  cannot run. The apply opens or updates the pull request either way.
+
 **Apply, in order.**
 
 1. Select the branch again.
@@ -571,20 +593,69 @@ against the branch head. W1 is checked for release branches only.
    with `git show`, from `origin/<base>` first. This check is not in the plan.
 5. Delete a stale local tag; the versioner commits and tags.
 6. `git push -u origin <branch>`, then `git push origin <tag>`.
-7. Open or update the pull request. A failure is reported (R1), not thrown.
-8. Pipeline trigger: normally `skipped`; it can start a build if step 7 failed and the
-   branch heads no other open pull request.
+7. Open or update the pull request. On a release branch whose pushed head has a valid
+   `pipeline.trigger`, first preview the merge of the pushed head into `origin/develop`
+   ([Conflicts into develop](#conflicts-into-develop)): when it conflicts, a pull request
+   already open is updated and none is opened, and the result carries the H1 handoff. A
+   failure is reported (R1), not thrown.
+8. Pipeline trigger, after step 7, so it sees the pull request step 7 left open or did not
+   open: normally `skipped`; `started` after a handoff with no pull request open, or if
+   step 7 failed and the branch heads no other open pull request.
 
 **Pull request.** `<branch>` → `develop` (release) or `main` (hotfix), title
 `RC X.Y.Z-RC.n to <base>`, not a draft, production warning when the base is `main`. Body:
 `## <Release|Hotfix> Candidate Increment`, version details, the seven completed steps, and
-"Use `release_version` tool when ready for production".
+"Use `release_version` tool when ready for production". Not opened into `develop` while it
+conflicts and a pipeline trigger is configured; see below.
+
+### Conflicts into develop
+
+A release branch whose first pull request into `develop` was merged goes on changing, and so
+does `develop`. When both change the same file, the next increment's pull request into
+`develop` conflicts, and nothing resolves it until someone runs the `release` → `develop`
+downmerge and gets its handoff. When a pipeline trigger is configured, the increment does
+that itself after the push, on the pushed commit:
+
+| Pushed head into `origin/develop` | Pull request | Result | Pipeline trigger |
+| --- | --- | --- | --- |
+| clean | opened or updated | — | `skipped` (T3) |
+| conflicts, no `release/X.Y.Z` → `develop` open | not opened | H1 handoff | `started` (T2): the branch heads no open pull request |
+| conflicts, one open | updated (the push already moved it) | H1 handoff | `skipped` (T3) |
+| preview fails | opened or updated | — (logged) | `skipped` (T3) |
+
+The handoff is the one the `release` → `develop` downmerge returns for the same conflict:
+the heading `Manual downmerge needed: release/X.Y.Z → develop`, the conflicted files, the
+resolution branch `release-X.Y.Z-into-develop-<unix-timestamp>`, the title
+`Release X.Y.Z to develop`, and the same steps, so whoever carries out a downmerge handoff
+carries this one out the same way ([manual-downmerge.md](manual-downmerge.md)). Only the
+sentence before the file list differs, since the version was pushed
+([messages.md](messages.md#downmerge-handoffs)).
+
+**Why only with a pipeline trigger.** The trigger exists for CI that builds a branch only
+while it heads an open pull request. With a trigger, the build of the new candidate no longer
+depends on the conflicting pull request, so not opening it costs nothing and the handoff
+gets the conflict resolved. Without one, that pull request is the only thing that starts the
+build, so it is opened, conflicting or not, as before.
+
+**Why not hotfixes.** A hotfix integrates into `main`, and a conflict with `main` is a
+decision for a human ([manual-downmerge.md](manual-downmerge.md#into-main-a-decision-not-a-resolution)).
+The plan warns (W15) so a human approves, and the pull request is opened as usual.
 
 **Messages.** Refusals G1, G2, G5, G6, G7–G9, G14, S1–S5, S7, P1, P2, D1. Warnings W1, W2
-(release branches), W7–W11, W14. Notes N1. Pipeline T2–T10. Apply failures A11–A18. Report R1.
+(release branches), W5, W15 (hotfix branches), W7–W11, W14. Notes N1, N8–N10 (release
+branches with a pipeline trigger). Handoff H1. Pipeline T1–T10. Apply failures A11–A18.
+Report R1.
+
+**Result.** `manualDownmerge` carries the H1 handoff when step 7 found a conflict: the same
+`ManualDownmerge` a conflicting downmerge throws, with `increment: { version,
+openPullRequest? }` naming the version pushed and the pull request left open, if any. The
+MCP tool prints it after the pull request lines as `⚠️  Manual downmerge needed: …`, as the
+downmerge does; the CLI prints it in its text output and exits `0`, since the version was
+applied. `--json` includes the object.
 
 **CLI `$GITHUB_OUTPUT`.** `branch`, `version`, `pull_request_url`, `pull_request_action`,
-`pull_request_error`, `pipeline_trigger`.
+`pull_request_error`, `manual_downmerge` (the rendered handoff, multi-line, only when there
+is one), `pipeline_trigger`.
 
 ### `increment_release_candidate`: decision table
 
@@ -597,6 +668,13 @@ against the branch head. W1 is checked for release branches only.
 | Local branch has commits origin does not | W14 warning; the apply resets the branch to origin |
 | Check or configuration problems | W7–W11 warnings |
 | Pull request to the base already open | N1; updated |
+| Release branch, valid `pipeline.trigger`, merge into `develop` conflicts in the plan | N8 (no pull request open) or N9 (one open), outside the digest; T1 with N8 |
+| The same at apply, on the pushed head, no pull request open | None opened; H1 handoff returned; pipeline trigger `started` |
+| The same at apply, one open | Updated; H1 handoff returned; pipeline trigger `skipped` |
+| Release branch, no valid `pipeline.trigger` | No preview; the pull request is opened or updated even if it conflicts |
+| Release branch, the merge preview cannot run | N10 in the plan; at apply, logged and the pull request opened or updated |
+| Hotfix branch, merge into `main` conflicts | W15 warning; the pull request is opened or updated |
+| Hotfix branch, the merge preview cannot run | W5 warning |
 | At apply, branch below its base's version | A13; nothing created |
 | Pull request step fails | R1; the version is already pushed |
 
@@ -609,6 +687,8 @@ against the branch head. W1 is checked for release branches only.
 | 6, branch push | Local commit and tag ahead of origin | As 5: plan again. The plan promises `RC.(n+1)` from origin and the apply produces it, dropping the unpushed commit and tag first |
 | 6, tag push | Commit on origin, tag only local | `git push origin <tag>`. `list_versions` shows `tag:local-only` |
 | 7 | Everything on origin, pull request not written (R1) | Edit or open the pull request by hand |
+| 7, with a handoff (not a failure) | Everything on origin; no `release/X.Y.Z` → `develop` pull request, or the open one updated and still conflicting | Carry out the handoff ([manual-downmerge.md](manual-downmerge.md#into-develop)). Its pull request brings the release into `develop`; one already open is then marked merged by GitHub |
+| 7, lookup of the open pull request fails after a conflict | Everything on origin, no pull request opened, the handoff, and R1 | Carry out the handoff |
 
 ---
 
@@ -1037,7 +1117,9 @@ steps. Into `main` it is a decision for a human (H2, "Decision needed"): `main` 
 production, so nothing is resolved and two options are offered. The MCP server returns the
 handoff as text; the CLI prints it to stderr and exits `1`. The procedure is
 [manual-downmerge.md](manual-downmerge.md); the exact text is in
-[messages.md](messages.md#downmerge-handoffs).
+[messages.md](messages.md#downmerge-handoffs). `increment_release_candidate` can return the
+same H1 handoff for `release` → `develop`, alongside its result
+([Conflicts into develop](#conflicts-into-develop)).
 
 **Messages.** Refusals G1, G2, G7–G9, G14, G15, U6, U7, S12, S13, P8, P13, P15. Notes N1, N7. Handoffs H1,
 H2. Apply failures A28–A31. Report R9. MCP failures are returned as `❌ Downmerge Failed`.
