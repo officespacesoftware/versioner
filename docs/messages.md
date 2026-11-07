@@ -134,6 +134,8 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | P13 | `Could not compare '<source>' with '<base>': git merge-tree exited <n> — <stderr>. Check that both refs exist and share history.` | refusal | DM (all routes) | `git merge-tree` failed for a reason other than a conflict | Fetch both branches; check they share history |
 | P14 | `<branch> is on origin at <X.Y.Z-RC.0> but tag <X.Y.Z-RC.0> is not, and no commit "To version <X.Y.Z-RC.0>" on the branch can be tagged. Tag the commit that set the version by hand, push the tag, and run this again.` | refusal | RC, HF (resume) | A resume would push the missing tag, but the branch has no version commit to put it on | Tag the commit that set `VERSION` by hand |
 | P15 | `PR #<n> (<merge-branch> → <target>) is already open from an earlier downmerge of <source>, and <source> has moved on since: <sha11> is not in <merge-branch>. Merge or close PR #<n> first, then run the downmerge again.` | refusal | DM m→d, r→m, h→d | An earlier run's merge-branch pull request is open, and the source has commits that merge branch lacks | Merge or close that pull request, then run the downmerge again |
+| P16 | `<branch> is at <v>, behind <base> at <base-v>: a newer version has already reached <base>, so <branch> is stale and increment_release_candidate cannot be planned for it. Promote it with release_version or abandon it, or cut <a new release candidate with create_release_candidate\|a new hotfix with create_hotfix> instead.` | refusal | INC | The branch's major.minor.patch is lower than its base's (`develop` for a release branch, `main` for a hotfix), read from `origin/<base>` first; the RC suffix is ignored. Typically a release branch never promoted after a newer release reached `develop`, or a hotfix cut before a release reached `main` | Promote or abandon the branch, or cut a new release candidate or hotfix |
+| P17 | `Could not compare <branch> with <base>'s version (<err>), so increment_release_candidate cannot be planned. Check that origin/<base> has a readable VERSION file.` (`<err>` is the text of A14 or A15) | refusal | INC | The base's `VERSION` is missing or does not start `X.Y.Z` on `origin/<base>` and on the local `<base>`, or reading it failed | Restore `VERSION` on the base |
 
 ## Plan warnings
 
@@ -326,9 +328,9 @@ No step prefix.
 | --- | --- | --- | --- |
 | A11 | `Failed to check out branch '<branch>': <err>` or `Failed to reset '<branch>' to origin/<branch>: <err>` | INC, REL | Checking out the target failed, or resetting it to origin would overwrite an uncommitted change (`git reset --keep`) |
 | A12 | `Branch <branch> version <v> is not a release candidate. Only RC versions can be incremented.` | INC | The branch's VERSION is final: the working tree's after the checkout, or on a `dryRun`, the branch's as the plan reads it (see [dryRun](actions.md#dryrun)) |
-| A13 | `<branch> version <X.Y.Z> is behind <base> version <v>. Cannot proceed with increment.` | INC | The branch's major.minor.patch is lower than its base's, read from `origin/<base>` first. Not checked by the plan |
-| A14 | `Could not read version from <base> branch VERSION file` | INC | As A13, base VERSION unreadable |
-| A15 | `Failed to validate branch version: <err>` | INC | As A13, unexpected error |
+| A13 | `<branch> version <v> is behind <base> version <base-v>. Cannot proceed with increment.` | INC | The branch's major.minor.patch is lower than its base's, read from `origin/<base>` first. In practice unreachable through the MCP tool and the CLI: the rebuilt plan refuses first (P16). Reached by calling `executeIncrementRCWorkflow` without a plan |
+| A14 | `Could not read version from <base> branch VERSION file` | INC | As A13, base VERSION unreadable. The rebuilt plan refuses first (P17) |
+| A15 | `Failed to validate branch version: <err>` | INC | As A13, unexpected error. The rebuilt plan refuses first (P17) |
 | A16 | `Failed to increment release candidate: <err>` | INC | The versioner failed, including `Tag '<v>' already exists.` |
 | A17 | `Target version not available for push operation` | INC | Internal: no version after step 5 |
 | A18 | `Failed to push branch '<branch>' and tag '<tag>': <err>` | INC | Either push rejected |
@@ -423,6 +425,6 @@ Not messages to the operator, but fixed text the actions put on GitHub.
 | Code | Meaning | Raised for |
 | --- | --- | --- |
 | 0 | success | — |
-| 1 | user error | S1–S5, S8–S11 and P1–P12 (branch-selection refusals), U1–U4, D1, H1 and H2 from a downmerge (an increment that returns H1 exits `0`), A24, and any message containing `not a git repository`, `staged changes detected`, `not found`, `no release branches`, `no hotfix branches`, `is already merged into`, `refusing to`, `versioner mcp is not available` |
+| 1 | user error | S1–S5, S8–S11, P1–P12, P16 and P17 (branch-selection refusals), U1–U4, D1, H1 and H2 from a downmerge (an increment that returns H1 exits `0`), A24, and any message containing `not a git repository`, `staged changes detected`, `not found`, `no release branches`, `no hotfix branches`, `is already merged into`, `refusing to`, `versioner mcp is not available` |
 | 2 | environment error | everything else, including every apply failure not matched above, and `Fatal: <err>` from argument parsing |
 | 3 | reserved for partial success | never returned |

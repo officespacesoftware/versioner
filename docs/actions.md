@@ -564,6 +564,12 @@ request `open <branch> → <base>` or `update PR #n (<branch> → <base>)`, wher
 `title: RC X.Y.Z-RC.(n+1) to <base>`. Pre-version checks run
 against the branch head. W1 is checked for release branches only.
 
+The plan refuses a branch whose major.minor.patch is below its base's `VERSION`, read from
+`origin/<base>` first, ignoring the RC suffix (P16). Such a branch is stale: a newer version
+already reached the base, for example a release branch never promoted after a newer release
+was merged into `develop`, or a hotfix cut before a release reached `main`. An unreadable
+base `VERSION` is refused too (P17).
+
 The plan also previews the merge of the branch head into `origin/<base>` with
 `git merge-tree`, the same read-only preview the downmerge uses:
 
@@ -590,7 +596,9 @@ The plan also previews the merge of the branch head into `origin/<base>` with
    are kept or the reset fails. Skipped for a branch origin does not have.
 4. Validate: the working tree's `VERSION` must be an RC (A12), and the branch's
    major.minor.patch must not be below its base's (A13, A14). The base's `VERSION` is read
-   with `git show`, from `origin/<base>` first. This check is not in the plan.
+   with `git show`, from `origin/<base>` first. The plan makes the same comparison (P16,
+   P17) and the apply rebuilds the plan first, so A13–A15 are a safety net for callers that
+   run the workflow without a plan.
 5. Delete a stale local tag; the versioner commits and tags.
 6. `git push -u origin <branch>`, then `git push origin <tag>`.
 7. Open or update the pull request. On a release branch whose pushed head has a valid
@@ -641,10 +649,10 @@ build, so it is opened, conflicting or not, as before.
 decision for a human ([manual-downmerge.md](manual-downmerge.md#into-main-a-decision-not-a-resolution)).
 The plan warns (W15) so a human approves, and the pull request is opened as usual.
 
-**Messages.** Refusals G1, G2, G5, G6, G7–G9, G14, S1–S5, S7, P1, P2, D1. Warnings W1, W2
-(release branches), W5, W15 (hotfix branches), W7–W11, W14. Notes N1, N8–N10 (release
-branches with a pipeline trigger). Handoff H1. Pipeline T1–T10. Apply failures A11–A18.
-Report R1.
+**Messages.** Refusals G1, G2, G5, G6, G7–G9, G14, S1–S5, S7, P1, P2, P16, P17, D1.
+Warnings W1, W2 (release branches), W5, W15 (hotfix branches), W7–W11, W14. Notes N1,
+N8–N10 (release branches with a pipeline trigger). Handoff H1. Pipeline T1–T10. Apply
+failures A11–A18. Report R1.
 
 **Result.** `manualDownmerge` carries the H1 handoff when step 7 found a conflict: the same
 `ManualDownmerge` a conflicting downmerge throws, with `increment: { version,
@@ -663,6 +671,8 @@ is one), `pipeline_trigger`.
 | --- | --- |
 | Selection fails | S1–S5 refusal |
 | Selected branch is not at an RC | P1 refusal |
+| Branch's major.minor.patch below its base's | P16 refusal |
+| Base's `VERSION` unreadable | P17 refusal |
 | Next RC tag on origin | P2 refusal |
 | Release branch missing a shipped hotfix | W1 warning |
 | Local branch has commits origin does not | W14 warning; the apply resets the branch to origin |
@@ -675,7 +685,7 @@ is one), `pipeline_trigger`.
 | Release branch, the merge preview cannot run | N10 in the plan; at apply, logged and the pull request opened or updated |
 | Hotfix branch, merge into `main` conflicts | W15 warning; the pull request is opened or updated |
 | Hotfix branch, the merge preview cannot run | W5 warning |
-| At apply, branch below its base's version | A13; nothing created |
+| At apply, branch below its base's version | A13; nothing created. In practice unreachable: the rebuilt plan refuses first (P16) |
 | Pull request step fails | R1; the version is already pushed |
 
 ### `increment_release_candidate`: partial failure and recovery

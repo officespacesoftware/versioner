@@ -43,7 +43,9 @@ Each RC can be undone with `revert_version` (RC.n back to RC.n-1, a final back t
 RC.0 abandons the branch); see [Revert shape](#revert-shape). `release_version` warns when
 `main` holds commits the branch lacks or would conflict with it (W3, W4), and
 `increment_release_candidate` and `release_version` warn when a shipped hotfix is missing
-from the release branch (W1). An increment whose release branch conflicts with `develop`
+from the release branch (W1). `increment_release_candidate` refuses a release branch whose
+version is behind `develop`'s, such as one never promoted after a newer release reached
+`develop` (P16). An increment whose release branch conflicts with `develop`
 hands the conflict off when a pipeline trigger is configured; see
 [Increment pull request](#increment-pull-request).
 
@@ -75,7 +77,8 @@ flowchart TD
 
 Once the hotfix is in `main`, `create_release_candidate`, `increment_release_candidate` and
 `release_version` warn (W1) until it is also in `develop` or the release branch. There is
-no downmerge route into a release branch.
+no downmerge route into a release branch. `increment_release_candidate` refuses a hotfix
+whose version is behind `main`'s, such as one cut before a release reached `main` (P16).
 
 ## Plan and confirm
 
