@@ -25,6 +25,8 @@ and each hit was read in context to find its condition and which actions reach i
 families are assembled away from their `throw`: the GitHub App failures G22–G24 (and the
 G21 text) are returned by `describeFailure` in `release-management-core/src/github-app-auth.ts`,
 and the G26 suffix by `explainForbidden` in `github-client.ts`; read both functions too.
+The G7 text is the constant `NO_TOKEN_MESSAGE` in `github-client.ts`, and U10 is written by
+`runCommandWithEnv` in `release-management-cli/src/commands/with-github-auth.ts`.
 
 **A pull request that adds, removes or rewords a message updates this catalog in the same
 pull request.** See [Maintaining these documents](README.md#maintaining-these-documents).
@@ -51,7 +53,10 @@ pull request.** See [Maintaining these documents](README.md#maintaining-these-do
 **Action codes.** RC `create_release_candidate`, HF `create_hotfix`, INC
 `increment_release_candidate`, REL `release_version`, REV `revert_version`, INIT
 `initialize_versioner`, LV `list_versions`, DM `downmerge` (DM m→d, r→d, r→m, h→d, h→m for
-one route), ALL every action that touches the repository.
+one route), ALL every action that touches the repository. WGA is the CLI's
+`with-github-auth` command, which is not an action: it runs a command of yours with the
+tools' GitHub credential; see
+[Running your own git and gh as the app](configuration.md#running-your-own-git-and-gh-as-the-app).
 
 **Where the text appears.** The MCP server prefixes a failure with a status line such as
 `❌ Increment Release Candidate Workflow Failed` and puts the message after `💥 Error:`.
@@ -70,8 +75,8 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | G4 | `Versioner MCP is not available. Please ensure versioner-mcp is running.` | refusal | MCP: RC, HF. CLI: every plan-aware command, including `revert-version` | The versioner library did not load. In practice unreachable: the in-process client always reports itself connected | Reinstall the package |
 | G5 | `Versioner is not available; the version management library failed to load.` | refusal | MCP: INC, REL | As G4 | As G4 |
 | G6 | `Failed to initialize ReleaseAgent: Error: Failed to initialize versioner connection: <err>` | refusal | RC, HF, INC, REL, REV (and every CLI plan-aware command) | Loading the versioner library threw | As G4 |
-| G7 | `No GitHub token available. Set GH_TOKEN or GITHUB_TOKEN, or run 'gh auth login' so `` `gh auth token` `` returns a token.` | refusal, or apply failure if first reached mid-apply | Any action that calls GitHub | No token from any source; see [token resolution](configuration.md#github-token-resolution) | Set a token |
-| G8 | `Could not parse owner/repo from origin URL: <url>. Expected github.com SSH or HTTPS URL.` | refusal / apply failure | as G7 | `origin` is not `git@github.com:owner/repo(.git)` or `https://github.com/owner/repo(.git)` | Fix the `origin` remote |
+| G7 | `No GitHub token available. Set GH_TOKEN or GITHUB_TOKEN, or run 'gh auth login' so `` `gh auth token` `` returns a token.` | refusal, or apply failure if first reached mid-apply | Any action that calls GitHub; WGA | No token from any source; see [token resolution](configuration.md#github-token-resolution) | Set a token |
+| G8 | `Could not parse owner/repo from origin URL: <url>. Expected github.com SSH or HTTPS URL.` | refusal / apply failure | as G7 (WGA only with a GitHub App and no `--repo`) | `origin` is not `git@github.com:owner/repo(.git)` or `https://github.com/owner/repo(.git)` | Fix the `origin` remote |
 | G9 | `Failed to look up existing PR for '<branch>' → '<base>': <err>` | refusal (plan) / apply failure | RC, HF, INC, REL, REV, DM r→d, h→d, h→m | The GitHub pull-request list call failed | Check the token's scope and GitHub status, rerun |
 | G10 | `Failed to look up open PRs from '<branch>': <err>` | surfaces inside T5 | RC, HF, INC, REL, REV | As G9, for the pipeline trigger's lookup | As G9 |
 | G11 | `Failed to look up the GitHub release for <tag>: <err>` | refusal | REV (final versions) | GitHub answered something other than 200 or 404 | As G9 |
@@ -79,7 +84,7 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | G13 | `Git command failed: <err>` | apply failure (or refusal while planning) | ALL | Any git command exited non-zero where no more specific message applies. With a GitHub App, an installation token or its git header value in `<err>` reads `[REDACTED]` | Read `<err>` |
 | G14 | `Could not resolve a commit for branch '<branch>'` | refusal | RC, HF, INC, REL, REV, DM | Neither `origin/<branch>` nor `<branch>` resolves | Fetch, or create the base branch |
 | G15 | `Failed to look up open PRs into '<base>': <err>` | refusal | DM m→d, r→m, h→d | Listing the open pull requests into the target, to find an earlier run's merge-branch pull request, failed | As G9 |
-| G16 | `A GitHub App private key is set (GITHUB_APP_PRIVATE_KEY or GITHUB_APP_PRIVATE_KEY_PATH) but GITHUB_APP_ID is not. Set GITHUB_APP_ID to authenticate as the app, or unset the key to use a token.` | refusal, or apply failure if first reached mid-apply | as G7, and every git network command | A key variable is non-empty and `GITHUB_APP_ID` is unset or empty; see [GitHub App authentication](configuration.md#github-app-authentication) | Set `GITHUB_APP_ID`, or unset the key |
+| G16 | `A GitHub App private key is set (GITHUB_APP_PRIVATE_KEY or GITHUB_APP_PRIVATE_KEY_PATH) but GITHUB_APP_ID is not. Set GITHUB_APP_ID to authenticate as the app, or unset the key to use a token.` | refusal, or apply failure if first reached mid-apply | as G7, and every git network command; WGA | A key variable is non-empty and `GITHUB_APP_ID` is unset or empty; see [GitHub App authentication](configuration.md#github-app-authentication) | Set `GITHUB_APP_ID`, or unset the key |
 | G17 | `GITHUB_APP_ID is set but no private key is: set GITHUB_APP_PRIVATE_KEY or GITHUB_APP_PRIVATE_KEY_PATH, or unset GITHUB_APP_ID to use a token.` | as G16 | as G16 | `GITHUB_APP_ID` is non-empty and neither key variable is | Set a key, or unset `GITHUB_APP_ID` |
 | G18 | `Both GITHUB_APP_PRIVATE_KEY and GITHUB_APP_PRIVATE_KEY_PATH are set. Set only one of them.` | as G16 | as G16 | Both key variables are non-empty | Unset one |
 | G19 | `<source> does not hold a valid RSA private key in PEM form. Use the whole .pem file GitHub generated for the app, including its BEGIN and END lines; literal \n sequences are accepted in place of newlines.` | as G16 | as G16 | The key does not parse, or is not RSA. `<source>` is `GITHUB_APP_PRIVATE_KEY` or `The file named by GITHUB_APP_PRIVATE_KEY_PATH (<path>)`. The key is never shown | Paste or point at the app's `.pem` file |
@@ -102,6 +107,9 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | U5 | `releaseType must be one of: major, minor, patch (defaults to minor if not specified)` | refusal | MCP RC | Any other value. Returned as an MCP error (`isError: true`) | Fix the input |
 | U6 | `There is no downmerge from '<source>' to '<target>'. Valid routes: main → develop, release → develop, release → main, hotfix → develop, hotfix → main.` | refusal | MCP DM | `source`/`target` is not one of the five routes | Pick a valid route |
 | U7 | commander's `error: unknown option '--plan'` | refusal | CLI DM | `--plan` given to a downmerge; it is rejected rather than ignored, since a downmerge applies immediately | Omit it. `--confirm` and `--yes` are accepted and ignored |
+| U8 | `--repo must be owner/name, such as octo-org/octo-repo, not '<value>'.` | refusal | WGA | `--repo` is not two non-empty parts separated by one `/`. Checked before any credential is resolved | Pass `owner/name` |
+| U9 | `with-github-auth needs the command to run after --, for example: release-management with-github-auth -- git push origin HEAD` | refusal | WGA | No `--` after `with-github-auth`, or nothing after it. Checked first. Without `--`, an argument that starts with `-` gets commander's `error: unknown option` instead | Put `--` before the command |
+| U10 | `Error: Could not run '<command>': <err>` | refusal | WGA | The credential was resolved but the command could not be started. Exit code `127` when it was not found (`<err>` ends in `ENOENT`), `126` otherwise, such as not executable | Check the command's name and `PATH` |
 
 ## Plan protocol
 
@@ -439,6 +447,11 @@ Not messages to the operator, but fixed text the actions put on GitHub.
 | Code | Meaning | Raised for |
 | --- | --- | --- |
 | 0 | success | — |
-| 1 | user error | S1–S5, S8–S11, P1–P12, P16 and P17 (branch-selection refusals), U1–U4, D1, H1 and H2 from a downmerge (an increment that returns H1 exits `0`), A24, and any message containing `not a git repository`, `staged changes detected`, `not found`, `no release branches`, `no hotfix branches`, `is already merged into`, `refusing to`, `versioner mcp is not available` |
+| 1 | user error | S1–S5, S8–S11, P1–P12, P16 and P17 (branch-selection refusals), U1–U4, U8, U9, D1, H1 and H2 from a downmerge (an increment that returns H1 exits `0`), A24, and any message containing `not a git repository`, `staged changes detected`, `not found`, `no release branches`, `no hotfix branches`, `is already merged into`, `refusing to`, `versioner mcp is not available` |
 | 2 | environment error | everything else, including every apply failure not matched above, and `Fatal: <err>` from argument parsing |
 | 3 | reserved for partial success | never returned |
+
+`with-github-auth` uses `1` and `2` as above for its own refusals (U8, U9; G7, G8, G16–G25),
+`127` or `126` for U10, and otherwise exits with its command's exit code, or `128` plus the
+signal's number when the command was killed by a signal (`143` for `SIGTERM`). Codes `0`–`3`
+from the command mean whatever that command means by them.

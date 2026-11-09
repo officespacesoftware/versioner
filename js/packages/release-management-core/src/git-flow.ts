@@ -10,9 +10,11 @@ import { promisify } from "util";
 import {
   createGitHubClient,
   describeGitHubAuth,
+  githubCommandEnv,
   gitCredentialEnv,
   gitIdentityEnv,
   type GitHubAuthStatus,
+  type GitHubRepository,
 } from "./github-client.js";
 import {
   isGitHubAppAuthConfigured,
@@ -378,6 +380,12 @@ export class GitFlowManager {
 
   async describeGitHubAuth(): Promise<GitHubAuthStatus> {
     return describeGitHubAuth(this.workingDirectory);
+  }
+
+  async githubCommandEnv(
+    repository?: GitHubRepository
+  ): Promise<NodeJS.ProcessEnv> {
+    return githubCommandEnv(this.workingDirectory, repository);
   }
 
   /**

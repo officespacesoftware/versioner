@@ -18,6 +18,7 @@ import yaml from "js-yaml";
 import { Octokit } from "@octokit/rest";
 import { graphql } from "@octokit/graphql";
 import {
+  GITHUB_APP_ENV_VARS,
   GitHubAppAuth,
   GitHubAppAuthError,
   buildGitCredentialEnv,
@@ -40,6 +41,11 @@ export interface GitHubClient {
 
 export type GitHubTokenSource = "GH_TOKEN" | "GITHUB_TOKEN" | "gh" | "gh hosts.yml";
 
+export interface GitHubRepository {
+  owner: string;
+  repo: string;
+}
+
 export interface GitHubAuthStatus {
   source: string;
   appId?: string;
@@ -49,6 +55,9 @@ export interface GitHubAuthStatus {
   tokenExpiresAt?: string;
   error?: string;
 }
+
+const NO_TOKEN_MESSAGE =
+  "No GitHub token available. Set GH_TOKEN or GITHUB_TOKEN, or run 'gh auth login' so `gh auth token` returns a token.";
 
 const cache = new Map<string, GitHubClient>();
 const appAuthCache = new Map<string, Promise<GitHubAppAuth | undefined>>();
@@ -83,9 +92,7 @@ export async function createGitHubClient(
 
   const token = (await resolveToken())?.token;
   if (!token) {
-    throw new Error(
-      "No GitHub token available. Set GH_TOKEN or GITHUB_TOKEN, or run 'gh auth login' so `gh auth token` returns a token."
-    );
+    throw new Error(NO_TOKEN_MESSAGE);
   }
 
   const { owner, repo } = await parseOriginOwnerRepo(workingDirectory);
@@ -145,6 +152,38 @@ export async function gitIdentityEnv(
   return app ? buildGitIdentityEnv(await app.botIdentity()) : {};
 }
 
+export async function githubCommandEnv(
+  workingDirectory: string,
+  repository?: GitHubRepository
+): Promise<NodeJS.ProcessEnv> {
+  const config = readGitHubAppConfig();
+  let added: Record<string, string>;
+  if (config) {
+    const { owner, repo } =
+      repository ?? (await parseOriginOwnerRepo(workingDirectory));
+    const app = new GitHubAppAuth({ config, owner, repo });
+    added = {
+      ...tokenCommandEnv(await app.token()),
+      ...buildGitIdentityEnv(await app.botIdentity()),
+    };
+  } else {
+    const resolved = await resolveToken();
+    if (!resolved) throw new Error(NO_TOKEN_MESSAGE);
+    added = tokenCommandEnv(resolved.token);
+  }
+  const env: NodeJS.ProcessEnv = { ...process.env, ...added };
+  for (const name of GITHUB_APP_ENV_VARS) delete env[name];
+  return env;
+}
+
+function tokenCommandEnv(token: string): Record<string, string> {
+  return {
+    GH_TOKEN: token,
+    GITHUB_TOKEN: token,
+    ...buildGitCredentialEnv(token),
+  };
+}
+
 export async function describeGitHubAuth(
   workingDirectory: string
 ): Promise<GitHubAuthStatus> {
@@ -185,8 +224,7 @@ export async function describeGitHubAuth(
   if (resolved) return { source: resolved.source };
   return {
     source: "none",
-    error:
-      "No GitHub token available. Set GH_TOKEN or GITHUB_TOKEN, or run 'gh auth login' so `gh auth token` returns a token.",
+    error: NO_TOKEN_MESSAGE,
   };
 }
 

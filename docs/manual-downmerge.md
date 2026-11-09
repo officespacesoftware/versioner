@@ -21,6 +21,10 @@ so a reviewer sees the same branch and title either way.
 - Never push to `main`, `develop`, `release/*` or `hotfix/*` directly. Every change lands
   through a pull request from a branch you create.
 - Never force-push.
+- When the tools authenticate as a GitHub App, run `git` and `gh` through
+  `release-management with-github-auth -- <command>`, so the merge commit, the push and the
+  pull request are the app's, as a clean downmerge's are. See
+  [Running your own git and gh as the app](configuration.md#running-your-own-git-and-gh-as-the-app).
 - Start from the remote state: `git fetch origin` first, and cut branches from
   `origin/<branch>`, not from a local branch that may be stale.
 - Resolve only the files the handoff lists. If the merge reports conflicts in other files,

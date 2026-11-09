@@ -11,7 +11,7 @@ the document has a bug.
 | [actions.md](actions.md) | Each action: inputs, branch selection, plan or immediate, git effects in order, pull requests, GitHub releases, messages, decision table, partial failure and recovery. Also the plan/confirm protocol and what the digest covers |
 | [messages.md](messages.md) | Every refusal, warning, note, handoff, pipeline result and apply failure, with its exact text, condition and what to do |
 | [flows.md](flows.md) | Diagrams: release lifecycle, hotfix lifecycle, plan and confirm, downmerge, revert shape, increment pull request, pipeline trigger |
-| [configuration.md](configuration.md) | `.release-management.json` (pre-version checks, pipeline trigger), GitHub token resolution, environment variables |
+| [configuration.md](configuration.md) | `.release-management.json` (pre-version checks, pipeline trigger), GitHub token resolution and GitHub App authentication, running your own git and gh as the tools' identity, environment variables |
 | [manual-downmerge.md](manual-downmerge.md) | Finishing a conflicting downmerge by hand, or deciding one into `main`. Also what an increment's conflict handoff asks for |
 | [architecture.md](architecture.md) | Components, dependency direction, layers, the `VERSION` file contract |
 
