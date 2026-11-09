@@ -21,12 +21,17 @@ so a reviewer sees the same branch and title either way.
 - Never push to `main`, `develop`, `release/*` or `hotfix/*` directly. Every change lands
   through a pull request from a branch you create.
 - Never force-push.
+- When the tools authenticate as a GitHub App, run `git` and `gh` through
+  `release-management with-github-auth -- <command>`, so the merge commit, the push and the
+  pull request are the app's, as a clean downmerge's are. See
+  [Running your own git and gh as the app](configuration.md#running-your-own-git-and-gh-as-the-app).
 - Start from the remote state: `git fetch origin` first, and cut branches from
   `origin/<branch>`, not from a local branch that may be stale.
 - Resolve only the files the handoff lists. If the merge reports conflicts in other files,
   the repository moved since the handoff: stop and run the downmerge again for a fresh one.
 - Keep the merge commit: use `git merge --no-ff`, resolve, then `git commit` with git's
-  default merge message. Do not squash or rebase.
+  default merge message, with `--cleanup=strip` so the `# Conflicts:` lines git adds to it
+  are dropped. Do not squash or rebase.
 - In the pull request body, list every resolved file with a one-line reason for the
   resolution, so the reviewer can check each decision.
 - When a conflict needs a product decision rather than a mechanical one, such as two
@@ -43,7 +48,7 @@ git switch -c <resolution-branch> origin/develop
 git merge --no-ff origin/<source-branch>
 # resolve the listed files
 git add <files>
-git commit --no-edit
+git commit --no-edit --cleanup=strip
 git push -u origin <resolution-branch>
 ```
 

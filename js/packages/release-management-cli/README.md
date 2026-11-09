@@ -46,7 +46,8 @@ There is deliberately no global `--version` flag: subcommands take `--version <v
 *release version* argument, and a global flag would short-circuit it. Run
 `release-management <command> --help` for one command's flags.
 
-Every command takes `--working-directory <path>`, defaulting to the current directory.
+Every command except `with-github-auth` takes `--working-directory <path>`, defaulting to
+the current directory.
 
 ## Commands
 
@@ -63,6 +64,7 @@ release-management downmerge release-to-develop  [--version <version>]
 release-management downmerge release-to-main     [--version <version>]
 release-management downmerge hotfix-to-develop   [--version <version>]
 release-management downmerge hotfix-to-main      [--version <version>]
+release-management with-github-auth [--repo <owner/name>] -- <command> [args...]
 ```
 
 | Command | What it does |
@@ -75,11 +77,34 @@ release-management downmerge hotfix-to-main      [--version <version>]
 | `revert-version` | Undoes the most recent version bump and deletes the tag it created. |
 | `initialize-versioner` | Creates the `VERSION` file and its initial tag. Defaults to `0.1.0-RC.0`. |
 | `downmerge …` | Opens the pull request that carries one branch's changes into another. Applies immediately; the pull request is the review. |
+| `with-github-auth` | Runs one command, such as `git` or `gh`, with the GitHub credential the other commands use and, with a GitHub App, the app's bot as commit author. Exits with the command's exit code. See below. |
 
 `--version` takes `1.2.0` or the full branch name, `release/1.2.0` or `hotfix/1.2.0`, which
 picks one when both exist. Where it is omitted, the newest matching branch on the upstream
 repository is selected. `docs/actions.md` records the ordered steps and the exact git objects for each of
 these — see [Related documentation](#related-documentation).
+
+### Running git and gh as the tools' identity
+
+`with-github-auth` is for the commands the release tools leave to you, such as the merge,
+push and pull request of a [manual downmerge](../../../docs/manual-downmerge.md). With a
+GitHub App configured they would otherwise run with your own credential, and the commits
+and pull requests would show you instead of the app's bot:
+
+```sh
+release-management with-github-auth -- git merge --no-ff origin/release/1.4.0
+release-management with-github-auth -- git push -u origin <resolution-branch>
+release-management with-github-auth -- gh pr create --base develop --title "<title>" --body-file body.md
+```
+
+It resolves the credential as the other commands do, for `--repo` or else the current
+directory's `origin`, and starts the command without a shell, in the current directory,
+with `GH_TOKEN`, `GITHUB_TOKEN` and git's credential configuration set to the token and,
+with an app, the bot's name and email as author and committer. The app's ID and key are
+not passed on. Everything after `--` is the command, so its own options, `--repo` included,
+are not read as this command's. The token is never printed or put on a command line.
+Details:
+[Running your own git and gh as the app](../../../docs/configuration.md#running-your-own-git-and-gh-as-the-app).
 
 ## Planning before applying
 
@@ -140,6 +165,10 @@ The protocol is documented in full, including what the digest covers, in
 | `1` | User error — not a git repository, staged changes, no matching branch, a refused branch selection, contradictory flags, a stale plan digest, an unresolved merge conflict |
 | `2` | Environment error, and any fatal parse-time failure |
 | `3` | Reserved for partial success. Defined in `src/exit-codes.ts` but not currently returned by any code path. |
+
+`with-github-auth` uses `1` and `2` for its own refusals, `127` when the command is not
+found, `126` when it cannot be started for another reason, and otherwise exits with the
+command's exit code, or `128` plus the signal number when a signal killed it.
 
 ## GitHub Actions
 
@@ -251,6 +280,8 @@ setup and required permissions:
 [GitHub App authentication](../../../docs/configuration.md#github-app-authentication).
 Installing the CLI from GitHub Packages still needs a token with `read:packages`. No `gh`
 binary is needed at runtime. `owner`/`repo` come from the `origin` remote URL.
+To run your own `git` and `gh` commands with the same credential, use
+[`with-github-auth`](#running-git-and-gh-as-the-tools-identity).
 
 ## Development
 
@@ -274,7 +305,7 @@ src/
 ├── output.ts           # text/JSON emission, $GITHUB_OUTPUT
 ├── exit-codes.ts
 ├── errors.ts           # UsageError
-└── commands/           # one file per workflow
+└── commands/           # one file per workflow, plus with-github-auth
 ```
 
 `bin/release-management` is a shim onto `lib/cli.js`, so a clone needs `pnpm build` before

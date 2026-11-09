@@ -179,6 +179,9 @@ back to a token. Without an app, pushes and fetches use git's own credentials, n
 token; see [Token scopes](#token-scopes) for when those are the same token. With an app,
 git uses the installation token too; see [How git authenticates](#how-git-authenticates).
 
+The CLI's [`with-github-auth`](#running-your-own-git-and-gh-as-the-app) resolves a
+credential in the same order for commands you run yourself.
+
 `owner` and `repo` come from `git remote get-url origin`, which must be
 `git@github.com:owner/repo(.git)` or `https://github.com/owner/repo(.git)` (G8). Clients
 are cached per working directory for the life of the process.
@@ -283,6 +286,8 @@ so it too uses the app rather than an SSH key. This needs git 2.31 or newer.
 
 Only network commands get the token, and only the git processes the tools start: the
 tools never write it to `process.env`, so checks and the pipeline trigger do not see it.
+To give the same credential to git and `gh` commands you run yourself, see
+[Running your own git and gh as the app](#running-your-own-git-and-gh-as-the-app).
 A git error or warning that contains the token or its header value has it replaced with
 `[REDACTED]` before it is shown (G13). Git's own hooks run under these git processes and
 can read the environment, as they can any credential git has.
@@ -307,11 +312,58 @@ the repository's configured `user.name` and `user.email`.
 The commits are not signed. A branch rule that requires signed commits rejects them, as it
 would the same commits made with a personal token.
 
+### Running your own git and gh as the app
+
+The tools authenticate only the git processes they start. When an automation, or a
+person, finishes work by hand, such as a [manual downmerge](manual-downmerge.md), its own
+`git merge`, `git push`, `gh pr create` and `gh pr close` would otherwise run with
+whatever credential that environment has, and the commits and pull requests would show
+that account instead of the app. The CLI's `with-github-auth` command runs one command
+with the credential and identity the tools use:
+
+```sh
+release-management with-github-auth [--repo <owner/name>] -- <command> [args...]
+```
+
+```sh
+release-management with-github-auth -- git merge --no-ff origin/release/1.4.0
+release-management with-github-auth -- git push -u origin <resolution-branch>
+release-management with-github-auth -- gh pr create --base develop --title "<title>" --body-file body.md
+release-management with-github-auth --repo octo-org/octo-repo -- gh pr close 42 --comment "Superseded"
+```
+
+It resolves the credential exactly as the tools do
+([GitHub token resolution](#github-token-resolution)): with a GitHub App, it mints an
+installation token limited to the repository, which is `--repo` when given and otherwise
+the `origin` of the current directory (G8). Without an app it uses the first token found,
+for any repository; `--repo` then only has to be well formed (U8). It then starts the
+command directly, without a shell, in the current directory, with the terminal's input
+and output, and with the environment of the caller plus:
+
+| Variable | Value |
+| --- | --- |
+| `GH_TOKEN`, `GITHUB_TOKEN` | The token, for `gh` and for anything else that reads either |
+| `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>`, `GIT_CONFIG_VALUE_<n>` | The entries in [How git authenticates](#how-git-authenticates), with and without an app, so `git fetch` and `git push` use the token over HTTPS, and over SSH-style `origin` URLs too |
+| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` | With an app only: the bot user from [Commit identity](#commit-identity), so `git merge` and `git commit` are authored by `<slug>[bot]` |
+
+`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_APP_PRIVATE_KEY_PATH` are removed from
+the command's environment: it gets the hour-long token for one repository, not the key.
+The token goes only into that environment, never on a command line, and `with-github-auth`
+prints nothing of its own unless it fails. A credential that cannot be resolved fails with
+the tools' messages (G7, G8, G16–G25) before the command starts. The command's exit code
+is passed through; a command killed by a signal exits `128` plus the signal's number; see
+[CLI exit codes](messages.md#cli-exit-codes).
+
+Each call mints its own token, valid for an hour from then; a command still running after
+that loses access part-way. Run one command per call rather than a long script.
+
 ### The pipeline trigger and installing the packages
 
 The pipeline trigger and checks run with the process's environment. The installation
 token is not added to it, so a trigger command that calls GitHub (for example
-`gh workflow run`) needs its own credential in the environment, such as `GH_TOKEN`.
+`gh workflow run`) needs its own credential in the environment, such as `GH_TOKEN`, or can
+run as the app through
+[`with-github-auth`](#running-your-own-git-and-gh-as-the-app).
 
 Installing the `@officespacesoftware` packages from GitHub Packages may still need a
 classic personal access token with `read:packages`. GitHub's documentation states that
@@ -355,10 +407,10 @@ printf 'header = "Authorization: token %s"\n' "$GH_TOKEN" |
 | `GITHUB_APP_ID` | read | core | GitHub App ID or client ID; with a private key, [app authentication](#github-app-authentication), ahead of every token |
 | `GITHUB_APP_PRIVATE_KEY` | read | core | The app's private key as PEM text; flattened newlines accepted |
 | `GITHUB_APP_PRIVATE_KEY_PATH` | read | core | Instead of `GITHUB_APP_PRIVATE_KEY`: path of the `.pem` file |
-| `GH_TOKEN` | read | core | GitHub token, first choice without an app |
-| `GITHUB_TOKEN` | read | core | GitHub token, when `GH_TOKEN` is unset |
-| `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>`, `GIT_CONFIG_VALUE_<n>` | read, and set for git | core | With an app, entries are appended for git network commands; see [How git authenticates](#how-git-authenticates) |
-| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` | set for git | core | With an app, the bot user, for the git and versioner processes that commit or tag; see [Commit identity](#commit-identity) |
+| `GH_TOKEN` | read, and set for `with-github-auth`'s command | core | GitHub token, first choice without an app. `with-github-auth` sets it to the resolved token; see [Running your own git and gh as the app](#running-your-own-git-and-gh-as-the-app) |
+| `GITHUB_TOKEN` | read, and set for `with-github-auth`'s command | core | GitHub token, when `GH_TOKEN` is unset. `with-github-auth` sets it as `GH_TOKEN` |
+| `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>`, `GIT_CONFIG_VALUE_<n>` | read, and set for git | core | With an app, entries are appended for git network commands; see [How git authenticates](#how-git-authenticates). `with-github-auth` appends them for its command, with or without an app |
+| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` | set for git | core | With an app, the bot user, for the git and versioner processes that commit or tag, and for `with-github-auth`'s command; see [Commit identity](#commit-identity) |
 | `GITHUB_OUTPUT` | read | CLI | When set, results are appended to that file as `key=value` lines (heredoc form for multi-line values). Keys per command are listed in [actions.md](actions.md) and the CLI README |
 | `RELEASE_BRANCH`, `RELEASE_VERSION`, `RELEASE_ACTION` | set | core | For the pipeline trigger only |
 | everything else | inherited | checks and trigger | Both run with the full environment of the process |
@@ -374,7 +426,7 @@ commits are authored by the configured `user.name` and `user.email`. With one, s
 | --- | --- |
 | `--json` | One JSON document on stdout; everything human-facing on stderr; console progress silenced |
 | `--quiet` | Console progress silenced; `--yes` no longer prints the plan to stderr |
-| `--working-directory <path>` | The repository to act on |
+| `--working-directory <path>` | The repository to act on. Not taken by `with-github-auth`, which runs its command in the current directory |
 
 ## MCP server
 

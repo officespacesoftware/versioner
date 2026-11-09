@@ -25,6 +25,7 @@ import {
   clearGitHubClientCache,
   createGitHubClient,
   describeGitHubAuth,
+  githubCommandEnv,
 } from "../lib/github-client.js";
 import { GitFlowManager } from "../lib/git-flow.js";
 import { VersionerAdapter } from "../lib/versioner-adapter.js";
@@ -515,4 +516,96 @@ test("versioner commits and tags take the identity the release agent passes, and
   );
   assert.equal(process.env.GIT_AUTHOR_NAME, authorBefore);
   assert.equal(process.env.GIT_COMMITTER_EMAIL, committerBefore);
+});
+
+const decodedHeader = (env) => {
+  const index = Object.keys(env).find(
+    (key) => key.startsWith("GIT_CONFIG_VALUE_") && env[key].startsWith("AUTHORIZATION:")
+  );
+  const encoded = env[index].split("AUTHORIZATION: basic ")[1];
+  return Buffer.from(encoded, "base64").toString();
+};
+
+test("with an app, the command env carries a token for the origin's repository and the bot identity, not the key", async () => {
+  const repo = makeRepo();
+  process.env.GH_TOKEN = "personal-gh-token";
+  useApp();
+  const github = fakeGitHub();
+  globalThis.fetch = github.fetch;
+
+  const env = await githubCommandEnv(repo);
+
+  assert.equal(env.GH_TOKEN, "ghs_installation_1");
+  assert.equal(env.GITHUB_TOKEN, "ghs_installation_1");
+  assert.equal(decodedHeader(env), "x-access-token:ghs_installation_1");
+  assert.equal(env.GIT_CONFIG_COUNT, "4");
+  assert.equal(env.GIT_CONFIG_VALUE_2, "git@github.com:");
+  assert.equal(env.GIT_CONFIG_VALUE_3, "ssh://git@github.com/");
+  assert.equal(env.GIT_AUTHOR_NAME, "release-bot[bot]");
+  assert.equal(env.GIT_COMMITTER_NAME, "release-bot[bot]");
+  assert.equal(env.GIT_AUTHOR_EMAIL, "4242+release-bot[bot]@users.noreply.github.com");
+  assert.equal(env.GIT_COMMITTER_EMAIL, "4242+release-bot[bot]@users.noreply.github.com");
+  for (const name of ["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_PRIVATE_KEY_PATH"]) {
+    assert.equal(env[name], undefined, `${name} reached the command`);
+  }
+  const minted = github.calls.find((c) => c.method === "POST");
+  assert.deepEqual(minted.body, { repositories: ["repo"] });
+  assert.equal(process.env.GH_TOKEN, "personal-gh-token");
+});
+
+test("with an app, an explicit repository is used instead of origin", async () => {
+  useApp();
+  const github = fakeGitHub({
+    routes: {
+      "GET /repos/other/name/installation": () => json(200, { id: 77 }),
+    },
+  });
+  globalThis.fetch = github.fetch;
+
+  const env = await githubCommandEnv(scratch, { owner: "other", repo: "name" });
+
+  assert.equal(env.GH_TOKEN, "ghs_installation_1");
+  assert.equal(github.calls[0].path, "/repos/other/name/installation");
+  const minted = github.calls.find((c) => c.method === "POST");
+  assert.deepEqual(minted.body, { repositories: ["name"] });
+
+  globalThis.fetch = fakeGitHub({
+    routes: { "GET /repos/other/gone/installation": () => json(404, {}) },
+  }).fetch;
+  await assert.rejects(
+    githubCommandEnv(scratch, { owner: "other", repo: "gone" }),
+    /GitHub App 12345 is not installed on other\/gone \(404\)/
+  );
+});
+
+test("with a token, the command env carries it for gh and git, with no bot identity", async () => {
+  const authorBefore = process.env.GIT_AUTHOR_NAME;
+  process.env.GH_TOKEN = "";
+  process.env.GITHUB_TOKEN = "personal-github-token";
+  process.env.GIT_CONFIG_COUNT = "1";
+
+  const env = await githubCommandEnv(scratch);
+
+  assert.equal(env.GH_TOKEN, "personal-github-token");
+  assert.equal(env.GITHUB_TOKEN, "personal-github-token");
+  assert.equal(env.GIT_CONFIG_COUNT, "5");
+  assert.equal(env.GIT_CONFIG_KEY_1, "http.https://github.com/.extraheader");
+  assert.equal(decodedHeader(env), "x-access-token:personal-github-token");
+  assert.equal(env.GIT_AUTHOR_NAME, authorBefore);
+});
+
+test("an unresolvable credential is refused with the tools' messages", async () => {
+  const bin = join(scratch, "bin");
+  mkdirSync(bin);
+  process.env.PATH = bin;
+  process.env.HOME = scratch;
+
+  await assert.rejects(githubCommandEnv(scratch), /No GitHub token available\./);
+
+  process.env.GH_TOKEN = "personal-gh-token";
+  process.env.GITHUB_APP_ID = "12345";
+  await assert.rejects(
+    githubCommandEnv(scratch),
+    /GITHUB_APP_ID is set but no private key is/
+  );
 });

@@ -111,7 +111,8 @@ goes through `VersionerAdapter` into the versioner package.
 inputs, call core methods, and format results.
 
 - `js/packages/release-management-cli/src/cli.ts` registers subcommands with `commander`;
-  `src/commands/*.ts` each wire one workflow; `src/output.ts` emits text or JSON and
+  `src/commands/*.ts` each wire one workflow, except `with-github-auth.ts`, which runs a
+  command of the caller's with the environment from `GitFlowManager.githubCommandEnv`; `src/output.ts` emits text or JSON and
   appends `key=value` pairs to `$GITHUB_OUTPUT`; `src/exit-codes.ts` defines exit codes
   `0` success, `1` user error and `2` environment error, plus `3`, reserved for partial
   success and not currently returned by any path.
@@ -179,6 +180,11 @@ With an app, `GitFlowManager` also gives the git processes it starts the install
 (network commands) and the app's bot identity (commands that commit or tag) through their
 environment, and `ReleaseAgent` gives the versioner's commits the same identity. Details in
 [configuration.md](configuration.md#github-app-authentication).
+
+`githubCommandEnv` resolves a credential in the same order, for `origin`'s repository or
+one named by the caller, and returns an environment for a process the caller starts: the
+token as `GH_TOKEN` and `GITHUB_TOKEN`, git's credential entries and, with an app, the bot
+identity, without the app's ID and key. The CLI's `with-github-auth` uses it.
 
 `owner` and `repo` come from `git remote get-url origin`, parsed from either
 `git@github.com:owner/repo(.git)` or `https://github.com/owner/repo(.git)`. Any other

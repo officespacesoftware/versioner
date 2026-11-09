@@ -131,6 +131,10 @@ the banner every PR into the production branch carries.
 `describeGitHubAuth()` returns a `GitHubAuthStatus`: the credential source (`app <slug>`,
 `GH_TOKEN`, `GITHUB_TOKEN`, `gh`, `gh hosts.yml` or `none`) and, for a GitHub App, its
 installation's granted permissions, or the error that stops it. Never a secret.
+`githubCommandEnv(repository?)` returns `process.env` plus the resolved token as
+`GH_TOKEN` and `GITHUB_TOKEN`, git's credential entries and, with a GitHub App, the bot's
+commit identity, minus the app's ID and key, for a process the caller starts; the token is
+minted for `repository` (`{ owner, repo }`) when given, else `origin`'s.
 
 **Merge analysis**
 

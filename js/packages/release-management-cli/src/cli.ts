@@ -7,6 +7,7 @@ import { registerInitializeVersioner } from "./commands/initialize-versioner.js"
 import { registerDownmerge } from "./commands/downmerge.js";
 import { registerListVersions } from "./commands/list-versions.js";
 import { registerRevertVersion } from "./commands/revert-version.js";
+import { registerWithGitHubAuth } from "./commands/with-github-auth.js";
 
 const program = new Command();
 
@@ -27,6 +28,7 @@ registerReleaseVersion(program);
 registerRevertVersion(program);
 registerInitializeVersioner(program);
 registerDownmerge(program);
+registerWithGitHubAuth(program);
 
 program.parseAsync(process.argv).catch((error) => {
   process.stderr.write(`Fatal: ${error instanceof Error ? error.message : String(error)}\n`);
