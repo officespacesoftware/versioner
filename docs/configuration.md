@@ -248,6 +248,14 @@ The app must be **installed on the target repository** (on all repositories of t
 or with this repository among the selected ones). After changing the app's permissions, an
 owner of the installation has to approve the change before new tokens carry it.
 
+The tools push straight to release and hotfix branches: the version commit, the tag and the
+release candidate. A ruleset or branch protection rule that requires a pull request (or
+status checks) on those branches rejects the push ("GH013: Repository rule violations
+found") unless the pusher may bypass it. A personal token with the admin role usually can;
+an app cannot until it is added to the rule's bypass list (for a ruleset: **Bypass list →
+Add bypass → Apps**). Pull requests into the base branches are unaffected, since the tools
+only open them.
+
 A 403 from GitHub on a request made with the installation token gets the permission GitHub
 says the request needs appended (G26), from GitHub's `X-Accepted-GitHub-Permissions`
 header, for example `pull_requests=write`. `health_check` lists the permissions the
