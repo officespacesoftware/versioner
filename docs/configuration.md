@@ -162,17 +162,22 @@ A GitHub Actions workflow with a `workflow_dispatch` trigger:
 
 ## GitHub token resolution
 
-`createGitHubClient` (`js/packages/release-management-core/src/github-client.ts`) takes
-the first token it finds:
+`createGitHubClient` (`js/packages/release-management-core/src/github-client.ts`) uses the
+first credential it finds:
 
-1. `GH_TOKEN`, or, when `GH_TOKEN` is unset or empty, `GITHUB_TOKEN`;
-2. the output of `gh auth token` (which reads the keychain or `hosts.yml`, whichever `gh`
+1. a [GitHub App](#github-app-authentication) installation token, when `GITHUB_APP_ID` and
+   a private key (`GITHUB_APP_PRIVATE_KEY` or `GITHUB_APP_PRIVATE_KEY_PATH`) are set;
+2. `GH_TOKEN`, or, when `GH_TOKEN` is unset or empty, `GITHUB_TOKEN`;
+3. the output of `gh auth token` (which reads the keychain or `hosts.yml`, whichever `gh`
    uses);
-3. `github.com.oauth_token` in `~/.config/gh/hosts.yml` (older `gh` versions).
+4. `github.com.oauth_token` in `~/.config/gh/hosts.yml` (older `gh` versions).
 
 An empty variable counts as unset: `GH_TOKEN=""` falls through to `GITHUB_TOKEN`. With no
-token, any call to GitHub fails with G7. Pushes use git's own credentials, not this
-token; see [Token scopes](#token-scopes) for when those are the same token.
+token, any call to GitHub fails with G7. A configured GitHub App wins over every token,
+including `GH_TOKEN`, and a broken app configuration fails (G16–G25) rather than falling
+back to a token. Without an app, pushes and fetches use git's own credentials, not this
+token; see [Token scopes](#token-scopes) for when those are the same token. With an app,
+git uses the installation token too; see [How git authenticates](#how-git-authenticates).
 
 `owner` and `repo` come from `git remote get-url origin`, which must be
 `git@github.com:owner/repo(.git)` or `https://github.com/owner/repo(.git)` (G8). Clients
@@ -181,12 +186,147 @@ are cached per working directory for the life of the process.
 Which actions call GitHub: every versioning plan and apply (pull-request lookups and
 writes; release lookups for `revert_version`; release creation for `release_version`),
 every downmerge apply, and the `release` → `develop`, `hotfix` → `develop` and
-`hotfix` → `main` downmerge plans. `list_versions`, `initialize_versioner` and
-`health_check` do not.
+`hotfix` → `main` downmerge plans. `list_versions` and `initialize_versioner` do not.
+`health_check` does only when a GitHub App is configured, to report the installation.
+
+## GitHub App authentication
+
+The tools can act as a GitHub App installation instead of as a person. Branches, tags,
+pull requests and releases are then created by the app's bot user (`<slug>[bot]`), so any
+person can review and approve its pull requests, and no long-lived personal token is
+needed: the tools mint installation tokens that last an hour, from the app's ID and
+private key.
+
+### Variables
+
+| Variable | Value |
+| --- | --- |
+| `GITHUB_APP_ID` | The app's ID (a number) or its client ID, from the app's settings page |
+| `GITHUB_APP_PRIVATE_KEY` | The app's private key: the contents of the `.pem` file GitHub generated |
+| `GITHUB_APP_PRIVATE_KEY_PATH` | Instead of `GITHUB_APP_PRIVATE_KEY`: the path of that `.pem` file |
+
+App authentication is on when `GITHUB_APP_ID` and exactly one of the two key variables are
+non-empty. Setting only some of them is refused (G16, G17, G18) rather than ignored, so a
+half-configured app never falls back to a personal token unnoticed.
+
+`GITHUB_APP_PRIVATE_KEY` accepts the key as PEM text. Secret stores often flatten newlines,
+so literal `\n` (or `\r\n`) sequences, Windows line endings, newlines replaced by spaces
+and surrounding quotes are all accepted. `GITHUB_APP_PRIVATE_KEY_PATH` suits key files
+mounted by a secret manager or a downloaded `.pem`: nothing needs flattening, and the key
+itself is not in the environment that [checks and the pipeline trigger](#environment-variables)
+inherit (the file is still readable by them). A key that does not parse as an RSA private
+key is G19; an unreadable file is G20. Neither message contains the key.
+
+### What happens
+
+For each repository (`origin`'s owner and name), on first use:
+
+1. Sign a JWT with the private key (RS256; issued 60 seconds in the past to allow for
+   clock drift; expires 9 minutes after now; issuer the app ID).
+2. Find the app's installation on the repository: `GET /repos/{owner}/{repo}/installation`.
+   A 404 means the app is not installed there (G21).
+3. Mint an installation token limited to that one repository:
+   `POST /app/installations/{id}/access_tokens` with `repositories: [repo]`.
+
+The token is cached and reused until less than five minutes of its hour remain; the next
+GitHub call or git network command then mints a new one. Every REST and GraphQL request
+reads the current token when it is sent, so a long run never uses an expired token.
+Failures are G21–G25; none contains the key, the JWT or a token.
+
+### Required app permissions
+
+Repository permissions:
+
+| Permission | Access | Why |
+| --- | --- | --- |
+| Contents | Read and write | Fetch and push branches and tags, create and delete releases, delete branches |
+| Pull requests | Read and write | Find, open, update, comment on and close pull requests |
+| Workflows | Read and write | Push commits that add or change files under `.github/workflows/`. Like a token without the `workflow` scope, an app without it can push everything else and fails only on releases that carry a workflow change |
+| Metadata | Read | Mandatory for every app; GitHub grants it automatically |
+
+The app must be **installed on the target repository** (on all repositories of the owner,
+or with this repository among the selected ones). After changing the app's permissions, an
+owner of the installation has to approve the change before new tokens carry it.
+
+The tools push straight to release and hotfix branches: the version commit, the tag and the
+release candidate. A ruleset or branch protection rule that requires a pull request (or
+status checks) on those branches rejects the push ("GH013: Repository rule violations
+found") unless the pusher may bypass it. A personal token with the admin role usually can;
+an app cannot until it is added to the rule's bypass list (for a ruleset: **Bypass list →
+Add bypass → Apps**). Pull requests into the base branches are unaffected, since the tools
+only open them.
+
+A 403 from GitHub on a request made with the installation token gets the permission GitHub
+says the request needs appended (G26), from GitHub's `X-Accepted-GitHub-Permissions`
+header, for example `pull_requests=write`. `health_check` lists the permissions the
+installation token was granted.
+
+### How git authenticates
+
+With an app, every git command the tools run that talks to origin (`fetch`, `push`,
+`pull`, `clone`, `ls-remote`, `remote`, `submodule`) gets the current installation token
+through the environment, never on the command line or in the remote URL:
+
+```
+GIT_CONFIG_COUNT=<n + 4>
+GIT_CONFIG_KEY_<n>=http.https://github.com/.extraheader      GIT_CONFIG_VALUE_<n>=
+GIT_CONFIG_KEY_<n+1>=http.https://github.com/.extraheader    GIT_CONFIG_VALUE_<n+1>=AUTHORIZATION: basic <base64 of x-access-token:TOKEN>
+GIT_CONFIG_KEY_<n+2>=url.https://github.com/.insteadOf       GIT_CONFIG_VALUE_<n+2>=git@github.com:
+GIT_CONFIG_KEY_<n+3>=url.https://github.com/.insteadOf       GIT_CONFIG_VALUE_<n+3>=ssh://git@github.com/
+```
+
+`<n>` is an existing `GIT_CONFIG_COUNT`, so configuration already passed this way is kept.
+The empty value first clears any `extraheader` set for `https://github.com/` in git's
+configuration files (as `actions/checkout` leaves in `.git/config`), so git sends one
+`Authorization` header, not two. The `insteadOf` entries send an SSH `origin` over HTTPS,
+so it too uses the app rather than an SSH key. This needs git 2.31 or newer.
+
+Only network commands get the token, and only the git processes the tools start: the
+tools never write it to `process.env`, so checks and the pipeline trigger do not see it.
+A git error or warning that contains the token or its header value has it replaced with
+`[REDACTED]` before it is shown (G13). Git's own hooks run under these git processes and
+can read the environment, as they can any credential git has.
+
+Without an app, git runs exactly as before: no added environment, its own configuration and
+credentials.
+
+### Commit identity
+
+With an app, the commits and tags the tools create are authored, committed and tagged by
+the app's bot user: name `<slug>[bot]`, email
+`<bot user ID>+<slug>[bot]@users.noreply.github.com`, so GitHub links them to the app. The
+slug comes from `GET /app` (with the JWT) and the bot user ID from
+`GET /users/<slug>[bot]`; both are looked up once per repository. This covers the version
+commit and tag the versioner creates for `create_release_candidate`, `create_hotfix`,
+`increment_release_candidate` and `release_version`, the version tags and merge-branch
+merge commits created directly with git, and `revert_version`'s revert commit. It is set
+with `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL`
+for those git processes only. `initialize_versioner` runs locally without GitHub and keeps
+the repository's configured `user.name` and `user.email`.
+
+The commits are not signed. A branch rule that requires signed commits rejects them, as it
+would the same commits made with a personal token.
+
+### The pipeline trigger and installing the packages
+
+The pipeline trigger and checks run with the process's environment. The installation
+token is not added to it, so a trigger command that calls GitHub (for example
+`gh workflow run`) needs its own credential in the environment, such as `GH_TOKEN`.
+
+Installing the `@officespacesoftware` packages from GitHub Packages may still need a
+classic personal access token with `read:packages`. GitHub's documentation states that
+"GitHub Packages only supports authentication using a personal access token (classic)",
+and inside GitHub Actions also accepts the workflow's `GITHUB_TOKEN`; it does not list
+GitHub App installation tokens
+([Working with the npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry),
+[About permissions for GitHub Packages](https://docs.github.com/en/packages/learn-github-packages/about-permissions-for-github-packages)).
+Keep a `read:packages` token in `.npmrc` or `NODE_AUTH_TOKEN` for the install; it needs no
+other scope when the app does the rest.
 
 ### Token scopes
 
-A classic personal access token that runs the tools (and, in an automation, installs
+The alternative to a [GitHub App](#github-app-authentication). A classic personal access
+token that runs the tools (and, in an automation, installs
 them and pushes for them) needs three scopes:
 
 | Scope | Why |
@@ -212,15 +352,21 @@ printf 'header = "Authorization: token %s"\n' "$GH_TOKEN" |
 
 | Variable | Read or set | By | Effect |
 | --- | --- | --- | --- |
-| `GH_TOKEN` | read | core | GitHub token, first choice |
+| `GITHUB_APP_ID` | read | core | GitHub App ID or client ID; with a private key, [app authentication](#github-app-authentication), ahead of every token |
+| `GITHUB_APP_PRIVATE_KEY` | read | core | The app's private key as PEM text; flattened newlines accepted |
+| `GITHUB_APP_PRIVATE_KEY_PATH` | read | core | Instead of `GITHUB_APP_PRIVATE_KEY`: path of the `.pem` file |
+| `GH_TOKEN` | read | core | GitHub token, first choice without an app |
 | `GITHUB_TOKEN` | read | core | GitHub token, when `GH_TOKEN` is unset |
+| `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>`, `GIT_CONFIG_VALUE_<n>` | read, and set for git | core | With an app, entries are appended for git network commands; see [How git authenticates](#how-git-authenticates) |
+| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` | set for git | core | With an app, the bot user, for the git and versioner processes that commit or tag; see [Commit identity](#commit-identity) |
 | `GITHUB_OUTPUT` | read | CLI | When set, results are appended to that file as `key=value` lines (heredoc form for multi-line values). Keys per command are listed in [actions.md](actions.md) and the CLI README |
 | `RELEASE_BRANCH`, `RELEASE_VERSION`, `RELEASE_ACTION` | set | core | For the pipeline trigger only |
 | everything else | inherited | checks and trigger | Both run with the full environment of the process |
 | `VERSION` | read | `versioner init` (the standalone CLI) | Version to initialize with, when no argument is given |
 
-Git itself uses its normal configuration and credentials. Commits are authored by the
-configured `user.name` and `user.email`.
+Without a GitHub App, git itself uses its normal configuration and credentials, and
+commits are authored by the configured `user.name` and `user.email`. With one, see
+[How git authenticates](#how-git-authenticates) and [Commit identity](#commit-identity).
 
 ## CLI flags shared by every command
 

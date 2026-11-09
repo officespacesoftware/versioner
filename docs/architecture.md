@@ -94,8 +94,13 @@ nowhere else.
 - `src/change-plan.ts` — change plans and their digests.
 - `src/versioner-adapter.ts` and `src/versioner-direct.ts` — the bridge to the versioner
   package. `VersionerDirectClient` calls the exported task functions in-process,
-  `process.chdir`-ing into the target working directory for the duration of each call.
-- `src/github-client.ts` — token resolution, `owner`/`repo` parsing, Octokit handles.
+  `process.chdir`-ing into the target working directory for the duration of each call,
+  and, when `ReleaseAgent` passes one, setting the app's git identity in `process.env`
+  for the same span.
+- `src/github-client.ts` — token resolution, `owner`/`repo` parsing, Octokit handles, git
+  environment for app authentication.
+- `src/github-app-auth.ts` — GitHub App JWT, installation lookup, installation-token cache
+  and refresh, git credential and identity environment, secret redaction.
 - `src/guards.ts` — reusable precondition checks: is a git repository, nothing staged,
   versioner available.
 
@@ -153,16 +158,27 @@ the JS `options` module.
 ## GitHub token resolution order
 
 `createGitHubClient` in `js/packages/release-management-core/src/github-client.ts` resolves
-a token in this order and uses the first non-empty result:
+a credential in this order and uses the first non-empty result:
 
-1. `GH_TOKEN` environment variable
-2. `GITHUB_TOKEN` environment variable, consulted only when `GH_TOKEN` is unset (an empty
+1. a GitHub App installation token, when `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (or
+   `GITHUB_APP_PRIVATE_KEY_PATH`) are set. `src/github-app-auth.ts` signs the app's JWT
+   with `node:crypto`, finds the installation on `origin`'s repository, mints a token
+   scoped to it and refreshes it when less than five minutes remain; every Octokit request
+   reads the current token when it is sent
+2. `GH_TOKEN` environment variable
+3. `GITHUB_TOKEN` environment variable, consulted only when `GH_TOKEN` is unset (an empty
    `GH_TOKEN` skips both)
-3. the output of `gh auth token`
-4. `~/.config/gh/hosts.yml` → `github.com.oauth_token`
+4. the output of `gh auth token`
+5. `~/.config/gh/hosts.yml` → `github.com.oauth_token`
 
-When none of the four yields a token, client creation fails with a message naming
-`GH_TOKEN`, `GITHUB_TOKEN`, and `gh auth login`.
+When none of the token sources yields a token, client creation fails with a message naming
+`GH_TOKEN`, `GITHUB_TOKEN`, and `gh auth login`. A partial or broken app configuration
+fails instead of falling through to a token.
+
+With an app, `GitFlowManager` also gives the git processes it starts the installation token
+(network commands) and the app's bot identity (commands that commit or tag) through their
+environment, and `ReleaseAgent` gives the versioner's commits the same identity. Details in
+[configuration.md](configuration.md#github-app-authentication).
 
 `owner` and `repo` come from `git remote get-url origin`, parsed from either
 `git@github.com:owner/repo(.git)` or `https://github.com/owner/repo(.git)`. Any other

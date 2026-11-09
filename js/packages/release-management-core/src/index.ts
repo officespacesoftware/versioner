@@ -15,3 +15,4 @@ export * from "./versioner-adapter.js";
 export * from "./versioner-direct.js";
 export * from "./guards.js";
 export * from "./initialize.js";
+export type { GitHubAuthStatus } from "./github-client.js";

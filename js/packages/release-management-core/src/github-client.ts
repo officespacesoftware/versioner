@@ -2,10 +2,11 @@
  * GitHub client factory — resolves auth and origin owner/repo, returns Octokit handles.
  *
  * Token resolution order (an empty variable counts as unset):
- *   1. GH_TOKEN env var
- *   2. GITHUB_TOKEN env var
- *   3. `gh auth token` (uses gh CLI's stored credentials — keychain or hosts.yml)
- *   4. ~/.config/gh/hosts.yml -> github.com.oauth_token (older gh versions)
+ *   1. GitHub App installation token, when GITHUB_APP_ID and a private key are set
+ *   2. GH_TOKEN env var
+ *   3. GITHUB_TOKEN env var
+ *   4. `gh auth token` (uses gh CLI's stored credentials — keychain or hosts.yml)
+ *   5. ~/.config/gh/hosts.yml -> github.com.oauth_token (older gh versions)
  */
 
 import { exec } from "child_process";
@@ -16,6 +17,15 @@ import { join } from "path";
 import yaml from "js-yaml";
 import { Octokit } from "@octokit/rest";
 import { graphql } from "@octokit/graphql";
+import {
+  GitHubAppAuth,
+  GitHubAppAuthError,
+  buildGitCredentialEnv,
+  buildGitIdentityEnv,
+  isGitHubAppAuthConfigured,
+  readGitHubAppConfig,
+  redactGitHubSecrets,
+} from "./github-app-auth.js";
 
 const execAsync = promisify(exec);
 
@@ -28,7 +38,20 @@ export interface GitHubClient {
   graphql: GraphqlFn;
 }
 
+export type GitHubTokenSource = "GH_TOKEN" | "GITHUB_TOKEN" | "gh" | "gh hosts.yml";
+
+export interface GitHubAuthStatus {
+  source: string;
+  appId?: string;
+  repository?: string;
+  installationId?: number;
+  permissions?: Record<string, string>;
+  tokenExpiresAt?: string;
+  error?: string;
+}
+
 const cache = new Map<string, GitHubClient>();
+const appAuthCache = new Map<string, Promise<GitHubAppAuth | undefined>>();
 
 /** Test hook: pre-seed the client cache so tests can swap in fakes without
  *  reaching into network/auth code. Not part of the public API. */
@@ -45,7 +68,20 @@ export async function createGitHubClient(
   const cached = cache.get(workingDirectory);
   if (cached) return cached;
 
-  const token = await resolveToken();
+  const app = await getGitHubAppAuth(workingDirectory);
+  if (app) {
+    const rest = createAppOctokit(app);
+    const appClient: GitHubClient = {
+      owner: app.owner,
+      repo: app.repo,
+      rest,
+      graphql: rest.graphql,
+    };
+    cache.set(workingDirectory, appClient);
+    return appClient;
+  }
+
+  const token = (await resolveToken())?.token;
   if (!token) {
     throw new Error(
       "No GitHub token available. Set GH_TOKEN or GITHUB_TOKEN, or run 'gh auth login' so `gh auth token` returns a token."
@@ -66,16 +102,135 @@ export async function createGitHubClient(
 export function clearGitHubClientCache(workingDirectory?: string): void {
   if (workingDirectory) {
     cache.delete(workingDirectory);
+    appAuthCache.delete(workingDirectory);
   } else {
     cache.clear();
+    appAuthCache.clear();
   }
 }
 
-async function resolveToken(): Promise<string | undefined> {
+export async function getGitHubAppAuth(
+  workingDirectory: string
+): Promise<GitHubAppAuth | undefined> {
+  if (!isGitHubAppAuthConfigured()) return undefined;
+  const cached = appAuthCache.get(workingDirectory);
+  if (cached) return cached;
+
+  const created = (async () => {
+    const config = readGitHubAppConfig();
+    if (!config) return undefined;
+    const { owner, repo } = await parseOriginOwnerRepo(workingDirectory);
+    return new GitHubAppAuth({ config, owner, repo });
+  })();
+  appAuthCache.set(workingDirectory, created);
+  created.catch(() => {
+    if (appAuthCache.get(workingDirectory) === created) {
+      appAuthCache.delete(workingDirectory);
+    }
+  });
+  return created;
+}
+
+export async function gitCredentialEnv(
+  workingDirectory: string
+): Promise<Record<string, string>> {
+  const app = await getGitHubAppAuth(workingDirectory);
+  return app ? buildGitCredentialEnv(await app.token()) : {};
+}
+
+export async function gitIdentityEnv(
+  workingDirectory: string
+): Promise<Record<string, string>> {
+  const app = await getGitHubAppAuth(workingDirectory);
+  return app ? buildGitIdentityEnv(await app.botIdentity()) : {};
+}
+
+export async function describeGitHubAuth(
+  workingDirectory: string
+): Promise<GitHubAuthStatus> {
+  if (isGitHubAppAuthConfigured()) {
+    let app: GitHubAppAuth | undefined;
+    try {
+      app = await getGitHubAppAuth(workingDirectory);
+      if (!app) return { source: "none" };
+      const token = await app.installationToken();
+      const { slug } = await app.appInfo();
+      const status: GitHubAuthStatus = {
+        source: `app ${slug}`,
+        appId: app.appId,
+        repository: app.repository,
+        permissions: token.permissions,
+        tokenExpiresAt: new Date(token.expiresAt).toISOString(),
+      };
+      if (app.installation !== undefined) {
+        status.installationId = app.installation;
+      }
+      return status;
+    } catch (error) {
+      const status: GitHubAuthStatus = {
+        source: "app",
+        error: redactGitHubSecrets(
+          error instanceof Error ? error.message : String(error)
+        ),
+      };
+      if (app) {
+        status.appId = app.appId;
+        status.repository = app.repository;
+      }
+      return status;
+    }
+  }
+
+  const resolved = await resolveToken();
+  if (resolved) return { source: resolved.source };
+  return {
+    source: "none",
+    error:
+      "No GitHub token available. Set GH_TOKEN or GITHUB_TOKEN, or run 'gh auth login' so `gh auth token` returns a token.",
+  };
+}
+
+function createAppOctokit(app: GitHubAppAuth): Octokit {
+  const rest = new Octokit();
+  rest.hook.before("request", async (options) => {
+    options.headers.authorization = `token ${await app.token()}`;
+  });
+  rest.hook.error("request", (error) => {
+    throw explainForbidden(error);
+  });
+  return rest;
+}
+
+function explainForbidden(error: unknown): unknown {
+  const shaped = error as {
+    status?: unknown;
+    message?: unknown;
+    response?: { headers?: Record<string, string | undefined> };
+  };
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    error instanceof GitHubAppAuthError ||
+    shaped.status !== 403 ||
+    typeof shaped.message !== "string"
+  ) {
+    return error;
+  }
+  const needed = shaped.response?.headers?.["x-accepted-github-permissions"];
+  const hint = needed
+    ? ` The GitHub App installation lacks a permission this request needs; GitHub accepts ${needed}.`
+    : " The GitHub App installation may lack a permission this request needs.";
+  (error as { message: string }).message = `${shaped.message}${hint}`;
+  return error;
+}
+
+async function resolveToken(): Promise<
+  { token: string; source: GitHubTokenSource } | undefined
+> {
   // An empty variable counts as unset, so GH_TOKEN="" does not hide GITHUB_TOKEN.
-  for (const name of ["GH_TOKEN", "GITHUB_TOKEN"]) {
+  for (const name of ["GH_TOKEN", "GITHUB_TOKEN"] as const) {
     const envToken = process.env[name];
-    if (envToken && envToken.length > 0) return envToken;
+    if (envToken && envToken.length > 0) return { token: envToken, source: name };
   }
 
   // Newer gh versions store credentials in the OS keychain rather than hosts.yml.
@@ -83,7 +238,7 @@ async function resolveToken(): Promise<string | undefined> {
   try {
     const { stdout } = await execAsync("gh auth token");
     const token = stdout.trim();
-    if (token.length > 0) return token;
+    if (token.length > 0) return { token, source: "gh" };
   } catch {
     // gh missing or not authenticated — fall through
   }
@@ -96,7 +251,9 @@ async function resolveToken(): Promise<string | undefined> {
       | { "github.com"?: { oauth_token?: string } }
       | undefined;
     const stored = parsed?.["github.com"]?.oauth_token;
-    if (stored && stored.length > 0) return stored;
+    if (stored && stored.length > 0) {
+      return { token: stored, source: "gh hosts.yml" };
+    }
   } catch {
     // hosts.yml missing or unreadable — fall through to undefined
   }

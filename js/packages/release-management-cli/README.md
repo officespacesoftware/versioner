@@ -235,17 +235,22 @@ parseable.
 
 ## Authentication
 
-The CLI reaches GitHub through the core package, which resolves a token from the first
-non-empty of:
+The CLI reaches GitHub through the core package, which uses the first of:
 
-1. `GH_TOKEN`
-2. `GITHUB_TOKEN` (set automatically in GitHub Actions)
-3. the output of `gh auth token`
-4. `~/.config/gh/hosts.yml` → `github.com.oauth_token`
+1. a GitHub App installation token, when `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (or
+   `GITHUB_APP_PRIVATE_KEY_PATH`) are set
+2. `GH_TOKEN`
+3. `GITHUB_TOKEN` (set automatically in GitHub Actions)
+4. the output of `gh auth token`
+5. `~/.config/gh/hosts.yml` → `github.com.oauth_token`
 
 Locally, `gh auth login` once is enough. In a non-interactive shell, export `GH_TOKEN` with
-`repo` scope. No `gh` binary is needed at runtime — it is only one of four ways to find a
-token. `owner`/`repo` come from the `origin` remote URL.
+`repo` scope, or configure a GitHub App so branches, tags, pull requests and releases are
+created by the app's bot user and git pushes with the app's installation token too. App
+setup and required permissions:
+[GitHub App authentication](../../../docs/configuration.md#github-app-authentication).
+Installing the CLI from GitHub Packages still needs a token with `read:packages`. No `gh`
+binary is needed at runtime. `owner`/`repo` come from the `origin` remote URL.
 
 ## Development
 
