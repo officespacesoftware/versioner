@@ -30,7 +30,8 @@ so a reviewer sees the same branch and title either way.
 - Resolve only the files the handoff lists. If the merge reports conflicts in other files,
   the repository moved since the handoff: stop and run the downmerge again for a fresh one.
 - Keep the merge commit: use `git merge --no-ff`, resolve, then `git commit` with git's
-  default merge message. Do not squash or rebase.
+  default merge message, with `--cleanup=strip` so the `# Conflicts:` lines git adds to it
+  are dropped. Do not squash or rebase.
 - In the pull request body, list every resolved file with a one-line reason for the
   resolution, so the reviewer can check each decision.
 - When a conflict needs a product decision rather than a mechanical one, such as two
@@ -47,7 +48,7 @@ git switch -c <resolution-branch> origin/develop
 git merge --no-ff origin/<source-branch>
 # resolve the listed files
 git add <files>
-git commit --no-edit
+git commit --no-edit --cleanup=strip
 git push -u origin <resolution-branch>
 ```
 
