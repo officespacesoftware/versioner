@@ -385,6 +385,9 @@ Bumps the RC number for an existing release or hotfix branch (e.g. RC.1 → RC.2
 - If a release/hotfix branch IS checked out but does not hold an RC, this ABORTS
   rather than silently acting on a different release train. Use list_versions to
   see every candidate, then pass the version you want.
+- Refuses a branch whose version is behind its base's (develop for release/*,
+  main for hotfix/*): the branch is stale. Promote or abandon it, or cut a new
+  release candidate or hotfix instead.
 - Works with both release/X.Y.0 and hotfix/X.Y.Z
 
 Called WITHOUT 'confirm', this changes nothing except refreshing the
