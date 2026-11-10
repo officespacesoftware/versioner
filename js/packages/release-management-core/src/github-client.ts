@@ -298,6 +298,26 @@ async function resolveToken(): Promise<
   return undefined;
 }
 
+export function redactRemoteUrl(url: string): string {
+  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/]+@/i, "$1");
+}
+
+export function parseGitHubRemoteUrl(
+  url: string
+): { owner: string; repo: string } | undefined {
+  const ssh = url.match(
+    /^(?:ssh:\/\/)?git@github\.com[:/]([^/]+)\/(.+?)(?:\.git)?\/?$/
+  );
+  if (ssh && ssh[1] && ssh[2]) return { owner: ssh[1], repo: ssh[2] };
+
+  const https = redactRemoteUrl(url).match(
+    /^https?:\/\/github\.com\/([^/]+)\/(.+?)(?:\.git)?\/?$/
+  );
+  if (https && https[1] && https[2]) return { owner: https[1], repo: https[2] };
+
+  return undefined;
+}
+
 async function parseOriginOwnerRepo(
   workingDirectory: string
 ): Promise<{ owner: string; repo: string }> {
@@ -305,18 +325,10 @@ async function parseOriginOwnerRepo(
     cwd: workingDirectory,
   });
   const url = stdout.trim();
-
-  // git@github.com:owner/repo(.git)?
-  const ssh = url.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/);
-  if (ssh && ssh[1] && ssh[2]) return { owner: ssh[1], repo: ssh[2] };
-
-  // https://github.com/owner/repo(.git)?
-  const https = url.match(
-    /^https?:\/\/github\.com\/([^/]+)\/(.+?)(?:\.git)?$/
-  );
-  if (https && https[1] && https[2]) return { owner: https[1], repo: https[2] };
+  const parsed = parseGitHubRemoteUrl(url);
+  if (parsed) return parsed;
 
   throw new Error(
-    `Could not parse owner/repo from origin URL: ${url}. Expected github.com SSH or HTTPS URL.`
+    `Could not parse owner/repo from origin URL: ${redactRemoteUrl(url)}. Expected github.com SSH or HTTPS URL.`
   );
 }
