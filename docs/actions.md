@@ -405,6 +405,20 @@ title the clean downmerge would have used. For H2, `options` holds the two choic
 `{ label, text, recommended }`; `steps` are the same choices as the text numbers them.
 `increment` is `{ version, openPullRequest }` when an increment returned the handoff.
 
+**Writing it to a file.** When the server's environment sets
+`RELEASE_MANAGEMENT_OUTPUT_DIR`, every tool call that returns `structuredContent` also
+writes that object, as indented JSON, to a new file in the directory, creating the
+directory if it is missing. A client that relays the result can then hand over the file
+as it is instead of copying the data. The file is named
+`<YYYYMMDDTHHMMSSmmmZ>-<seq>-<tool>.json`, such as
+`20261110T142530123Z-000003-list_versions.json`: the UTC time of the call, a six-digit
+sequence number that counts the server process's calls from `000001`, and the tool name,
+so the names sort in call order. Each file is written to a temporary name in the same
+directory and renamed into place, so a reader never sees a partial file. The text content
+is unchanged when the write succeeds. When it fails, the tool result is still returned,
+and its text ends with a line saying the structured output could not be written, with the
+file system error. Without the variable, nothing is written.
+
 ---
 
 ## `health_check`

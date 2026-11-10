@@ -12,6 +12,7 @@
 
 import { createRequire } from "node:module";
 import { BUILD_COMMIT, BUILD_TIME } from "./build-info.js";
+import { writeStructuredOutput } from "./output-file.js";
 import {
   renderIncrementResult,
   renderPipelineTrigger,
@@ -847,11 +848,12 @@ the tag already triggered.`,
             throw new Error(`Unknown tool: ${name}`);
         }
 
+        const note = await writeStructuredOutput(name, result.structured);
         return {
           content: [
             {
               type: "text",
-              text: result.text,
+              text: result.text + note,
             },
           ],
           structuredContent: result.structured as unknown as Record<
@@ -864,19 +866,25 @@ the tag already triggered.`,
           error instanceof Error ? error.message : String(error);
         console.error(`Error executing tool ${name}:`, error);
 
+        const structured = isToolName(name)
+          ? refused(name, errorMessage)
+          : undefined;
+        const note = structured
+          ? await writeStructuredOutput(name, structured)
+          : "";
         return {
           content: [
             {
               type: "text",
-              text: `Error: ${errorMessage}`,
+              text: `Error: ${errorMessage}${note}`,
             },
           ],
-          ...(isToolName(name)
+          ...(structured
             ? {
-                structuredContent: refused(
-                  name,
-                  errorMessage
-                ) as unknown as Record<string, unknown>,
+                structuredContent: structured as unknown as Record<
+                  string,
+                  unknown
+                >,
               }
             : {}),
           isError: true,
