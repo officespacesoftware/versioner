@@ -186,9 +186,12 @@ one named by the caller, and returns an environment for a process the caller sta
 token as `GH_TOKEN` and `GITHUB_TOKEN`, git's credential entries and, with an app, the bot
 identity, without the app's ID and key. The CLI's `with-github-auth` uses it.
 
-`owner` and `repo` come from `git remote get-url origin`, parsed from either
-`git@github.com:owner/repo(.git)` or `https://github.com/owner/repo(.git)`. Any other
-form is an error. Clients are cached per working directory; `clearGitHubClientCache`
+`owner` and `repo` come from `git remote get-url origin`, parsed by
+`parseGitHubRemoteUrl` from `git@github.com:owner/repo(.git)`,
+`ssh://git@github.com/owner/repo(.git)` or `https://github.com/owner/repo(.git)`, the
+HTTPS form with or without a credential (`https://user:token@github.com/...`) and a
+trailing slash. Any other form is an error, and `redactRemoteUrl` removes the credential
+from the URL the error shows. Clients are cached per working directory; `clearGitHubClientCache`
 drops one entry or all of them.
 
 ## A representative end-to-end flow

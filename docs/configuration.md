@@ -183,7 +183,10 @@ The CLI's [`with-github-auth`](#running-your-own-git-and-gh-as-the-app) resolves
 credential in the same order for commands you run yourself.
 
 `owner` and `repo` come from `git remote get-url origin`, which must be
-`git@github.com:owner/repo(.git)` or `https://github.com/owner/repo(.git)` (G8). Clients
+`git@github.com:owner/repo(.git)`, `ssh://git@github.com/owner/repo(.git)` or
+`https://github.com/owner/repo(.git)` (G8). An HTTPS URL may carry a credential, as hosted
+agents' checkouts do (`https://x-access-token:<token>@github.com/owner/repo`); the
+credential is ignored for parsing and never shown in G8. Clients
 are cached per working directory for the life of the process.
 
 Which actions call GitHub: every versioning plan and apply (pull-request lookups and
