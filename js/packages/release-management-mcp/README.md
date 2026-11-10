@@ -306,10 +306,11 @@ Would create:
   Tag: annotated tag 1.4.0
   …
 
-Nothing has been changed. To apply, confirm with digest: 3f2a1b0c9d8e
+Nothing has been changed. To apply, confirm with digest: 3f2a1b
 ```
 
-Call the same tool again with `confirm: "3f2a1b0c9d8e"` to apply it. The digest covers the
+Call the same tool again with `confirm: "3f2a1b"` to apply it; case and surrounding
+whitespace are ignored. The digest covers the
 target branch's `HEAD` and the plan's warnings and notes, so if anyone pushed to the branch, or a tag
 or pull request appeared in the meantime, the confirm is refused and a fresh plan comes
 back instead. Nothing is changed by a refusal.
@@ -319,6 +320,32 @@ guaranteed not to mutate.
 
 Documented in full at
 [docs/actions.md](../../../docs/actions.md#the-planconfirm-protocol).
+
+### Structured output
+
+Every tool also returns its outcome as data in the result's `structuredContent`, and
+declares the shape as its `outputSchema`, so a client can render from fields instead of
+parsing text. The text content is unchanged. Each object has a `kind`:
+
+- `plan` and `stale` (D1): the plan, with every mutation's operation (`create`, `update`,
+  `close`, `delete`) and the object it names (`ref`: branch, tag, release, pull request
+  number and URL), warnings and notes as `{ code, text }` with their
+  [message IDs](../../../docs/messages.md), every pre-version check's result, and the
+  review data: the commits the action moves, capped at 50 with a total count, the number
+  of files changed, and a GitHub compare URL.
+- `applied`: the branch, versions, tag, GitHub release, pull requests (number, base, URL,
+  opened, updated or closed, draft), pipeline outcome and output, an increment's manual
+  downmerge handoff, problems reported without failing, the workflow's steps and the next
+  steps.
+- `handoff`: a conflicting downmerge's files, resolution branch, title, steps and, into
+  `main`, the options.
+- `refused` and `failed`: the message ID and text; `failed` adds the steps reached.
+- `versions`, `health`, `initialized`: `list_versions`, `health_check` and
+  `initialize_versioner`.
+
+The TypeScript types and JSON schemas are in `src/structured.ts` and ship as
+`lib/structured.d.ts`. Every field is described in
+[docs/actions.md](../../../docs/actions.md#structured-tool-output).
 
 ### `workingDirectory`
 
@@ -382,12 +409,16 @@ calling `health_check`.
 package is not a git checkout, so the value has to be baked in at build time; in CI,
 `GITHUB_SHA` is the authority.
 
-This package has no test suite of its own — it is covered by `pnpm typecheck` at the
-workspace root, and the behaviour it exposes is tested in the core package.
+`pnpm test` runs the tests in `test/` against the built `lib/`, so build first. They drive
+the server over stdio as a client does, which validates every result against its
+`outputSchema`, and build the structured results from real workflow results in temporary
+repositories with a bare origin. The workflows themselves are tested in the core package.
 
 ```
 src/
 ├── index.ts        # tool declarations and dispatch
+├── render.ts       # text rendering shared by tools
+├── structured.ts   # structured output: types, builders, JSON schemas
 └── build-info.ts   # generated at build time, git-ignored
 ```
 

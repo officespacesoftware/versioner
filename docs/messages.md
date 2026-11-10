@@ -29,7 +29,10 @@ The G7 text is the constant `NO_TOKEN_MESSAGE` in `github-client.ts`, and U10 is
 `runCommandWithEnv` in `release-management-cli/src/commands/with-github-auth.ts`.
 
 **A pull request that adds, removes or rewords a message updates this catalog in the same
-pull request.** See [Maintaining these documents](README.md#maintaining-these-documents).
+pull request**, and the pattern that recognises it in
+`release-management-core/src/message-codes.ts`, with a sample in
+`release-management-core/test/message-codes.test.mjs`. See
+[Maintaining these documents](README.md#maintaining-these-documents).
 
 ## Reading the tables
 
@@ -60,6 +63,13 @@ tools' GitHub credential; see
 
 **Where the text appears.** The MCP server prefixes a failure with a status line such as
 `❌ Increment Release Candidate Workflow Failed` and puts the message after `💥 Error:`.
+Its structured output carries the same text with the ID below as `code`: a refusal or
+failure as `{ kind, code, text }`, and a plan's warnings and notes, a pipeline result and
+an apply report as `{ code, text }`
+([Structured tool output](actions.md#structured-tool-output)). The ID is found by matching
+the text against the patterns in `message-codes.ts`; a text no pattern matches has no
+`code`. R1 and R6–R10 wrap another message, so they are assigned by where they appear,
+not by their text.
 The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 (environment error); see [Exit codes](#cli-exit-codes).
 
@@ -102,7 +112,7 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 | --- | --- | --- | --- | --- | --- |
 | U1 | `--plan cannot be combined with <--confirm\|--yes>. --plan only describes the change; <--confirm\|--yes> applies it. Pass one or the other.` | refusal | CLI RC, HF, INC, REL, REV | Contradictory flags. Checked before git is touched | Drop one flag |
 | U2 | `--confirm cannot be combined with --yes. --confirm applies the plan you reviewed; --yes applies without review. Pass one or the other.` | refusal | as U1 | Both given | Drop one |
-| U3 | `--confirm needs the plan digest printed by --plan (for example --confirm 3f2a1b0c9d8e).` | refusal | as U1 | `--confirm ''` | Pass the digest |
+| U3 | `--confirm needs the plan digest printed by --plan (for example --confirm 3f2a1b).` | refusal | as U1 | `--confirm ''` | Pass the digest |
 | U4 | `Error: --release-type must be one of major, minor, patch` | refusal | CLI RC | Any other value. Exit code 1 | Fix the flag |
 | U5 | `releaseType must be one of: major, minor, patch (defaults to minor if not specified)` | refusal | MCP RC | Any other value. Returned as an MCP error (`isError: true`) | Fix the input |
 | U6 | `There is no downmerge from '<source>' to '<target>'. Valid routes: main → develop, release → develop, release → main, hotfix → develop, hotfix → main.` | refusal | MCP DM | `source`/`target` is not one of the five routes | Pick a valid route |
@@ -115,7 +125,7 @@ The CLI writes `Error: <message>` to stderr and exits `1` (user error) or `2`
 
 | ID | Exact text | Category | Actions | Condition | What to do |
 | --- | --- | --- | --- | --- | --- |
-| D1 | `The repository changed since this plan was created. Expected digest <new>, got <offered>. Review the new plan and confirm again.` followed by the new plan | refusal | RC, HF, INC, REL, REV | The digest passed as `confirm` differs from the plan rebuilt now. See [what the digest covers](actions.md#what-the-digest-covers) | Read the new plan; confirm its digest if it is still right |
+| D1 | `The repository changed since this plan was created. Expected digest <new>, got <offered>. Review the new plan and confirm again.` followed by the new plan | refusal | RC, HF, INC, REL, REV | The digest passed as `confirm` differs from the plan rebuilt now, ignoring surrounding whitespace and letter case. `<offered>` is as given. See [what the digest covers](actions.md#what-the-digest-covers) | Read the new plan; confirm its digest if it is still right |
 | D2 | `Nothing has been changed. To apply, confirm with digest: <digest>` | note (plan footer) | RC, HF, INC, REL, REV | Every rendered plan ends with it | Hand the digest back to apply |
 | D3 | `Would change nothing.` | note (plan body) | any plan | A plan with no mutations. No current action produces one | — |
 
@@ -178,7 +188,7 @@ All are covered by the digest. None blocks the apply.
 | W11 | `.release-management.json on <ref> at <sha11> is not valid (<reason>), so the pipeline trigger cannot run. If <branch> has no open pull request after the push, start its build by hand.` | RC, HF, INC, REL, REV (revert shape) | The `pipeline` section, or the file, does not parse | Fix the file |
 | W12 | `<v> is a FINAL version, not a release candidate.` | REV | The version being reverted is final: its GitHub release will be deleted | Approve only if the promotion was a mistake |
 | W13 | `<v> is the first version on <branch>, so there is no earlier version to return to. The branch is abandoned rather than rewound.` | REV (abandon shape) | The bump's parent carries another release's version, or none | Approve only if the branch should be deleted |
-| W14 | `Local <branch> has <n> commit(s) that origin/<branch> does not: <sha11> <subject>; …. ` then, by what the apply does with the branch: `Origin is the source of truth, so the apply resets <branch> to origin/<branch> and drops them from it.` (INC, REL, REV revert shape) or `The apply deletes <branch> locally as well as on origin, so they are dropped with it.` (REV abandon shape); then `To keep them, run git branch unpushed/<branch> <sha11> before confirming.` | INC, REL, REV | The local branch holds commits its remote-tracking ref does not, typically an earlier run's version commit whose push failed | Confirm to drop them, or keep them first with the command given |
+| W14 | `Local <branch> has <n> commit(s) that origin/<branch> does not: <sha11> <subject>; …. ` then, by what the apply does with the branch: `Origin is the source of truth, so the apply resets <branch> to origin/<branch> and drops them from it.` (INC, REL, REV revert shape, and RC, HF resuming an earlier run) or `The apply deletes <branch> locally as well as on origin, so they are dropped with it.` (REV abandon shape); then `To keep them, run git branch unpushed/<branch> <sha11> before confirming.` RC and HF, when only the clone has the branch they would create, say instead `Local <branch> exists but origin has no <branch>, and it has <n> commit(s) that origin/<base> does not: <sha11> <subject>; …. The apply recreates <branch> from origin/<base> and drops them from it. To keep them, run git branch unpushed/<branch> <sha11> before confirming.` | RC, HF, INC, REL, REV | The local branch holds commits its remote-tracking ref does not, typically an earlier run's version commit whose push failed | Confirm to drop them, or keep them first with the command given |
 | W15 | `Merging <branch> into main conflicts in <n> file(s): <files>. The apply still opens or updates the <branch> → main pull request, which cannot merge until this is resolved. main mirrors production, so how to resolve it is a human decision: see docs/manual-downmerge.md.` | INC (hotfix branches) | `git merge-tree` of the hotfix branch head into `origin/main` conflicts. Checked whatever the configuration | Decide as for H2 ([manual-downmerge.md](manual-downmerge.md#into-main-a-decision-not-a-resolution)) before or after approving; the pull request opens either way |
 
 ### Configuration reasons
@@ -269,6 +279,11 @@ Everything else, steps included, is the `release` → `develop` downmerge's.
 `release-X.Y.Z-into-develop-<unix-timestamp>` or `hotfix-X.Y.Z-into-develop-<unix-timestamp>`.
 `<title>` is the title the clean downmerge would have used: `Release <v> to develop` or
 `Downmerge main into develop` for `main`, `Release X.Y.Z to develop`, `Hotfix X.Y.Z to develop`.
+
+The structured output gives the same handoff as fields
+([Structured tool output](actions.md#structured-tool-output)): the conflicted files, the
+resolution branch and base, the title, the steps, and for H2 the two options as
+`{ label, text, recommended }`.
 
 For H2, the line after the file list is:
 

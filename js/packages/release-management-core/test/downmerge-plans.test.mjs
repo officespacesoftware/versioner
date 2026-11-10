@@ -315,11 +315,13 @@ test("a downmerge with no confirm creates the pull request", async () => {
   assert.deepEqual(calls, [
     { route: { source: "release", target: "develop" }, version: "4.125.0" },
   ]);
-  assert.deepEqual(outcome, {
-    result: { kind: "direct", pullRequestUrl: "https://example.test/pull/7" },
-    warnings: [],
-    notices: [],
+  assert.deepEqual(outcome.result, {
+    kind: "direct",
+    pullRequestUrl: "https://example.test/pull/7",
   });
+  assert.deepEqual(outcome.warnings, []);
+  assert.deepEqual(outcome.notices, []);
+  assert.equal(outcome.plan.action, "downmerge release → develop");
 });
 
 test("an applied downmerge still reports the plan's notes", async () => {
@@ -397,9 +399,15 @@ test("release into main closes the promotion's pull request it supersedes", asyn
 
   assert.deepEqual(plan.mutations.at(-1), {
     kind: "pull-request",
-    operation: "delete",
+    operation: "close",
     summary:
       "close PR #88 (release/4.125.0 → main), superseded by the pull request above",
+    ref: {
+      number: 88,
+      url: "https://example.invalid/pr/88",
+      head: "release/4.125.0",
+      base: "main",
+    },
   });
 });
 

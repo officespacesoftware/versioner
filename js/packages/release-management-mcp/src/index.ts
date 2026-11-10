@@ -29,6 +29,7 @@ import {
   StalePlanError,
   assertPlanIsCurrent,
   initializeVersioner,
+  messageCode,
   parseDownmergeRoute,
   renderChangePlan,
   renderManualDownmerge,
@@ -36,6 +37,25 @@ import {
   type DownmergeResult,
   type SupersededPullRequest,
 } from "@officespacesoftware/release-management-core";
+import {
+  OUTPUT_SCHEMAS,
+  createdOutput,
+  downmergeNextSteps,
+  downmergeOutput,
+  failed,
+  hotfixNextSteps,
+  incrementOutput,
+  refused,
+  releaseCandidateNextSteps,
+  releaseOutput,
+  revertOutput,
+  structuredHandoff,
+  structuredPlan,
+  versionsOutput,
+  type PlanTool,
+  type ToolName,
+  type ToolOutput,
+} from "./structured.js";
 
 /** Reported over the MCP handshake and by health_check; taken from the package itself. */
 const SERVER_VERSION: string = (
@@ -68,6 +88,42 @@ ${renderChangePlan(plan)}
 
 To apply, call ${toolName} again with:
   confirm: "${plan.digest}"`;
+}
+
+interface ToolResult {
+  text: string;
+  structured: ToolOutput;
+}
+
+const TOOL_NAMES: readonly string[] = Object.keys(OUTPUT_SCHEMAS);
+
+function isToolName(name: string): name is ToolName {
+  return TOOL_NAMES.includes(name);
+}
+
+function numbered(steps: string[]): string {
+  return steps.map((step, i) => `${i + 1}. ${step}`).join("\n");
+}
+
+function planResult(plan: ChangePlan, toolName: PlanTool): ToolResult {
+  return {
+    text: renderPlanForApproval(plan, toolName),
+    structured: { kind: "plan", tool: toolName, plan: structuredPlan(plan) },
+  };
+}
+
+function staleResult(error: StalePlanError, toolName: PlanTool): ToolResult {
+  return {
+    text: renderStalePlan(error, toolName),
+    structured: {
+      kind: "stale",
+      tool: toolName,
+      code: "D1",
+      text: error.message,
+      provided: error.provided,
+      plan: structuredPlan(error.plan),
+    },
+  };
 }
 
 /** Format a rejected apply, showing what the repository looks like now. */
@@ -229,6 +285,7 @@ class ReleaseManagementMCPServer {
         tools: [
           {
             name: "health_check",
+            outputSchema: OUTPUT_SCHEMAS.health_check,
             title: "Health Check",
             description: `🩺  Health Check (read-only)
 
@@ -261,6 +318,7 @@ commit suffixed "-dirty" was built from an uncommitted working tree.`,
           },
           {
             name: "create_release_candidate",
+            outputSchema: OUTPUT_SCHEMAS.create_release_candidate,
             title: "Create Release Candidate",
             description: `🎯  Create Release Candidate (RC)
 
@@ -322,6 +380,7 @@ was missed, the pull request). A branch at any other version is refused.`,
           },
           {
             name: "create_hotfix",
+            outputSchema: OUTPUT_SCHEMAS.create_hotfix,
             title: "Create Hotfix",
             description: `🚑  Create Hotfix (Patch RC)
 
@@ -383,6 +442,7 @@ hotfix/X.Y.Z at exactly X.Y.Z-RC.0.`,
           },
           {
             name: "increment_release_candidate",
+            outputSchema: OUTPUT_SCHEMAS.increment_release_candidate,
             title: "Increment Release Candidate",
             description: `🔼  Increment Release Candidate
 
@@ -458,6 +518,7 @@ that is a human decision, and the pull request is still opened.`,
           },
           {
             name: "release_version",
+            outputSchema: OUTPUT_SCHEMAS.release_version,
             title: "Release Version",
             description: `🏁  Release Version (RC → Final)
 
@@ -521,6 +582,7 @@ the hotfix → develop downmerge supersedes it).`,
           },
           {
             name: "initialize_versioner",
+            outputSchema: OUTPUT_SCHEMAS.initialize_versioner,
             title: "Initialize Versioner",
             description: `📦  Initialize Versioner
 
@@ -554,6 +616,7 @@ Nothing is pushed and no pull request is opened, so there is no plan to confirm.
           },
           {
             name: "downmerge",
+            outputSchema: OUTPUT_SCHEMAS.downmerge,
             title: "Downmerge",
             description: `⬇️  Downmerge one branch into another through a pull request
 
@@ -622,6 +685,7 @@ index nor the working tree.
           },
           {
             name: "list_versions",
+            outputSchema: OUTPUT_SCHEMAS.list_versions,
             title: "List Versions",
             description: `🔎  List Versions (read-only)
 
@@ -654,6 +718,7 @@ certain which branch should be acted on, then pass that version explicitly.`,
           },
           {
             name: "revert_version",
+            outputSchema: OUTPUT_SCHEMAS.revert_version,
             title: "Revert Version",
             description: `⏪  Revert Version
 
@@ -739,7 +804,7 @@ the tag already triggered.`,
       const { name, arguments: args } = request.params;
 
       try {
-        let result: string;
+        let result: ToolResult;
 
         switch (name) {
           case "health_check":
@@ -786,9 +851,13 @@ the tag already triggered.`,
           content: [
             {
               type: "text",
-              text: result,
+              text: result.text,
             },
           ],
+          structuredContent: result.structured as unknown as Record<
+            string,
+            unknown
+          >,
         };
       } catch (error) {
         const errorMessage =
@@ -802,13 +871,21 @@ the tag already triggered.`,
               text: `Error: ${errorMessage}`,
             },
           ],
+          ...(isToolName(name)
+            ? {
+                structuredContent: refused(
+                  name,
+                  errorMessage
+                ) as unknown as Record<string, unknown>,
+              }
+            : {}),
           isError: true,
         };
       }
     });
   }
 
-  private async handleInitializeVersioner(args: any): Promise<string> {
+  private async handleInitializeVersioner(args: any): Promise<ToolResult> {
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
 
@@ -830,22 +907,32 @@ the tag already triggered.`,
       // call: the server outlives any one repository.
       const versionInfo = await initializeVersioner(workingDirectory, version);
 
-      return `✅ Versioner Initialized Successfully!
+      return {
+        text: `✅ Versioner Initialized Successfully!
 
 📁 Working Directory: ${workingDirectory}
 🏷️  Created Version: ${versionInfo.version}
 📊 Release Type: ${
-        versionInfo.isReleaseCandidate ? "Release Candidate" : "Final Release"
-      }
+          versionInfo.isReleaseCandidate ? "Release Candidate" : "Final Release"
+        }
 
 📋 Next Steps:
 1. VERSION file has been created in your project
 2. Initial git commit and tag have been created
-3. You can now use other versioning tools to manage releases`;
+3. You can now use other versioning tools to manage releases`,
+        structured: {
+          kind: "initialized",
+          tool: "initialize_versioner",
+          workingDirectory,
+          version: versionInfo.version,
+          isReleaseCandidate: versionInfo.isReleaseCandidate,
+        },
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      return `❌ Failed to initialize versioner
+      return {
+        text: `❌ Failed to initialize versioner
 
 📁 Working Directory: ${workingDirectory}
 ${
@@ -853,11 +940,16 @@ ${
     ? `🔍 Requested Version: ${version}`
     : "🔍 Default Version: 0.1.0-RC.0"
 }
-💥 Error: ${errorMessage}`;
+💥 Error: ${errorMessage}`,
+        structured:
+          messageCode(errorMessage) === "A40"
+            ? failed("initialize_versioner", errorMessage, [])
+            : refused("initialize_versioner", errorMessage),
+      };
     }
   }
 
-  private async handleListVersions(args: any): Promise<string> {
+  private async handleListVersions(args: any): Promise<ToolResult> {
     const workingDirectory = args?.workingDirectory || process.cwd();
     const productionBranch = args?.productionBranch || "main";
 
@@ -872,12 +964,16 @@ ${
       }
 
       const listing = await this.gitFlowManager!.listVersions(productionBranch);
+      const structured = versionsOutput(listing, workingDirectory);
 
       if (listing.entries.length === 0) {
-        return `🔎 No release or hotfix branches found
+        return {
+          text: `🔎 No release or hotfix branches found
 
 📁 Working Directory: ${workingDirectory}
-🌿 Current Branch: ${listing.currentBranch}`;
+🌿 Current Branch: ${listing.currentBranch}`,
+          structured,
+        };
       }
 
       const rows = listing.entries.map((e) => {
@@ -897,7 +993,9 @@ ${
 
       const candidates = listing.entries.filter((e) => e.kind === "rc");
 
-      return `🔎 Release & Hotfix Branches
+      return {
+        structured,
+        text: `🔎 Release & Hotfix Branches
 
 📁 Working Directory: ${workingDirectory}
 🌿 Current Branch: ${listing.currentBranch}
@@ -917,18 +1015,22 @@ ${candidates.length} release candidate(s) available.
 - "[unknown]" means no VERSION could be read on either side, so the branch makes
   no claim either way — it is not the same as [final]
 - Tag columns are live (ls-remote), but merge status compares local remote-tracking
-  refs and is only as fresh as your last fetch`;
+  refs and is only as fresh as your last fetch`,
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      return `❌ List Versions Failed
+      return {
+        text: `❌ List Versions Failed
 
 📁 Working Directory: ${workingDirectory}
-💥 Error: ${errorMessage}`;
+💥 Error: ${errorMessage}`,
+        structured: refused("list_versions", errorMessage),
+      };
     }
   }
 
-  private async handleDownmerge(args: any): Promise<string> {
+  private async handleDownmerge(args: any): Promise<ToolResult> {
     const version: string | undefined = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
 
@@ -944,32 +1046,43 @@ ${candidates.length} release candidate(s) available.
 
       await this.gitFlowManager!.validateNoStagedChanges();
 
-      const { result, warnings, notices } =
+      const { result, warnings, notices, plan } =
         await this.downmergeAgent().applyDownmerge(route, version);
 
-      const nextSteps =
-        route.target === "main"
-          ? `📋 Next Steps:
-1. Review the pull request, or close it to reject the downmerge
-2. Merge it only after the ${route.source} has been deployed to production`
-          : `📋 Next Steps:
-1. Review the pull request and CI checks, or close it to reject the downmerge
-2. Merge once green`;
+      const nextSteps = downmergeNextSteps(route);
 
-      return `🚀 Downmerge ${route.source} → ${route.target} completed
+      return {
+        text: `🚀 Downmerge ${route.source} → ${route.target} completed
 
 📁 Working Directory: ${workingDirectory}
 
 ${this.formatDownmergeResult(result)}
 ${renderBullets("⚠️  Warnings:", warnings)}${renderBullets("📝 Notes:", notices)}
-${nextSteps}`;
+📋 Next Steps:
+${numbered(nextSteps)}`,
+        structured: downmergeOutput({
+          route,
+          result,
+          warnings,
+          notices,
+          plan,
+        }),
+      };
     } catch (error) {
       if (error instanceof ManualDownmergeRequired) {
-        return `⚠️  ${renderManualDownmerge(error.handoff)}`;
+        return {
+          text: `⚠️  ${renderManualDownmerge(error.handoff)}`,
+          structured: {
+            kind: "handoff",
+            tool: "downmerge",
+            handoff: structuredHandoff(error.handoff),
+          },
+        };
       }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      return `❌ Downmerge Failed
+      return {
+        text: `❌ Downmerge Failed
 
 📁 Working Directory: ${workingDirectory}
 💥 Error: ${errorMessage}
@@ -978,7 +1091,11 @@ Common issues:
 - No release or hotfix branch found matching the criteria
 - Network issues with git operations
 - Permission issues with git push or PR creation
-- Tracked local changes in the working tree (commit or stash first)`;
+- Tracked local changes in the working tree (commit or stash first)`,
+        structured: errorMessage.startsWith("Failed to downmerge ")
+          ? failed("downmerge", errorMessage, [])
+          : refused("downmerge", errorMessage),
+      };
     }
   }
 
@@ -996,7 +1113,7 @@ Common issues:
     }
   }
 
-  private async handleHealthCheck(args: any): Promise<string> {
+  private async handleHealthCheck(args: any): Promise<ToolResult> {
     const workingDirectory: string = args?.workingDirectory || process.cwd();
     const auth = await new GitFlowManager(workingDirectory).describeGitHubAuth();
     const status = {
@@ -1021,10 +1138,13 @@ Common issues:
       ],
     };
 
-    return JSON.stringify(status, null, 2);
+    return {
+      text: JSON.stringify(status, null, 2),
+      structured: { kind: "health", tool: "health_check", ...status },
+    };
   }
 
-  private async handleCreateRC(args: any): Promise<string> {
+  private async handleCreateRC(args: any): Promise<ToolResult> {
     const releaseType = args?.releaseType || "minor"; // Default to minor
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
@@ -1037,6 +1157,7 @@ Common issues:
       );
     }
 
+    let applying = false;
     try {
       await this.bindWorkingDirectory(workingDirectory, {
         initializeReleaseAgent: true,
@@ -1065,9 +1186,10 @@ Common issues:
         releaseType
       );
       if (!confirm) {
-        return renderPlanForApproval(plan, "create_release_candidate");
+        return planResult(plan, "create_release_candidate");
       }
       assertPlanIsCurrent(plan, confirm);
+      applying = true;
 
       // Execute the RC workflow with the specified release type
       const workflowResult = await this.releaseAgent!.executeRCWorkflow(
@@ -1078,8 +1200,9 @@ Common issues:
 
       // Generate workflow summary
       const progressSummary = this.releaseAgent!.getProgressSummary();
+      const nextSteps = releaseCandidateNextSteps(workflowResult);
 
-      return `🚀 ${
+      const text = `🚀 ${
         releaseType.charAt(0).toUpperCase() + releaseType.slice(1)
       } Release Candidate Workflow ${
         dryRun ? "(Dry Run) " : ""
@@ -1116,24 +1239,23 @@ ${
     : `✅ All steps completed successfully. The ${releaseType} release candidate has been created and is ready for testing.`
 }
 
-${
-  workflowResult.pullRequestUrl
-    ? `
+
 📋 Next steps:
-1. Review the pull request: ${workflowResult.pullRequestUrl}
-2. Run integration tests on the release branch
-3. Merge the PR when ready to integrate to develop
-4. Deploy to staging environment for testing`
-    : `
-📋 Next steps:
-1. Review the release branch
-2. Run integration tests
-3. Create PR to develop branch (Step 6 completed)
-4. Deploy to staging environment for testing`
-}`;
+${numbered(nextSteps)}`;
+
+      return {
+        text,
+        structured: createdOutput({
+          tool: "create_release_candidate",
+          result: workflowResult,
+          plan,
+          dryRun,
+          steps: this.releaseAgent!.getWorkflowSteps(),
+        }),
+      };
     } catch (error) {
       if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "create_release_candidate");
+        return staleResult(error, "create_release_candidate");
       }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -1143,7 +1265,7 @@ ${
       const progressSummary =
         this.releaseAgent?.getProgressSummary() || "Workflow not started";
 
-      return `❌ ${
+      const text = `❌ ${
         releaseType.charAt(0).toUpperCase() + releaseType.slice(1)
       } Release Candidate Workflow Failed
 
@@ -1157,13 +1279,32 @@ ${progressSummary}
 💥 Error: ${errorMessage}
 
 Please review the error and fix any issues before retrying the workflow.`;
+      return {
+        text,
+        structured: this.errorOutput(
+          "create_release_candidate",
+          errorMessage,
+          applying
+        ),
+      };
     }
   }
 
-  private async handleCreateHotfix(args: any): Promise<string> {
+  private errorOutput(
+    tool: PlanTool,
+    errorMessage: string,
+    applying: boolean
+  ): ToolOutput {
+    return applying
+      ? failed(tool, errorMessage, this.releaseAgent?.getWorkflowSteps() ?? [])
+      : refused(tool, errorMessage);
+  }
+
+  private async handleCreateHotfix(args: any): Promise<ToolResult> {
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
     const confirm: string | undefined = args?.confirm;
+    let applying = false;
 
     try {
       await this.bindWorkingDirectory(workingDirectory, {
@@ -1191,9 +1332,10 @@ Please review the error and fix any issues before retrying the workflow.`;
       // Without a confirmation digest, describe the change and stop.
       const plan = await this.releaseAgent!.planCreateHotfix();
       if (!confirm) {
-        return renderPlanForApproval(plan, "create_hotfix");
+        return planResult(plan, "create_hotfix");
       }
       assertPlanIsCurrent(plan, confirm);
+      applying = true;
 
       // Execute the hotfix workflow
       const workflowResult = await this.releaseAgent!.executeHotfixWorkflow(
@@ -1203,8 +1345,9 @@ Please review the error and fix any issues before retrying the workflow.`;
 
       // Generate workflow summary
       const progressSummary = this.releaseAgent!.getProgressSummary();
+      const nextSteps = hotfixNextSteps(workflowResult);
 
-      return `🚀 Hotfix Workflow ${
+      const text = `🚀 Hotfix Workflow ${
         dryRun ? "(Dry Run) " : ""
       }Completed Successfully!
 
@@ -1247,27 +1390,23 @@ ${
     : "✅ All steps completed successfully."
 }
 
-${
-  workflowResult.pullRequestUrl
-    ? `
+
 📋 Next steps:
-1. Commit the actual fix on the hotfix branch and push it
-2. Track it on the → main PR: ${workflowResult.pullRequestUrl}
-3. Promote the RC to a final version with release_version
-4. Deploy to production
-5. Merge the → main PR only AFTER the deployment succeeds
-6. Bring the hotfix into develop with downmerge (source: hotfix, target: develop)`
-    : `
-📋 Next steps:
-1. Commit the actual fix on the hotfix branch and push it
-2. Promote the RC to a final version with release_version
-3. Deploy to production
-4. Merge the → main PR only AFTER the deployment succeeds
-5. Bring the hotfix into develop with downmerge (source: hotfix, target: develop)`
-}`;
+${numbered(nextSteps)}`;
+
+      return {
+        text,
+        structured: createdOutput({
+          tool: "create_hotfix",
+          result: workflowResult,
+          plan,
+          dryRun,
+          steps: this.releaseAgent!.getWorkflowSteps(),
+        }),
+      };
     } catch (error) {
       if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "create_hotfix");
+        return staleResult(error, "create_hotfix");
       }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -1277,7 +1416,7 @@ ${
       const progressSummary =
         this.releaseAgent?.getProgressSummary() || "Workflow not started";
 
-      return `❌ Hotfix Workflow Failed
+      const text = `❌ Hotfix Workflow Failed
 
 📁 Working Directory: ${workingDirectory}
 🔧 Workflow Type: HOTFIX (Patch Release)
@@ -1289,14 +1428,19 @@ ${progressSummary}
 💥 Error: ${errorMessage}
 
 Please review the error and fix any issues before retrying the workflow.`;
+      return {
+        text,
+        structured: this.errorOutput("create_hotfix", errorMessage, applying),
+      };
     }
   }
 
-  private async handleIncrementRC(args: any): Promise<string> {
+  private async handleIncrementRC(args: any): Promise<ToolResult> {
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
     const confirm: string | undefined = args?.confirm;
+    let applying = false;
 
     try {
       await this.bindWorkingDirectory(workingDirectory, {
@@ -1324,9 +1468,10 @@ Please review the error and fix any issues before retrying the workflow.`;
       // Without a confirmation digest, describe the change and stop.
       const plan = await this.releaseAgent!.planIncrementRC(version);
       if (!confirm) {
-        return renderPlanForApproval(plan, "increment_release_candidate");
+        return planResult(plan, "increment_release_candidate");
       }
       assertPlanIsCurrent(plan, confirm);
+      applying = true;
 
       // Execute the increment RC workflow
       const workflowResult = await this.releaseAgent!.executeIncrementRCWorkflow(
@@ -1338,15 +1483,23 @@ Please review the error and fix any issues before retrying the workflow.`;
       // Generate workflow summary
       const progressSummary = this.releaseAgent!.getProgressSummary();
 
-      return renderIncrementResult({
-        result: workflowResult,
-        workingDirectory,
-        dryRun,
-        progressSummary,
-      });
+      return {
+        text: renderIncrementResult({
+          result: workflowResult,
+          workingDirectory,
+          dryRun,
+          progressSummary,
+        }),
+        structured: incrementOutput({
+          result: workflowResult,
+          plan,
+          dryRun,
+          steps: this.releaseAgent!.getWorkflowSteps(),
+        }),
+      };
     } catch (error) {
       if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "increment_release_candidate");
+        return staleResult(error, "increment_release_candidate");
       }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -1356,7 +1509,7 @@ Please review the error and fix any issues before retrying the workflow.`;
       const progressSummary =
         this.releaseAgent?.getProgressSummary() || "Workflow not started";
 
-      return `❌ Increment Release Candidate Workflow Failed
+      const text = `❌ Increment Release Candidate Workflow Failed
 
 📁 Working Directory: ${workingDirectory}
 ${
@@ -1372,14 +1525,23 @@ ${progressSummary}
 💥 Error: ${errorMessage}
 
 Please review the error and fix any issues before retrying the workflow.`;
+      return {
+        text,
+        structured: this.errorOutput(
+          "increment_release_candidate",
+          errorMessage,
+          applying
+        ),
+      };
     }
   }
 
-  private async handleRevertVersion(args: any): Promise<string> {
+  private async handleRevertVersion(args: any): Promise<ToolResult> {
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
     const confirm: string | undefined = args?.confirm;
+    let applying = false;
 
     try {
       await this.bindWorkingDirectory(workingDirectory, {
@@ -1397,9 +1559,10 @@ Please review the error and fix any issues before retrying the workflow.`;
 
       const plan = await this.releaseAgent!.planRevertVersion(version);
       if (!confirm) {
-        return renderPlanForApproval(plan, "revert_version");
+        return planResult(plan, "revert_version");
       }
       assertPlanIsCurrent(plan, confirm);
+      applying = true;
 
       const result = await this.releaseAgent!.executeRevertVersionWorkflow(
         workingDirectory,
@@ -1462,10 +1625,19 @@ Please review the error and fix any issues before retrying the workflow.`;
         `✅ All steps completed successfully.`
       );
 
-      return lines.join("\n");
+
+      return {
+        text: lines.join("\n"),
+        structured: revertOutput({
+          result,
+          plan,
+          dryRun,
+          steps: this.releaseAgent!.getWorkflowSteps(),
+        }),
+      };
     } catch (error) {
       if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "revert_version");
+        return staleResult(error, "revert_version");
       }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -1474,7 +1646,8 @@ Please review the error and fix any issues before retrying the workflow.`;
       const progressSummary =
         this.releaseAgent?.getProgressSummary() || "Workflow not started";
 
-      return `❌ Revert Version Workflow Failed
+      return {
+        text: `❌ Revert Version Workflow Failed
 
 📁 Working Directory: ${workingDirectory}
 ${version ? `📋 Target Version: ${version}` : "📋 Version Selection: checked-out branch"}
@@ -1482,15 +1655,18 @@ ${version ? `📋 Target Version: ${version}` : "📋 Version Selection: checked
 📋 Workflow Progress:
 ${progressSummary}
 
-💥 Error: ${errorMessage}`;
+💥 Error: ${errorMessage}`,
+        structured: this.errorOutput("revert_version", errorMessage, applying),
+      };
     }
   }
 
-  private async handleReleaseVersion(args: any): Promise<string> {
+  private async handleReleaseVersion(args: any): Promise<ToolResult> {
     const version = args?.version;
     const workingDirectory = args?.workingDirectory || process.cwd();
     const dryRun = args?.dryRun || false;
     const confirm: string | undefined = args?.confirm;
+    let applying = false;
 
     try {
       await this.bindWorkingDirectory(workingDirectory, {
@@ -1518,9 +1694,10 @@ ${progressSummary}
       // Without a confirmation digest, describe the change and stop.
       const plan = await this.releaseAgent!.planReleaseVersion(version);
       if (!confirm) {
-        return renderPlanForApproval(plan, "release_version");
+        return planResult(plan, "release_version");
       }
       assertPlanIsCurrent(plan, confirm);
+      applying = true;
 
       // Execute the release workflow
       const workflowResult = await this.releaseAgent!.executeReleaseWorkflow(
@@ -1532,7 +1709,7 @@ ${progressSummary}
       // Generate workflow summary
       const progressSummary = this.releaseAgent!.getProgressSummary();
 
-      return `🚀 Release Version Workflow ${
+      const text = `🚀 Release Version Workflow ${
         dryRun ? "(Dry Run) " : ""
       }Completed Successfully!
 
@@ -1595,9 +1772,19 @@ ${
           ? "production deployment"
           : "production hotfix deployment"
       }.`;
+
+      return {
+        text,
+        structured: releaseOutput({
+          result: workflowResult,
+          plan,
+          dryRun,
+          steps: this.releaseAgent!.getWorkflowSteps(),
+        }),
+      };
     } catch (error) {
       if (error instanceof StalePlanError) {
-        return renderStalePlan(error, "release_version");
+        return staleResult(error, "release_version");
       }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -1607,7 +1794,7 @@ ${
       const progressSummary =
         this.releaseAgent?.getProgressSummary() || "Workflow not started";
 
-      return `❌ Release Version Workflow Failed
+      const text = `❌ Release Version Workflow Failed
 
 📁 Working Directory: ${workingDirectory}
 ${version ? `🔍 Requested Version: ${version}` : "🔍 Auto-detect RC Branch"}
@@ -1625,6 +1812,10 @@ Common issues:
 - Verify the VERSION file exists and is properly formatted
 - Check that versioner-mcp is running and accessible
 - Ensure you have proper git permissions for pushing and PR creation`;
+      return {
+        text,
+        structured: this.errorOutput("release_version", errorMessage, applying),
+      };
     }
   }
 

@@ -8,7 +8,7 @@ the document has a bug.
 
 | Document | Read it for |
 | --- | --- |
-| [actions.md](actions.md) | Each action: inputs, branch selection, plan or immediate, git effects in order, pull requests, GitHub releases, messages, decision table, partial failure and recovery. Also the plan/confirm protocol and what the digest covers |
+| [actions.md](actions.md) | Each action: inputs, branch selection, plan or immediate, git effects in order, pull requests, GitHub releases, messages, decision table, partial failure and recovery. Also the plan/confirm protocol, what the digest covers, the review data a plan carries, and the MCP tools' structured output |
 | [messages.md](messages.md) | Every refusal, warning, note, handoff, pipeline result and apply failure, with its exact text, condition and what to do |
 | [flows.md](flows.md) | Diagrams: release lifecycle, hotfix lifecycle, plan and confirm, downmerge, revert shape, increment pull request, pipeline trigger |
 | [configuration.md](configuration.md) | `.release-management.json` (pre-version checks, pipeline trigger), GitHub token resolution and GitHub App authentication, running your own git and gh as the tools' identity, environment variables |
@@ -37,12 +37,18 @@ same pull request. Before asking for review, check each line that applies:
       string from `throw new`, `warnings.push`, `notices.push`, a pipeline-trigger
       `message`, or an apply-report field. Run the grep at the top of that file and compare.
       Keep IDs stable: retire an ID rather than reuse it, and give new messages the next
-      free number.
+      free number. Add or update its pattern in
+      `js/packages/release-management-core/src/message-codes.ts` and a sample in
+      `test/message-codes.test.mjs`, so the MCP structured output carries its ID.
 - [ ] **Pull requests by head/base pair** in
       [actions.md](actions.md#pull-requests): a pull request that is now opened, updated or
       closed by a different action.
 - [ ] **Digest** in [actions.md](actions.md#what-the-digest-covers): a new plan field, or
       a fact moved between a summary (covered) and a detail line (not covered).
+- [ ] **Structured output** in [actions.md](actions.md#structured-tool-output): a new or
+      changed field in a plan or a result, mirrored in the types and JSON schemas in
+      `js/packages/release-management-mcp/src/structured.ts`, which MCP clients validate
+      against.
 - [ ] **Diagrams** in [flows.md](flows.md): a new step, branch or decision in a lifecycle.
 - [ ] **Configuration** in [configuration.md](configuration.md): a new key, default or
       environment variable.

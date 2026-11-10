@@ -61,7 +61,7 @@ export function resolvePlanMode(flags: PlanFlags): PlanMode {
     const digest = confirm.trim();
     if (digest === "") {
       throw new UsageError(
-        "--confirm needs the plan digest printed by --plan (for example --confirm 3f2a1b0c9d8e)."
+        "--confirm needs the plan digest printed by --plan (for example --confirm 3f2a1b)."
       );
     }
     return { kind: "confirm", digest };

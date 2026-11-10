@@ -229,21 +229,25 @@ assertPlanIsCurrent(await agent.planReleaseVersion(), providedDigest);
 
 | Export | Purpose |
 | --- | --- |
-| `ChangePlan` | `action`, `targetBranch`, `targetBranchHead`, optional `currentVersion`/`resultingVersion`, `mutations`, `warnings`, `notices`, `digest` |
-| `PlannedMutation` | one object: `kind`, `operation`, one-line imperative `summary`, optional `detail` |
+| `ChangePlan` | `action`, `targetBranch`, `targetBranchHead`, optional `currentVersion`/`resultingVersion`, `mutations`, `warnings`, `notices`, optional `shape`, `checks`, `review`, `digest` |
+| `PlannedMutation` | one object: `kind`, `operation`, one-line imperative `summary`, optional `detail` and `ref` (the branch, tag, release or pull request it names) |
 | `MutationKind` | `branch`, `commit`, `tag`, `push`, `pull-request`, `github-release` |
-| `MutationOperation` | `create` or `delete`; `mutationOperation(m)` defaults an absent value to `create` |
-| `buildChangePlan(input)` | computes the digest — a 12-character SHA-256 prefix over a canonical serialisation |
-| `renderChangePlan(plan)` | human-readable text, grouped into "Would create" and "Would delete" |
-| `assertPlanIsCurrent(plan, provided)` | throws `StalePlanError` on mismatch |
+| `MutationOperation` | `create`, `update`, `close` or `delete`; `mutationOperation(m)` defaults an absent value to `create` |
+| `PlanReview`, `CommitRange` | the commits a plan moves, capped at `REVIEW_COMMIT_LIMIT` (50) with a total count, files changed and a compare URL |
+| `CheckRun` | one pre-version check's result: status, exit code, seconds, and output when it did not pass |
+| `buildChangePlan(input)` | computes the digest — a 6-character SHA-256 prefix over a canonical serialisation |
+| `renderChangePlan(plan)` | human-readable text, grouped into "Would create" (creations and updates) and "Would delete" (deletions and closures) |
+| `assertPlanIsCurrent(plan, provided)` | throws `StalePlanError` on mismatch, ignoring case and surrounding whitespace in `provided` |
+| `messageCode(text, action?)`, `codedMessage(text, action?)` | the [message catalog](../../../docs/messages.md) ID of a text the tools produce, matched on its wording |
 | `StalePlanError` | carries the freshly computed `.plan` so the caller can show what changed |
 
 The digest covers the target branch's `HEAD` — so a push to that branch invalidates the
 plan — and the warnings and notices, because those encode remote facts a sha does not:
 whether a tag already exists, whether a pull request will be updated rather than created.
-Warnings call for a decision before approving; notices only explain the plan. Two plan
-fields stay out of the digest: `pipelineTrigger` and `mergePreview`, an increment's
-prediction of a conflict into `develop`, rendered under "Notes:".
+Warnings call for a decision before approving; notices only explain the plan. Several plan
+fields stay out of the digest: `pipelineTrigger`; `mergePreview`, an increment's
+prediction of a conflict into `develop`, rendered under "Notes:"; `checks`; each
+mutation's `ref`; and `review`, whose ranges end at heads the digest already covers.
 
 The protocol both front-ends build on top of this is documented in
 [docs/actions.md](../../../docs/actions.md#the-planconfirm-protocol).
@@ -335,7 +339,8 @@ src/
 ├── index.ts             # barrel; six of seven modules
 ├── git-flow.ts          # GitFlowManager and its types
 ├── release-agent.ts     # ReleaseAgent: workflows and plan builders
-├── change-plan.ts       # plans, digests, rendering
+├── change-plan.ts       # plans, digests, review data, rendering
+├── message-codes.ts     # message catalog IDs, matched on wording
 ├── versioner-adapter.ts # high-level version mutation
 ├── versioner-direct.ts  # in-process versioner client
 ├── github-client.ts     # token resolution, Octokit handles (not exported)

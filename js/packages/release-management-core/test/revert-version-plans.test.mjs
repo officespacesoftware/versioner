@@ -282,7 +282,7 @@ test("an open pull request is updated on a revert and closed on an abandon", asy
   );
   const revertPlan = await reverting.planRevertVersion();
   const updated = revertPlan.mutations.find((m) => m.kind === "pull-request");
-  assert.equal(updated.operation, undefined);
+  assert.equal(updated.operation, "update");
   assert.match(updated.summary, /update PR #42 to 1\.4\.0-RC\.2/);
 
   const abandoning = makeAgent(
@@ -292,7 +292,7 @@ test("an open pull request is updated on a revert and closed on an abandon", asy
   );
   const abandonPlan = await abandoning.planRevertVersion();
   const closed = abandonPlan.mutations.find((m) => m.kind === "pull-request");
-  assert.equal(closed.operation, "delete");
+  assert.equal(closed.operation, "close");
   assert.match(closed.summary, /close PR #42, with a comment/);
 });
 

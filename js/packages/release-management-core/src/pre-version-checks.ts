@@ -24,7 +24,7 @@
 
 import { exec } from "child_process";
 
-import type { CheckOutput } from "./change-plan.js";
+import type { CheckOutput, CheckRun } from "./change-plan.js";
 
 export const PRE_VERSION_CONFIG = ".release-management.json";
 
@@ -52,6 +52,7 @@ export interface PipelineConfig {
 export interface PreVersionCheckResult {
   warnings: string[];
   checkOutput: CheckOutput[];
+  checks: CheckRun[];
 }
 
 const DEFAULT_TIMEOUT_SECONDS = 300;
@@ -202,7 +203,11 @@ export async function runPreVersionChecks(opts: {
     fn: (dir: string) => Promise<T>
   ) => Promise<T>;
 }): Promise<PreVersionCheckResult> {
-  const result: PreVersionCheckResult = { warnings: [], checkOutput: [] };
+  const result: PreVersionCheckResult = {
+    warnings: [],
+    checkOutput: [],
+    checks: [],
+  };
   const at = `${opts.ref} at ${opts.commit.slice(0, 11)}`;
 
   const text = await opts.readConfig();
@@ -230,7 +235,20 @@ export async function runPreVersionChecks(opts: {
   try {
     await opts.withCheckout(opts.commit, async (dir) => {
       for (const check of checks) {
+        const started = Date.now();
         const run = await runShellCommand(check.run, dir, check.timeoutSeconds);
+        const seconds = Math.round((Date.now() - started) / 100) / 10;
+        const tail = run.output.trim() === "" ? undefined : outputTail(run.output);
+        result.checks.push({
+          name: check.name,
+          status:
+            run.exitCode === 0 ? "passed" : run.timedOut ? "timeout" : "failed",
+          exitCode: run.exitCode,
+          seconds,
+          ref: opts.ref,
+          sha: opts.commit,
+          ...(run.exitCode === 0 || tail === undefined ? {} : { output: tail }),
+        });
         if (run.exitCode === 0) {
           continue;
         }
@@ -241,11 +259,8 @@ export async function runPreVersionChecks(opts: {
             : `Pre-version check "${check.name}" failed on ${at} ` +
                 `(exit ${run.exitCode}). Its output is at the end of the plan.`
         );
-        if (run.output.trim() !== "") {
-          result.checkOutput.push({
-            name: check.name,
-            output: outputTail(run.output),
-          });
+        if (tail !== undefined) {
+          result.checkOutput.push({ name: check.name, output: tail });
         }
       }
     });

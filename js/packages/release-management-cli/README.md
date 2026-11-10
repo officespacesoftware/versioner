@@ -124,17 +124,17 @@ Would create:
   Push: release/1.4.0 and tag 1.4.0 to origin
   GitHub release: Release 1.4.0
 
-Nothing has been changed. To apply, confirm with digest: 3f2a1b0c9d8e
+Nothing has been changed. To apply, confirm with digest: 3f2a1b
 
 # 2. apply that exact plan
-$ release-management release-version --confirm 3f2a1b0c9d8e
+$ release-management release-version --confirm 3f2a1b
 ```
 
 | Flag | Effect |
 | --- | --- |
 | *(none)* | Plans only. **The default can never mutate the repository.** |
 | `--plan` | Same, stated explicitly. |
-| `--confirm <digest>` | Applies the plan carrying this digest. |
+| `--confirm <digest>` | Applies the plan carrying this digest. Case and surrounding whitespace are ignored. |
 | `--yes` | Applies without a digest, printing the plan to stderr as a record. For automation that cannot round-trip a digest. |
 | `--dry-run` | Applies with every mutating step skipped. Takes effect only with `--confirm` or `--yes`, and validates the checked-out branch rather than the target; prefer `--plan`. See [dryRun](../../../docs/actions.md#dryrun). |
 
@@ -153,6 +153,10 @@ see. Their output, and their `--json` document, include the plan's `warnings` an
 `--dry-run` exists on the five version workflows (`create-rc`, `create-hotfix`,
 `increment-rc`, `release-version`, `revert-version`) but not on the `downmerge`
 subcommands.
+
+With `--json`, a plan is the whole `ChangePlan`, including each mutation's `ref`, every
+pre-version check's result in `checks`, and the `review` data: the commits the action
+moves, with a count, the files changed and a GitHub compare URL.
 
 The protocol is documented in full, including what the digest covers, in
 [docs/actions.md](../../../docs/actions.md#the-planconfirm-protocol).

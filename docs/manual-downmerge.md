@@ -14,7 +14,12 @@ has pushed and tagged the new version, and either opened no pull request into `d
 updated the one already open; nothing else. Carry it out exactly as a downmerge's.
 
 Follow the handoff's names exactly. They match the ones the tools use for a clean merge,
-so a reviewer sees the same branch and title either way.
+so a reviewer sees the same branch and title either way. Over MCP the handoff also comes
+as data, in the tool result's `structuredContent` (`handoff` from a downmerge,
+`result.manualDownmerge` from an increment): `conflictedFiles`, `resolutionBranch`,
+`resolutionBase`, `title`, `steps`, and for a decision `options`. Read the names from
+there rather than from the text when you can; see
+[Structured tool output](actions.md#structured-tool-output).
 
 ## Rules for every route
 
