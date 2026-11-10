@@ -1,0 +1,133 @@
+{
+  "kind": "plan",
+  "tool": "increment_release_candidate",
+  "plan": {
+    "action": "increment_release_candidate",
+    "targetBranch": "release/1.4.0",
+    "targetBranchHead": "c84dbb3bebf6ad26b357cf4f75cd1719c6394540",
+    "currentVersion": "1.4.0-RC.2",
+    "resultingVersion": "1.4.0-RC.3",
+    "mutations": [
+      {
+        "kind": "commit",
+        "operation": "create",
+        "summary": "\"To version 1.4.0-RC.3\" on release/1.4.0",
+        "detail": {
+          "files": "VERSION"
+        },
+        "ref": {
+          "name": "release/1.4.0"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "create",
+        "summary": "annotated tag 1.4.0-RC.3",
+        "detail": {
+          "message": "Release version 1.4.0-RC.3"
+        },
+        "ref": {
+          "name": "1.4.0-RC.3"
+        }
+      },
+      {
+        "kind": "push",
+        "operation": "create",
+        "summary": "release/1.4.0 and tag 1.4.0-RC.3 to origin",
+        "ref": {
+          "name": "release/1.4.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "update",
+        "summary": "update PR #70 (release/1.4.0 → develop)",
+        "detail": {
+          "title": "RC 1.4.0-RC.3 to develop"
+        },
+        "ref": {
+          "number": 70,
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+          "head": "release/1.4.0",
+          "base": "develop",
+          "title": "RC 1.4.0-RC.3 to develop"
+        }
+      }
+    ],
+    "warnings": [
+      {
+        "code": "W14",
+        "text": "Local release/1.4.0 has 1 commit(s) that origin/release/1.4.0 does not: 228fe92cc84 To version 1.4.0-RC.3. Origin is the source of truth, so the apply resets release/1.4.0 to origin/release/1.4.0 and drops them from it. To keep them, run git branch unpushed/release/1.4.0 228fe92cc84 before confirming."
+      },
+      {
+        "code": "W9",
+        "text": "Pre-version check \"bundle-audit\" did not finish within 1s on release/1.4.0 at c84dbb3bebf."
+      }
+    ],
+    "notices": [
+      {
+        "code": "N1",
+        "text": "PR #70 is already open for release/1.4.0 → develop; it will be updated, not created."
+      }
+    ],
+    "checks": [
+      {
+        "name": "bundle-audit",
+        "status": "timeout",
+        "exitCode": 1,
+        "seconds": 1,
+        "ref": "release/1.4.0",
+        "sha": "c84dbb3bebf6ad26b357cf4f75cd1719c6394540"
+      },
+      {
+        "name": "rubocop",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "release/1.4.0",
+        "sha": "c84dbb3bebf6ad26b357cf4f75cd1719c6394540"
+      }
+    ],
+    "checkOutput": [],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "versionFile": {
+        "path": "VERSION",
+        "from": "1.4.0-RC.2",
+        "to": "1.4.0-RC.3"
+      },
+      "ships": {
+        "base": "1.4.0-RC.2",
+        "baseSha": "9536cbf44d10434668b4c48a6dfe0d6aaf3c20c3",
+        "head": "release/1.4.0",
+        "headSha": "c84dbb3bebf6ad26b357cf4f75cd1719c6394540",
+        "count": 4,
+        "filesChanged": 4,
+        "commits": [
+          {
+            "sha": "c84dbb3bebf6ad26b357cf4f75cd1719c6394540",
+            "subject": "Upgrade Apollo Client to 3.8",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "2b73e7c0974ee45543409f707976b8cd6c67feda",
+            "subject": "CORE-33679 Faster scenario copy",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "56f54d60d8aaa1420f37b90a439fc55c7aea8e70",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "fa3fda535b3c72d6fa0e67684d3ec6a75aaae0f6",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Ana Ruiz"
+          }
+        ],
+        "compareUrl": "https://github.com/officespacesoftware/release-management-test/compare/9536cbf44d10434668b4c48a6dfe0d6aaf3c20c3...c84dbb3bebf6ad26b357cf4f75cd1719c6394540"
+      }
+    },
+    "digest": "24c57b"
+  }
+}

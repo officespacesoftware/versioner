@@ -1,0 +1,370 @@
+{
+  "kind": "plan",
+  "tool": "release_version",
+  "plan": {
+    "action": "release_version",
+    "targetBranch": "release/1.0.0",
+    "targetBranchHead": "6a6227f01aa8d7b4cbe726f5321e0084f6298bd3",
+    "currentVersion": "1.0.0-RC.0",
+    "resultingVersion": "1.0.0",
+    "mutations": [
+      {
+        "kind": "commit",
+        "operation": "create",
+        "summary": "\"To version 1.0.0\" on release/1.0.0",
+        "detail": {
+          "files": "VERSION"
+        },
+        "ref": {
+          "name": "release/1.0.0"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "create",
+        "summary": "annotated tag 1.0.0",
+        "detail": {
+          "message": "Release version 1.0.0"
+        },
+        "ref": {
+          "name": "1.0.0"
+        }
+      },
+      {
+        "kind": "push",
+        "operation": "create",
+        "summary": "release/1.0.0 and tag 1.0.0 to origin",
+        "ref": {
+          "name": "release/1.0.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "update",
+        "summary": "update PR #67 (release/1.0.0 → main)",
+        "detail": {
+          "title": "Release 1.0.0 to main"
+        },
+        "ref": {
+          "number": 67,
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/67",
+          "head": "release/1.0.0",
+          "base": "main",
+          "title": "Release 1.0.0 to main"
+        }
+      },
+      {
+        "kind": "github-release",
+        "operation": "create",
+        "summary": "1.0.0 with auto-generated notes",
+        "detail": {
+          "targetCommitish": "release/1.0.0"
+        },
+        "ref": {
+          "name": "1.0.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "update",
+        "summary": "update PR #68 (release/1.0.0 → develop)",
+        "detail": {
+          "title": "Release 1.0.0 to develop"
+        },
+        "ref": {
+          "number": 68,
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/68",
+          "head": "release/1.0.0",
+          "base": "develop",
+          "title": "Release 1.0.0 to develop"
+        }
+      }
+    ],
+    "warnings": [
+      {
+        "code": "W8",
+        "text": "Pre-version check \"bundle-audit\" failed on release/1.0.0 at 6a6227f01aa (exit 1). Its output is at the end of the plan."
+      }
+    ],
+    "notices": [
+      {
+        "code": "N1",
+        "text": "PR #67 is already open for release/1.0.0 → main; it will be updated, not created."
+      },
+      {
+        "code": "N1",
+        "text": "PR #68 is already open for release/1.0.0 → develop; it will be updated, not created."
+      }
+    ],
+    "checks": [
+      {
+        "name": "bundle-audit",
+        "status": "failed",
+        "exitCode": 1,
+        "seconds": 0,
+        "ref": "release/1.0.0",
+        "sha": "6a6227f01aa8d7b4cbe726f5321e0084f6298bd3",
+        "output": "Name: rack\nVersion: 3.1.8\nAdvisory: CVE-2025-27610\nCriticality: High\nURL: https://github.com/rack/rack/security/advisories/GHSA-7wqh-767x-r66v\nTitle: Local file inclusion in Rack::Static\nSolution: upgrade to ~> 3.1.12\n\nVulnerabilities found!"
+      },
+      {
+        "name": "rubocop",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "release/1.0.0",
+        "sha": "6a6227f01aa8d7b4cbe726f5321e0084f6298bd3"
+      }
+    ],
+    "checkOutput": [
+      {
+        "name": "bundle-audit",
+        "output": "Name: rack\nVersion: 3.1.8\nAdvisory: CVE-2025-27610\nCriticality: High\nURL: https://github.com/rack/rack/security/advisories/GHSA-7wqh-767x-r66v\nTitle: Local file inclusion in Rack::Static\nSolution: upgrade to ~> 3.1.12\n\nVulnerabilities found!"
+      }
+    ],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "versionFile": {
+        "path": "VERSION",
+        "from": "1.0.0-RC.0",
+        "to": "1.0.0"
+      },
+      "ships": {
+        "base": "main",
+        "baseSha": "be3f85de71d8ac595927fe09f84d779a81b59be0",
+        "head": "release/1.0.0",
+        "headSha": "6a6227f01aa8d7b4cbe726f5321e0084f6298bd3",
+        "count": 43,
+        "filesChanged": 43,
+        "commits": [
+          {
+            "sha": "6a6227f01aa8d7b4cbe726f5321e0084f6298bd3",
+            "subject": "To version 1.0.0-RC.0",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "6f8c96724c60eb62adabaca5ec3bd57414bd7bab",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "06a451604afdeaa650ebce68b90a8970f872e169",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "5323b71707b6ec9bb7dd438bed4ad4e6e96053be",
+            "subject": "Bump tzinfo-data to 2026e",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "f83d7c4d62da98f8a1b5cba21a84f5422a6079b8",
+            "subject": "Guard nil employee on pending move",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "6636fb322bc3bba5c5fb9a5ae83cf0c82a0b4906",
+            "subject": "Run bundle-audit before the release bot cuts a version",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "0aafc0f09814e792b8550456f3ac6ee8840652e8",
+            "subject": "AI-1322 VD seat icons per seat",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "9ffe348d737203205dbec0e74e4182650e76f068",
+            "subject": "Upgrade Apollo Client to 3.8",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "0b8ea70f5a9a740ebcc5358960e2f508300692eb",
+            "subject": "CORE-33679 Faster scenario copy",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "b516daaeaaff87cd3a8e8849cda3cbf5a9fb78d6",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "80bdfab6ccfa3306377c669ea39d0093e8617679",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "e49804208894fd16b56826c84c2a0c946d3041f2",
+            "subject": "Bump tzinfo-data to 2026e",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "a18b50054d0daab8cb520edf153afb4625ad2969",
+            "subject": "Guard nil employee on pending move",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "f9f9cbaa05f77e663b22132fea72f62b3442d263",
+            "subject": "Run bundle-audit before the release bot cuts a version",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "ca284c301e4796109ac423d940fb0feddab569cf",
+            "subject": "AI-1322 VD seat icons per seat",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "4718dd18c28d46cf4bbf304586a8f0918fec41fc",
+            "subject": "Upgrade Apollo Client to 3.8",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "060a8c61806b56db63b81fa0fd087b2bf962d00a",
+            "subject": "CORE-33679 Faster scenario copy",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "928150c9d85886034bbd6bb69a5f981d5aa32090",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "c61296ecc90d4a657f8ddef47252b90ef20e3c09",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "49bba6ce6bd3c547d954fdb77f6e9e64fd2be305",
+            "subject": "Bump tzinfo-data to 2026e",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "fdd582cc49290beef268c47bd3b3f0dc782ee80a",
+            "subject": "Guard nil employee on pending move",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "e81ccb1205e274ff5a506d20f3a0cf04e7fe3218",
+            "subject": "Run bundle-audit before the release bot cuts a version",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "9f10e683329804f072674a90bde54837bc403e07",
+            "subject": "AI-1322 VD seat icons per seat",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "73a5ff46de1d40f7ef68274ca51bc3fedc82a701",
+            "subject": "Upgrade Apollo Client to 3.8",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "d5005b7529916228a794cdf06ee92260b7bb36fe",
+            "subject": "CORE-33679 Faster scenario copy",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "084d62d627f2d0fd3b91b5348a259d954ae98d8b",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "82765b581bd401abf86d66775ed7349e7c39db50",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "bbe4fd566d12dd275c7e98953e59fe6534881edb",
+            "subject": "Bump tzinfo-data to 2026e",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "bfc9ad952e143a331a0704531ed3a3eeb614a344",
+            "subject": "Guard nil employee on pending move",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "9c91d5b99394966516d636f3149fae40531fe23f",
+            "subject": "Run bundle-audit before the release bot cuts a version",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "bf046709458fa50794fa286ba1ecac98268d3d27",
+            "subject": "AI-1322 VD seat icons per seat",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "36420d7f0f5bac30300aa0a5fba3ea4ca4d780bc",
+            "subject": "Upgrade Apollo Client to 3.8",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "3a13b075528bb104a2bba261412bdacca7d70992",
+            "subject": "CORE-33679 Faster scenario copy",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "b96fe13ff79a492e8e017f7dddce177ac018ad90",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "d79151db83916667bd82cf247836160d88a90b4b",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "d3af0efea900ddf69757096d31e2f3318bcf3d8a",
+            "subject": "Bump tzinfo-data to 2026e",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "5715af441ad3165945965d95f612feaced8736a4",
+            "subject": "Guard nil employee on pending move",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "daa92b6bc947521bc5c3e67978ea156c3a7d1aef",
+            "subject": "Run bundle-audit before the release bot cuts a version",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "7f743fef6db7be6e9095299b2d0edf666943eccf",
+            "subject": "AI-1322 VD seat icons per seat",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "e079981ecf3c1a175b356e64ce1bcf372788214b",
+            "subject": "Upgrade Apollo Client to 3.8",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "82168c706f0955fc255121a911a61e74db29b640",
+            "subject": "CORE-33679 Faster scenario copy",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "1e4276c2a9e1452bd7922caefa8169a162f4253f",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "f393c75f0f5788d279c10a73d00881ec84acf419",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Sam Okafor"
+          }
+        ],
+        "compareUrl": "https://github.com/officespacesoftware/release-management-test/compare/be3f85de71d8ac595927fe09f84d779a81b59be0...6a6227f01aa8d7b4cbe726f5321e0084f6298bd3"
+      },
+      "sinceVersion": {
+        "base": "1.0.0-RC.0",
+        "baseSha": "6a6227f01aa8d7b4cbe726f5321e0084f6298bd3",
+        "head": "release/1.0.0",
+        "headSha": "6a6227f01aa8d7b4cbe726f5321e0084f6298bd3",
+        "count": 0,
+        "filesChanged": 0,
+        "commits": [],
+        "compareUrl": "https://github.com/officespacesoftware/release-management-test/compare/6a6227f01aa8d7b4cbe726f5321e0084f6298bd3...6a6227f01aa8d7b4cbe726f5321e0084f6298bd3"
+      }
+    },
+    "digest": "9a570f"
+  }
+}

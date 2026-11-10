@@ -1,0 +1,69 @@
+{
+  "kind": "applied",
+  "tool": "revert_version",
+  "result": {
+    "dryRun": false,
+    "branch": {
+      "name": "release/1.4.0",
+      "change": "updated"
+    },
+    "from": "1.4.0-RC.2",
+    "to": "1.4.0-RC.1",
+    "shape": "revert",
+    "tag": {
+      "name": "1.4.0-RC.2",
+      "change": "deleted",
+      "deletedLocally": true,
+      "deletedOnOrigin": true
+    },
+    "pullRequests": [
+      {
+        "number": 70,
+        "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+        "head": "release/1.4.0",
+        "base": "develop",
+        "title": "RC 1.4.0-RC.1 to develop",
+        "change": "updated"
+      }
+    ],
+    "warnings": [],
+    "notices": [],
+    "problems": [],
+    "steps": [
+      {
+        "step": 1,
+        "name": "Checkout Branch",
+        "status": "completed"
+      },
+      {
+        "step": 2,
+        "name": "Revert Version Commit",
+        "status": "completed"
+      },
+      {
+        "step": 3,
+        "name": "Delete Tag",
+        "status": "completed"
+      },
+      {
+        "step": 4,
+        "name": "Delete GitHub Release",
+        "status": "skipped",
+        "message": "No GitHub release for this version"
+      },
+      {
+        "step": 5,
+        "name": "Push Branch",
+        "status": "completed"
+      },
+      {
+        "step": 6,
+        "name": "Update Pull Request",
+        "status": "completed"
+      }
+    ],
+    "nextSteps": [
+      "Push the fixes to release/1.4.0, then cut the next candidate with increment_release_candidate"
+    ]
+  }
+}

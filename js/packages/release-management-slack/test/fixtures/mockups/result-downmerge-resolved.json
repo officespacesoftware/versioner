@@ -1,0 +1,113 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🔀 Downmerge hotfix/1.4.1 → develop: conflicts resolved in PR",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*2 conflicted files resolved.* Check each one in the PR:"
+      }
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "VERSION",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " kept develop's side (expected after every hotfix)"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "app/models/seat.rb",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " kept both: the hotfix's nil guard and develop's renamed scope"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Into develop*\n<https://github.com/officespacesoftware/release-management-test/pull/74|PR #74> Hotfix 1.4.1 to develop"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/hotfix-1.4.1-into-develop-1762351700|hotfix-1.4.1-into-develop-1762351700>"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Closed*\n<https://github.com/officespacesoftware/release-management-test/pull/71|PR #71> (superseded)"
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "link.resolution",
+          "text": {
+            "type": "plain_text",
+            "text": "Review PR #74",
+            "emoji": true
+          },
+          "style": "primary",
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/74/files"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "➡️ *Next:* review PR #74 and its checks; merge once green, or close it to reject the downmerge."
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · resolved by the agent (the PR is the review) · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

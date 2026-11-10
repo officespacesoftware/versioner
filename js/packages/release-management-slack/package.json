@@ -1,0 +1,22 @@
+{
+  "name": "@officespacesoftware/release-management-slack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Slack app that shows release-management plans with Approve buttons and applies them through Cursor cloud agents",
+  "main": "lib/main.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf lib/",
+    "pretest": "tsc",
+    "test": "node --test test/*.test.mjs",
+    "start": "node lib/main.js",
+    "mockups": "tsc && node scripts/mockups.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "Esteban Trejos",
+  "license": "MIT"
+}

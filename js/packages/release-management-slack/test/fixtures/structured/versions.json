@@ -1,0 +1,60 @@
+{
+  "kind": "versions",
+  "tool": "list_versions",
+  "workingDirectory": "/tmp/rm-test",
+  "currentBranch": "develop",
+  "productionBranch": "main",
+  "entries": [
+    {
+      "branch": "release/1.5.0",
+      "type": "release",
+      "version": "1.5.0-RC.1",
+      "kind": "rc",
+      "current": false,
+      "tag": "remote",
+      "mergedIntoProduction": false,
+      "staleLocal": false
+    },
+    {
+      "branch": "hotfix/1.4.1",
+      "type": "hotfix",
+      "version": "1.4.1",
+      "kind": "final",
+      "current": false,
+      "tag": "remote",
+      "mergedIntoProduction": false,
+      "staleLocal": false
+    },
+    {
+      "branch": "release/1.4.0",
+      "type": "release",
+      "version": "1.4.0",
+      "kind": "final",
+      "current": false,
+      "tag": "remote",
+      "mergedIntoProduction": true,
+      "staleLocal": false
+    },
+    {
+      "branch": "hotfix/1.3.2",
+      "type": "hotfix",
+      "version": "1.3.2",
+      "kind": "final",
+      "current": false,
+      "tag": "remote",
+      "mergedIntoProduction": true,
+      "staleLocal": false
+    },
+    {
+      "branch": "hotfix/1.3.1",
+      "type": "hotfix",
+      "version": "1.3.1",
+      "kind": "final",
+      "current": false,
+      "tag": "remote",
+      "mergedIntoProduction": true,
+      "staleLocal": false
+    }
+  ],
+  "candidates": 1
+}

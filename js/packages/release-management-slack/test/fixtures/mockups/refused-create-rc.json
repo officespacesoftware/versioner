@@ -1,0 +1,71 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🛑 Create release candidate: refused",
+        "emoji": true
+      }
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_quote",
+          "elements": [
+            {
+              "type": "text",
+              "text": "origin/main has 1 commit(s) whose content is not in origin/develop, so the synchronization check aborts the action. Downmerge main into develop first."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "Nothing was changed. *Next:* downmerge main into develop, merge that pull request, then ask for the release candidate again."
+      },
+      "accessory": {
+        "type": "button",
+        "action_id": "start_request",
+        "text": {
+          "type": "plain_text",
+          "text": "Downmerge main to develop",
+          "emoji": true
+        },
+        "value": "{\"q\":\"downmerge main to develop\"}",
+        "confirm": {
+          "title": {
+            "type": "plain_text",
+            "text": "Downmerge main into develop?"
+          },
+          "text": {
+            "type": "plain_text",
+            "text": "Opens a pull request into develop at once; that pull request is the review, there is no Approve step. If it conflicts, the agent resolves it in a pull request."
+          },
+          "confirm": {
+            "type": "plain_text",
+            "text": "Open the PR"
+          },
+          "deny": {
+            "type": "plain_text",
+            "text": "Back"
+          }
+        }
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

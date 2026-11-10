@@ -1,0 +1,101 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "⚠️ Incremented 1.4.0-RC.1 → 1.4.0-RC.2: no build started",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "⚠️ *No build is running for `release/1.4.0`. Start it by hand.*\nThe pipeline trigger for release/1.4.0 failed (exit 1), and release/1.4.0 has no open pull request. Start the build for release/1.4.0 by hand."
+      }
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_preformatted",
+          "elements": [
+            {
+              "type": "text",
+              "text": "curl: (22) The requested URL returned error: 401\nError: CIRCLE_TOKEN rejected"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.4.0|release/1.4.0>"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.4.0-RC.1` → `1.4.0-RC.2`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Tag*\n<https://github.com/officespacesoftware/release-management-test/releases/tag/1.4.0-RC.2|1.4.0-RC.2>"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Pull request*\nnone open on `release/1.4.0`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Changes*\n<https://github.com/officespacesoftware/release-management-test/compare/1.4.0-RC.1...1.4.0-RC.2|1.4.0-RC.1…1.4.0-RC.2>"
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "link.checks",
+          "text": {
+            "type": "plain_text",
+            "text": "Open release/1.4.0 checks",
+            "emoji": true
+          },
+          "style": "primary",
+          "url": "https://github.com/officespacesoftware/release-management-test/commits/release/1.4.0"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "➡️ *Next:* test 1.4.0-RC.2. When it passes, `@release-manager promote release/1.4.0`."
+      },
+      "accessory": {
+        "type": "button",
+        "action_id": "start_request",
+        "text": {
+          "type": "plain_text",
+          "text": "Promote 1.4.0-RC.2",
+          "emoji": true
+        },
+        "value": "{\"q\":\"promote release/1.4.0\"}"
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · no approval needed (no warnings) · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

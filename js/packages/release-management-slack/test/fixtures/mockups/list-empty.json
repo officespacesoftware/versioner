@@ -1,0 +1,60 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🔎 In flight: nothing",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "No release or hotfix branch is waiting to reach main.\nNext: cut a release candidate from develop."
+      },
+      "accessory": {
+        "type": "button",
+        "action_id": "start_request",
+        "text": {
+          "type": "plain_text",
+          "text": "Create an RC (minor)",
+          "emoji": true
+        },
+        "value": "{\"q\":\"create an RC\"}",
+        "confirm": {
+          "title": {
+            "type": "plain_text",
+            "text": "Create a release candidate?"
+          },
+          "text": {
+            "type": "plain_text",
+            "text": "Plans \"create an RC\". If the plan has no warnings it applies at once, without an Approve step: a release branch, tag and pull request on origin."
+          },
+          "confirm": {
+            "type": "plain_text",
+            "text": "Create it"
+          },
+          "deny": {
+            "type": "plain_text",
+            "text": "Back"
+          }
+        }
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Listed <!date^1762351500^{date_short_pretty} {time}|2025-11-05 14:05 UTC> · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent> · `@release-manager help` for every request"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Promote 1.0.0-RC.0 → 1.0.0",
+        "emoji": true
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "⚠️ *Unverified*: shown from the agent's text, not the tool's checked plan. Approving applies the plan the tool computes for digest `3d5f68`, which may differ from this text."
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n`release/1.0.0 (at 46ab842a667)`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.0.0-RC.0 → 1.0.0`"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Would create*\n📝 *Commit* \"To version 1.0.0\" on release/1.0.0 · _files: VERSION_\n🏷️ *Tag* annotated tag 1.0.0 · _message: Release version 1.0.0_\n⬆️ *Push* release/1.0.0 and tag 1.0.0 to origin\n🔀 *Pull request* update <https://github.com/officespacesoftware/release-management-test/pull/67|PR #67> (release/1.0.0 → main)\n📦 *GitHub release* 1.0.0 with auto-generated notes · _targetCommitish: release/1.0.0_\n🔀 *Pull request* update <https://github.com/officespacesoftware/release-management-test/pull/68|PR #68> (release/1.0.0 → develop)"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "ℹ️ <https://github.com/officespacesoftware/release-management-test/pull/67|PR #67> is already open for release/1.0.0 → main; it will be updated, not created.\nℹ️ <https://github.com/officespacesoftware/release-management-test/pull/68|PR #68> is already open for release/1.0.0 → develop; it will be updated, not created."
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Output of simulated-audit*\n```Name: crass\nVersion: 1.0.7\nAdvisory: GHSA-pq4g-8rxf-4g29 (simulated for testing)\nVulnerabilities found!```"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "⚠️ *Warnings*\n• *Pre-version check \"simulated-audit\" failed on release/1.0.0 at 46ab842a667 (exit 1). Its output is at the end of the plan.*"
+      }
+    },
+    {
+      "type": "actions",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "review",
+          "text": {
+            "type": "plain_text",
+            "text": "Review & approve…",
+            "emoji": true
+          },
+          "style": "primary",
+          "value": "{}"
+        },
+        {
+          "type": "button",
+          "action_id": "cancel",
+          "text": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": true
+          },
+          "value": "{}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `3d5f68` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

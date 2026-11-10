@@ -1,0 +1,114 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ Promoted 1.0.0-RC.0 → 1.0.0",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.0.0|release/1.0.0>"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.0.0-RC.0` → `1.0.0`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Tag*\n<https://github.com/officespacesoftware/release-management-test/releases/tag/1.0.0|1.0.0>"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*GitHub release*\n<https://github.com/officespacesoftware/release-management-test/releases/tag/1.0.0|1.0.0> (Latest)"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Into main*\n<https://github.com/officespacesoftware/release-management-test/pull/70|PR #70> Release 1.0.0 to main (opened, merge after the release is deployed)"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Into develop*\n<https://github.com/officespacesoftware/release-management-test/pull/68|PR #68> Release 1.0.0 to develop (updated)"
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "link.release",
+          "text": {
+            "type": "plain_text",
+            "text": "Release notes",
+            "emoji": true
+          },
+          "style": "primary",
+          "url": "https://github.com/officespacesoftware/release-management-test/releases/tag/1.0.0"
+        },
+        {
+          "type": "button",
+          "action_id": "link.pr",
+          "text": {
+            "type": "plain_text",
+            "text": "Open PR #70",
+            "emoji": true
+          },
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/70"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "➡️ *Next:* deploy 1.0.0 to production. Then `@release-manager downmerge release 1.0.0 to main`, and `@release-manager downmerge release 1.0.0 to develop`."
+      },
+      "accessory": {
+        "type": "button",
+        "action_id": "start_request",
+        "text": {
+          "type": "plain_text",
+          "text": "Downmerge 1.0.0 to main",
+          "emoji": true
+        },
+        "style": "danger",
+        "value": "{\"q\":\"downmerge release 1.0.0 to main\"}",
+        "confirm": {
+          "title": {
+            "type": "plain_text",
+            "text": "Downmerge release 1.0.0 into main?"
+          },
+          "text": {
+            "type": "plain_text",
+            "text": "Only after Ops has deployed 1.0.0 to every production host. This opens the pull request into main at once; that pull request is the review, there is no Approve step."
+          },
+          "confirm": {
+            "type": "plain_text",
+            "text": "Open the PR"
+          },
+          "deny": {
+            "type": "plain_text",
+            "text": "Back"
+          },
+          "style": "danger"
+        }
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · approved by <@U0APR> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "kind": "plan",
+  "tool": "increment_release_candidate",
+  "plan": {
+    "action": "increment_release_candidate",
+    "targetBranch": "release/1.4.0",
+    "targetBranchHead": "bc3fa092353586e1b10ce4de73287f130dd92431",
+    "currentVersion": "1.4.0-RC.1",
+    "resultingVersion": "1.4.0-RC.2",
+    "mutations": [
+      {
+        "kind": "commit",
+        "operation": "create",
+        "summary": "\"To version 1.4.0-RC.2\" on release/1.4.0",
+        "detail": {
+          "files": "VERSION"
+        },
+        "ref": {
+          "name": "release/1.4.0"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "create",
+        "summary": "annotated tag 1.4.0-RC.2",
+        "detail": {
+          "message": "Release version 1.4.0-RC.2"
+        },
+        "ref": {
+          "name": "1.4.0-RC.2"
+        }
+      },
+      {
+        "kind": "push",
+        "operation": "create",
+        "summary": "release/1.4.0 and tag 1.4.0-RC.2 to origin",
+        "ref": {
+          "name": "release/1.4.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "create",
+        "summary": "open release/1.4.0 → develop",
+        "detail": {
+          "title": "RC 1.4.0-RC.2 to develop"
+        },
+        "ref": {
+          "head": "release/1.4.0",
+          "base": "develop",
+          "title": "RC 1.4.0-RC.2 to develop"
+        }
+      }
+    ],
+    "warnings": [],
+    "notices": [],
+    "mergePreview": {
+      "code": "N8",
+      "text": "release/1.4.0 conflicts with develop in 1 file(s): Gemfile.lock. No release/1.4.0 → develop pull request is open, so the apply will not open the one listed above: it returns a \"Manual downmerge needed\" handoff to resolve the conflicts on a merge branch instead, and the pipeline trigger starts the build. Checked again after the push."
+    },
+    "pipelineTrigger": {
+      "code": "T1",
+      "text": "Would start the pipeline for release/1.4.0: it has no open pull request. Checked again after the push."
+    },
+    "checks": [
+      {
+        "name": "bundle-audit",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "release/1.4.0",
+        "sha": "bc3fa092353586e1b10ce4de73287f130dd92431"
+      },
+      {
+        "name": "rubocop",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "release/1.4.0",
+        "sha": "bc3fa092353586e1b10ce4de73287f130dd92431"
+      }
+    ],
+    "checkOutput": [],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "versionFile": {
+        "path": "VERSION",
+        "from": "1.4.0-RC.1",
+        "to": "1.4.0-RC.2"
+      },
+      "ships": {
+        "base": "1.4.0-RC.1",
+        "baseSha": "9495c5dff23a0f78fd75a76519cbdcf80372639a",
+        "head": "release/1.4.0",
+        "headSha": "bc3fa092353586e1b10ce4de73287f130dd92431",
+        "count": 1,
+        "filesChanged": 1,
+        "commits": [
+          {
+            "sha": "bc3fa092353586e1b10ce4de73287f130dd92431",
+            "subject": "Upgrade rack on the release",
+            "author": "Esteban Trejos"
+          }
+        ],
+        "compareUrl": "https://github.com/officespacesoftware/release-management-test/compare/9495c5dff23a0f78fd75a76519cbdcf80372639a...bc3fa092353586e1b10ce4de73287f130dd92431"
+      }
+    },
+    "digest": "b5f4ee"
+  }
+}

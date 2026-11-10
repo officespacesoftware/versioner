@@ -1,0 +1,30 @@
+{
+  "kind": "applied",
+  "tool": "downmerge",
+  "result": {
+    "dryRun": false,
+    "route": {
+      "source": "main",
+      "target": "develop"
+    },
+    "mergeBranch": "main-into-develop-1762351600",
+    "pullRequests": [
+      {
+        "number": 102,
+        "url": "https://github.com/officespacesoftware/release-management-test/pull/102",
+        "head": "main-into-develop-1762351600",
+        "base": "develop",
+        "change": "opened",
+        "title": "Release 1.0.0 to develop"
+      }
+    ],
+    "warnings": [],
+    "notices": [],
+    "problems": [],
+    "steps": [],
+    "nextSteps": [
+      "Review the pull request and CI checks, or close it to reject the downmerge",
+      "Merge once green"
+    ]
+  }
+}

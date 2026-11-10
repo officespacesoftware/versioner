@@ -1,0 +1,302 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Abandon release/1.5.0 (deletes the branch)",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.5.0|release/1.5.0> at `60715fdbd10`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.5.0-RC.0` → none (first version on the branch)"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Work lost*\nNone: only the version bump is not in `develop`"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "changes",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Deletes",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "wastebasket"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "1.5.0-RC.0 locally"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "wastebasket"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "1.5.0-RC.0 on origin"
+                },
+                {
+                  "type": "text",
+                  "text": ". A build or deploy it already triggered is not undone."
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "wastebasket"
+                },
+                {
+                  "type": "text",
+                  "text": " Branch: ",
+                  "style": {
+                    "bold": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "release/1.5.0 on origin and locally, at 60715fdbd10",
+                  "style": {
+                    "bold": true
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 1,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Recovery: "
+                },
+                {
+                  "type": "text",
+                  "text": "git branch release/1.5.0 60715fdbd10 — if you act before gc",
+                  "style": {
+                    "code": true
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Closes",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "heavy_multiplication_x"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "close "
+                },
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/pull/71",
+                  "text": "PR #71"
+                },
+                {
+                  "type": "text",
+                  "text": ", with a comment explaining why"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "commits-0",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Commits on release/1.5.0 not in develop (1)",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/60715fdbd10f32534a2ae60e2a8ab8bbb66dd700",
+                  "text": "60715fd",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " To version 1.5.0-RC.0 · Esteban Trejos"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "emoji",
+              "name": "warning"
+            },
+            {
+              "type": "text",
+              "text": " 1 warning to decide on",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "1.5.0-RC.0 is the first version on release/1.5.0, so there is no earlier version to return to. The branch is abandoned rather than rewound."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "review",
+          "text": {
+            "type": "plain_text",
+            "text": "Review & approve…",
+            "emoji": true
+          },
+          "style": "danger",
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"bef344\",\"t\":\"revert_version\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"r\"}"
+        },
+        {
+          "type": "button",
+          "action_id": "cancel",
+          "text": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"bef344\",\"t\":\"revert_version\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"r\"}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `bef344` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

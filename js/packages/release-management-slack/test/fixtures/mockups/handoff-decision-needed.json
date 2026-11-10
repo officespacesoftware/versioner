@@ -1,0 +1,123 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🛑 Decision needed: release/1.0.0 → main",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "The merge conflicts, so *nothing was created*. main mirrors production and holds changes release/1.0.0 never received. *Do not resolve this or merge main into release/1.0.0*: that would deploy it without a new release candidate."
+      }
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Conflicted files",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "app/models/seat.rb",
+                  "style": {
+                    "code": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "config/settings.yml",
+                  "style": {
+                    "code": true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Option 1: take main's changes into a new candidate* (usually right)\nRun create_release_candidate with releaseType patch, merge origin/main into the new release branch, promote it with release_version, have Ops deploy it to every production host, then downmerge that release into main, which is clean by then."
+      },
+      "accessory": {
+        "type": "button",
+        "action_id": "start_request",
+        "text": {
+          "type": "plain_text",
+          "text": "Plan a patch RC",
+          "emoji": true
+        },
+        "style": "primary",
+        "value": "{\"q\":\"create an RC patch\"}",
+        "confirm": {
+          "title": {
+            "type": "plain_text",
+            "text": "Create a release candidate?"
+          },
+          "text": {
+            "type": "plain_text",
+            "text": "Plans \"create an RC patch\". If the plan has no warnings it applies at once, without an Approve step: a release branch, tag and pull request on origin."
+          },
+          "confirm": {
+            "type": "plain_text",
+            "text": "Create it"
+          },
+          "deny": {
+            "type": "plain_text",
+            "text": "Back"
+          }
+        }
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Option 2: leave them out of release/1.0.0*\ncut release-1.0.0-into-main-&lt;unix-timestamp&gt; off origin/main, merge origin/release/1.0.0 into it, resolve app/models/seat.rb, config/settings.yml, and open a pull request into main titled \"Release 1.0.0 to main\". Say in it that main will then differ from what production runs."
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "<https://github.com/officespacesoftware/versioner/blob/master/docs/manual-downmerge.md|Manual downmerge procedure> · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

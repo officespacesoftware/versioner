@@ -52,6 +52,8 @@ importers:
         specifier: workspace:^
         version: link:../release-management-core
 
+  packages/release-management-slack: {}
+
   packages/versioner: {}
 
 packages:

@@ -1,0 +1,34 @@
+📋 Plan — nothing has been changed yet
+
+Action:  release_version
+Branch:  release/1.0.0 (at 46ab842a667)
+Version: 1.0.0-RC.0 → 1.0.0
+
+Would create:
+  Commit: "To version 1.0.0" on release/1.0.0
+      files: VERSION
+  Tag: annotated tag 1.0.0
+      message: Release version 1.0.0
+  Push: release/1.0.0 and tag 1.0.0 to origin
+  Pull request: update PR #67 (release/1.0.0 → main)
+  GitHub release: 1.0.0 with auto-generated notes
+      targetCommitish: release/1.0.0
+  Pull request: update PR #68 (release/1.0.0 → develop)
+
+Warnings:
+  - Pre-version check "simulated-audit" failed on release/1.0.0 at 46ab842a667 (exit 1). Its output is at the end of the plan.
+
+Notes:
+  - PR #67 is already open for release/1.0.0 → main; it will be updated, not created.
+  - PR #68 is already open for release/1.0.0 → develop; it will be updated, not created.
+
+Output of simulated-audit:
+  Name: crass
+  Version: 1.0.7
+  Advisory: GHSA-pq4g-8rxf-4g29 (simulated for testing)
+  Vulnerabilities found!
+
+Nothing has been changed. To apply, confirm with digest: 3d5f681aac7f
+
+To apply, call release_version again with:
+  confirm: "3d5f681aac7f"

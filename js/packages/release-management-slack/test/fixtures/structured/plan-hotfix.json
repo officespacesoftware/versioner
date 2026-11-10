@@ -1,0 +1,115 @@
+{
+  "kind": "plan",
+  "tool": "create_hotfix",
+  "plan": {
+    "action": "create_hotfix",
+    "targetBranch": "main",
+    "targetBranchHead": "3ae554e0ad5237669e954bda4d522f5ba5d82be8",
+    "currentVersion": "1.3.0",
+    "resultingVersion": "1.3.1-RC.0",
+    "mutations": [
+      {
+        "kind": "branch",
+        "operation": "create",
+        "summary": "hotfix/1.3.1 off main",
+        "ref": {
+          "name": "hotfix/1.3.1",
+          "base": "main",
+          "sha": "3ae554e0ad5237669e954bda4d522f5ba5d82be8"
+        }
+      },
+      {
+        "kind": "commit",
+        "operation": "create",
+        "summary": "\"To version 1.3.1-RC.0\" on hotfix/1.3.1",
+        "detail": {
+          "files": "VERSION"
+        },
+        "ref": {
+          "name": "hotfix/1.3.1"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "create",
+        "summary": "annotated tag 1.3.1-RC.0",
+        "detail": {
+          "message": "Release version 1.3.1-RC.0"
+        },
+        "ref": {
+          "name": "1.3.1-RC.0"
+        }
+      },
+      {
+        "kind": "push",
+        "operation": "create",
+        "summary": "hotfix/1.3.1 and tag 1.3.1-RC.0 to origin",
+        "ref": {
+          "name": "hotfix/1.3.1"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "create",
+        "summary": "open hotfix/1.3.1 → main",
+        "detail": {
+          "title": "RC 1.3.1-RC.0 to main"
+        },
+        "ref": {
+          "head": "hotfix/1.3.1",
+          "base": "main",
+          "title": "RC 1.3.1-RC.0 to main"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "create",
+        "summary": "open draft hotfix/1.3.1 → develop",
+        "detail": {
+          "title": "Hotfix 1.3.1 to develop"
+        },
+        "ref": {
+          "head": "hotfix/1.3.1",
+          "base": "develop",
+          "title": "Hotfix 1.3.1 to develop",
+          "draft": true
+        }
+      }
+    ],
+    "warnings": [],
+    "notices": [
+      {
+        "code": "N2",
+        "text": "The hotfix/1.3.1 → develop pull request opens as a draft holding only a version bump, and conflicts on VERSION until the fix lands and it is reconciled. It is a reminder, not a merge that is ready to take."
+      }
+    ],
+    "checks": [
+      {
+        "name": "bundle-audit",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "main",
+        "sha": "3ae554e0ad5237669e954bda4d522f5ba5d82be8"
+      },
+      {
+        "name": "rubocop",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "main",
+        "sha": "3ae554e0ad5237669e954bda4d522f5ba5d82be8"
+      }
+    ],
+    "checkOutput": [],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "versionFile": {
+        "path": "VERSION",
+        "from": "1.3.0",
+        "to": "1.3.1-RC.0"
+      }
+    },
+    "digest": "98947c"
+  }
+}

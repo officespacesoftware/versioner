@@ -1,0 +1,39 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ Abandoned release/1.5.0 (1.5.0-RC.0)",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n~release/1.5.0~ deleted"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Tag*\n~1.5.0-RC.0~ deleted"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Into develop*\n<https://github.com/officespacesoftware/release-management-test/pull/71|PR #71> (closed)"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · approved by <@U0APR> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,216 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Create hotfix 1.3.1-RC.0",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*New branch*\n`hotfix/1.3.1` off <https://github.com/officespacesoftware/release-management-test/tree/main|main> at `3ae554e0ad5`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.3.0` → `1.3.1-RC.0`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Code*\nNone yet: the branch is main plus the version bump"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "changes",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Creates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "herb"
+                },
+                {
+                  "type": "text",
+                  "text": " Branch: "
+                },
+                {
+                  "type": "text",
+                  "text": "hotfix/1.3.1 off main"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "memo"
+                },
+                {
+                  "type": "text",
+                  "text": " Commit: "
+                },
+                {
+                  "type": "text",
+                  "text": "\"To version 1.3.1-RC.0\" on hotfix/1.3.1"
+                },
+                {
+                  "type": "text",
+                  "text": " · files: VERSION"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "label"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "annotated tag 1.3.1-RC.0"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "arrow_up"
+                },
+                {
+                  "type": "text",
+                  "text": " Push: "
+                },
+                {
+                  "type": "text",
+                  "text": "hotfix/1.3.1 and tag 1.3.1-RC.0 to origin"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "red_circle"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "open hotfix/1.3.1 → main"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “RC 1.3.1-RC.0 to main”"
+                },
+                {
+                  "type": "text",
+                  "text": " (production)",
+                  "style": {
+                    "bold": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "twisted_rightwards_arrows"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "open draft hotfix/1.3.1 → develop"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “Hotfix 1.3.1 to develop”"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Checks on `3ae554e0ad5`: ✅ bundle-audit · ✅ rubocop"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "ℹ️ The hotfix/1.3.1 → develop pull request opens as a draft holding only a version bump, and conflicts on VERSION until the fix lands and it is reconciled. It is a reminder, not a merge that is ready to take."
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "context",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "✅ *Applied* · approved by <@U0APR> at <!date^1762351500^{date_short_pretty} {time}|2025-11-05 14:05 UTC> · result below"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `98947c` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

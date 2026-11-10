@@ -1,0 +1,140 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ Incremented 1.4.0-RC.1 → 1.4.0-RC.2",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.4.0|release/1.4.0>"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.4.0-RC.1` → `1.4.0-RC.2`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Tag*\n<https://github.com/officespacesoftware/release-management-test/releases/tag/1.4.0-RC.2|1.4.0-RC.2>"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Changes*\n<https://github.com/officespacesoftware/release-management-test/compare/1.4.0-RC.1...1.4.0-RC.2|1.4.0-RC.1…1.4.0-RC.2>"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "🔀 *release/1.4.0 conflicted with develop*, so the agent resolved it in a pull request."
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*1 conflicted file resolved.* Check each one in the PR:"
+      }
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Gemfile.lock",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " kept develop's rack 3.2.0; the release's 3.1.12 fix is included in it"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Into develop*\n<https://github.com/officespacesoftware/release-management-test/pull/74|PR #74> Release 1.4.0 to develop"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release-1.4.0-into-develop-1762351700|release-1.4.0-into-develop-1762351700>"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "🔧 Pipeline: Started the pipeline for release/1.4.0: it has no open pull request."
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "link.resolution",
+          "text": {
+            "type": "plain_text",
+            "text": "Review PR #74",
+            "emoji": true
+          },
+          "style": "primary",
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/74/files"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "➡️ *Next:* test 1.4.0-RC.2. When it passes, `@release-manager promote release/1.4.0`."
+      },
+      "accessory": {
+        "type": "button",
+        "action_id": "start_request",
+        "text": {
+          "type": "plain_text",
+          "text": "Promote 1.4.0-RC.2",
+          "emoji": true
+        },
+        "value": "{\"q\":\"promote release/1.4.0\"}"
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · resolved by the agent (the PR is the review) · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

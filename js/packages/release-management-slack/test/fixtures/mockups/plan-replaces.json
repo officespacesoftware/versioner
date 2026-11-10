@@ -1,0 +1,245 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Increment 1.4.0-RC.0 → 1.4.0-RC.1",
+        "emoji": true
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "replaces",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "↪️ Replaces plan `4f0b2d`: origin moved after it was approved, so nothing was applied. Review this one again."
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.4.0|release/1.4.0> at `f313798bac1`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.4.0-RC.0` → `1.4.0-RC.1`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*New since 1.4.0-RC.0*\nno commits"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "changes",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Creates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "memo"
+                },
+                {
+                  "type": "text",
+                  "text": " Commit: "
+                },
+                {
+                  "type": "text",
+                  "text": "\"To version 1.4.0-RC.1\" on release/1.4.0"
+                },
+                {
+                  "type": "text",
+                  "text": " · files: VERSION"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "label"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "annotated tag 1.4.0-RC.1"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "arrow_up"
+                },
+                {
+                  "type": "text",
+                  "text": " Push: "
+                },
+                {
+                  "type": "text",
+                  "text": "release/1.4.0 and tag 1.4.0-RC.1 to origin"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Updates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "twisted_rightwards_arrows"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "update "
+                },
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+                  "text": "PR #70"
+                },
+                {
+                  "type": "text",
+                  "text": " (release/1.4.0 → develop)"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “RC 1.4.0-RC.1 to develop”"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Checks on `f313798bac1`: ✅ bundle-audit · ✅ rubocop"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "approve",
+          "text": {
+            "type": "plain_text",
+            "text": "Approve",
+            "emoji": true
+          },
+          "style": "primary",
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"6c5b7e\",\"t\":\"increment_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}",
+          "confirm": {
+            "title": {
+              "type": "plain_text",
+              "text": "Increment 1.4.0-RC.0 → 1.4.0-RC.1?"
+            },
+            "text": {
+              "type": "plain_text",
+              "text": "Pushes release/1.4.0 and tag 1.4.0-RC.1 to origin and updates PR #70 into develop."
+            },
+            "confirm": {
+              "type": "plain_text",
+              "text": "Increment"
+            },
+            "deny": {
+              "type": "plain_text",
+              "text": "Back"
+            }
+          }
+        },
+        {
+          "type": "button",
+          "action_id": "details",
+          "text": {
+            "type": "plain_text",
+            "text": "View details",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"6c5b7e\",\"t\":\"increment_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}"
+        },
+        {
+          "type": "button",
+          "action_id": "cancel",
+          "text": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"6c5b7e\",\"t\":\"increment_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `6c5b7e` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

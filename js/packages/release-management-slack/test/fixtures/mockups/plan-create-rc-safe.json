@@ -1,0 +1,351 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Create release candidate 1.4.0-RC.0",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*New branch*\n`release/1.4.0` off <https://github.com/officespacesoftware/release-management-test/tree/develop|develop> at `7fe39dc3797`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.3.0` → `1.4.0-RC.0`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*In this release*\n6 commits · 6 files · <https://github.com/officespacesoftware/release-management-test/compare/366799f6730346c4f2787ab27ddbe34f1da6025d...7fe39dc3797e59f6c1db3e9e5bf0ef32a3393a68|compare>"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "changes",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Creates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "herb"
+                },
+                {
+                  "type": "text",
+                  "text": " Branch: "
+                },
+                {
+                  "type": "text",
+                  "text": "release/1.4.0 off develop"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "memo"
+                },
+                {
+                  "type": "text",
+                  "text": " Commit: "
+                },
+                {
+                  "type": "text",
+                  "text": "\"To version 1.4.0-RC.0\" on release/1.4.0"
+                },
+                {
+                  "type": "text",
+                  "text": " · files: VERSION"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "label"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "annotated tag 1.4.0-RC.0"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "arrow_up"
+                },
+                {
+                  "type": "text",
+                  "text": " Push: "
+                },
+                {
+                  "type": "text",
+                  "text": "release/1.4.0 and tag 1.4.0-RC.0 to origin"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "twisted_rightwards_arrows"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "open release/1.4.0 → develop"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “RC 1.4.0-RC.0 to develop”"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "commits-0",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Newest of the 6 commits in this release",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/7fe39dc3797e59f6c1db3e9e5bf0ef32a3393a68",
+                  "text": "7fe39dc",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Run bundle-audit before the release bot cuts a version · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/e7e2cdd1fc8cb6bb25ce793866173505a05fd6b9",
+                  "text": "e7e2cdd",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " AI-1322 VD seat icons per seat · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/3e32944887822984be348f9241d72e55facd538a",
+                  "text": "3e32944",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Upgrade Apollo Client to 3.8 · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/ceaf749fb17d5306afce78f5f636cbc407f3d897",
+                  "text": "ceaf749",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33679 Faster scenario copy · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/96be3f77509ee2999ff5c87a02d81275d3d698f4",
+                  "text": "96be3f7",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33680 Floor plan legend shows seat icons · Li Wei"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "…and 1 more. ",
+              "style": {
+                "italic": true
+              }
+            },
+            {
+              "type": "link",
+              "url": "https://github.com/officespacesoftware/release-management-test/compare/366799f6730346c4f2787ab27ddbe34f1da6025d...7fe39dc3797e59f6c1db3e9e5bf0ef32a3393a68",
+              "text": "All 6 on GitHub"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Checks on `7fe39dc3797`: ✅ bundle-audit · ✅ rubocop"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "approve",
+          "text": {
+            "type": "plain_text",
+            "text": "Approve",
+            "emoji": true
+          },
+          "style": "primary",
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"e4577a\",\"t\":\"create_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}",
+          "confirm": {
+            "title": {
+              "type": "plain_text",
+              "text": "Create release candidate 1.4.0-RC.0?"
+            },
+            "text": {
+              "type": "plain_text",
+              "text": "Creates release/1.4.0 off develop, pushes release/1.4.0 and tag 1.4.0-RC.0 to origin and opens a PR into develop."
+            },
+            "confirm": {
+              "type": "plain_text",
+              "text": "Create RC"
+            },
+            "deny": {
+              "type": "plain_text",
+              "text": "Back"
+            }
+          }
+        },
+        {
+          "type": "button",
+          "action_id": "details",
+          "text": {
+            "type": "plain_text",
+            "text": "View details",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"e4577a\",\"t\":\"create_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}"
+        },
+        {
+          "type": "button",
+          "action_id": "cancel",
+          "text": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"e4577a\",\"t\":\"create_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `e4577a` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1122 @@
+{
+  "type": "modal",
+  "callback_id": "review_plan",
+  "title": {
+    "type": "plain_text",
+    "text": "Review plan",
+    "emoji": true
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Back",
+    "emoji": true
+  },
+  "private_metadata": "{\"c\":\"C0RELEASE\",\"m\":\"1762351320.000100\",\"t\":\"1762351300.000100\",\"b\":{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"6a6227\",\"t\":\"release_version\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\"}}",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Promote 1.0.0-RC.0 → 1.0.0",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.0.0|release/1.0.0> at `6a6227f01aa`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.0.0-RC.0` → `1.0.0`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Since 1.0.0-RC.0*\n✅ Only `VERSION` changes. The tested build is the one that ships."
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Reaches main*\n43 commits · 43 files · <https://github.com/officespacesoftware/release-management-test/compare/be3f85de71d8ac595927fe09f84d779a81b59be0...6a6227f01aa8d7b4cbe726f5321e0084f6298bd3|compare>"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "changes",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Creates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "memo"
+                },
+                {
+                  "type": "text",
+                  "text": " Commit: "
+                },
+                {
+                  "type": "text",
+                  "text": "\"To version 1.0.0\" on release/1.0.0"
+                },
+                {
+                  "type": "text",
+                  "text": " · files: VERSION"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "label"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "annotated tag 1.0.0"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 1,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Tag message: Release version 1.0.0"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "arrow_up"
+                },
+                {
+                  "type": "text",
+                  "text": " Push: "
+                },
+                {
+                  "type": "text",
+                  "text": "release/1.0.0 and tag 1.0.0 to origin"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "package"
+                },
+                {
+                  "type": "text",
+                  "text": " GitHub release: "
+                },
+                {
+                  "type": "text",
+                  "text": "1.0.0 with auto-generated notes"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 1,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Points at: release/1.0.0"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Updates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "red_circle"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "update "
+                },
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/pull/67",
+                  "text": "PR #67"
+                },
+                {
+                  "type": "text",
+                  "text": " (release/1.0.0 → main)"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “Release 1.0.0 to main”"
+                },
+                {
+                  "type": "text",
+                  "text": " (production)",
+                  "style": {
+                    "bold": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "twisted_rightwards_arrows"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "update "
+                },
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/pull/68",
+                  "text": "PR #68"
+                },
+                {
+                  "type": "text",
+                  "text": " (release/1.0.0 → develop)"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “Release 1.0.0 to develop”"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "commits-0",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "What reaches main when the pull request into main merges (43)",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/6a6227f01aa8d7b4cbe726f5321e0084f6298bd3",
+                  "text": "6a6227f",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " To version 1.0.0-RC.0 · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/6f8c96724c60eb62adabaca5ec3bd57414bd7bab",
+                  "text": "6f8c967",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33680 Floor plan legend shows seat icons · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/06a451604afdeaa650ebce68b90a8970f872e169",
+                  "text": "06a4516",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33422 Let MCP clients check in to desk and room bookings · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/5323b71707b6ec9bb7dd438bed4ad4e6e96053be",
+                  "text": "5323b71",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Bump tzinfo-data to 2026e · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/f83d7c4d62da98f8a1b5cba21a84f5422a6079b8",
+                  "text": "f83d7c4",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Guard nil employee on pending move · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/6636fb322bc3bba5c5fb9a5ae83cf0c82a0b4906",
+                  "text": "6636fb3",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Run bundle-audit before the release bot cuts a version · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/0aafc0f09814e792b8550456f3ac6ee8840652e8",
+                  "text": "0aafc0f",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " AI-1322 VD seat icons per seat · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/9ffe348d737203205dbec0e74e4182650e76f068",
+                  "text": "9ffe348",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Upgrade Apollo Client to 3.8 · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/0b8ea70f5a9a740ebcc5358960e2f508300692eb",
+                  "text": "0b8ea70",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33679 Faster scenario copy · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/b516daaeaaff87cd3a8e8849cda3cbf5a9fb78d6",
+                  "text": "b516daa",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33680 Floor plan legend shows seat icons · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/80bdfab6ccfa3306377c669ea39d0093e8617679",
+                  "text": "80bdfab",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33422 Let MCP clients check in to desk and room bookings · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/e49804208894fd16b56826c84c2a0c946d3041f2",
+                  "text": "e498042",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Bump tzinfo-data to 2026e · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/a18b50054d0daab8cb520edf153afb4625ad2969",
+                  "text": "a18b500",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Guard nil employee on pending move · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/f9f9cbaa05f77e663b22132fea72f62b3442d263",
+                  "text": "f9f9cba",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Run bundle-audit before the release bot cuts a version · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/ca284c301e4796109ac423d940fb0feddab569cf",
+                  "text": "ca284c3",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " AI-1322 VD seat icons per seat · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/4718dd18c28d46cf4bbf304586a8f0918fec41fc",
+                  "text": "4718dd1",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Upgrade Apollo Client to 3.8 · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/060a8c61806b56db63b81fa0fd087b2bf962d00a",
+                  "text": "060a8c6",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33679 Faster scenario copy · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/928150c9d85886034bbd6bb69a5f981d5aa32090",
+                  "text": "928150c",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33680 Floor plan legend shows seat icons · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/c61296ecc90d4a657f8ddef47252b90ef20e3c09",
+                  "text": "c61296e",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33422 Let MCP clients check in to desk and room bookings · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/49bba6ce6bd3c547d954fdb77f6e9e64fd2be305",
+                  "text": "49bba6c",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Bump tzinfo-data to 2026e · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/fdd582cc49290beef268c47bd3b3f0dc782ee80a",
+                  "text": "fdd582c",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Guard nil employee on pending move · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/e81ccb1205e274ff5a506d20f3a0cf04e7fe3218",
+                  "text": "e81ccb1",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Run bundle-audit before the release bot cuts a version · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/9f10e683329804f072674a90bde54837bc403e07",
+                  "text": "9f10e68",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " AI-1322 VD seat icons per seat · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/73a5ff46de1d40f7ef68274ca51bc3fedc82a701",
+                  "text": "73a5ff4",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Upgrade Apollo Client to 3.8 · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/d5005b7529916228a794cdf06ee92260b7bb36fe",
+                  "text": "d5005b7",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33679 Faster scenario copy · Ana Ruiz"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "commits-1",
+      "elements": [
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/084d62d627f2d0fd3b91b5348a259d954ae98d8b",
+                  "text": "084d62d",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33680 Floor plan legend shows seat icons · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/82765b581bd401abf86d66775ed7349e7c39db50",
+                  "text": "82765b5",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33422 Let MCP clients check in to desk and room bookings · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/bbe4fd566d12dd275c7e98953e59fe6534881edb",
+                  "text": "bbe4fd5",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Bump tzinfo-data to 2026e · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/bfc9ad952e143a331a0704531ed3a3eeb614a344",
+                  "text": "bfc9ad9",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Guard nil employee on pending move · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/9c91d5b99394966516d636f3149fae40531fe23f",
+                  "text": "9c91d5b",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Run bundle-audit before the release bot cuts a version · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/bf046709458fa50794fa286ba1ecac98268d3d27",
+                  "text": "bf04670",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " AI-1322 VD seat icons per seat · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/36420d7f0f5bac30300aa0a5fba3ea4ca4d780bc",
+                  "text": "36420d7",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Upgrade Apollo Client to 3.8 · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/3a13b075528bb104a2bba261412bdacca7d70992",
+                  "text": "3a13b07",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33679 Faster scenario copy · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/b96fe13ff79a492e8e017f7dddce177ac018ad90",
+                  "text": "b96fe13",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33680 Floor plan legend shows seat icons · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/d79151db83916667bd82cf247836160d88a90b4b",
+                  "text": "d79151d",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33422 Let MCP clients check in to desk and room bookings · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/d3af0efea900ddf69757096d31e2f3318bcf3d8a",
+                  "text": "d3af0ef",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Bump tzinfo-data to 2026e · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/5715af441ad3165945965d95f612feaced8736a4",
+                  "text": "5715af4",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Guard nil employee on pending move · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/daa92b6bc947521bc5c3e67978ea156c3a7d1aef",
+                  "text": "daa92b6",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Run bundle-audit before the release bot cuts a version · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/7f743fef6db7be6e9095299b2d0edf666943eccf",
+                  "text": "7f743fe",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " AI-1322 VD seat icons per seat · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/e079981ecf3c1a175b356e64ce1bcf372788214b",
+                  "text": "e079981",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Upgrade Apollo Client to 3.8 · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/82168c706f0955fc255121a911a61e74db29b640",
+                  "text": "82168c7",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33679 Faster scenario copy · Ana Ruiz"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/1e4276c2a9e1452bd7922caefa8169a162f4253f",
+                  "text": "1e4276c",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33680 Floor plan legend shows seat icons · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/f393c75f0f5788d279c10a73d00881ec84acf419",
+                  "text": "f393c75",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33422 Let MCP clients check in to desk and room bookings · Sam Okafor"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Checks on `6a6227f01aa`: ❌ bundle-audit (exit 1) · ✅ rubocop"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "emoji",
+              "name": "warning"
+            },
+            {
+              "type": "text",
+              "text": " 1 warning to decide on",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Pre-version check \"bundle-audit\" failed on release/1.0.0 at 6a6227f01aa (exit 1). Its output is at the end of the plan."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "output-1",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Output of bundle-audit",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_preformatted",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Name: rack\nVersion: 3.1.8\nAdvisory: CVE-2025-27610\nCriticality: High\nURL: https://github.com/rack/rack/security/advisories/GHSA-7wqh-767x-r66v\nTitle: Local file inclusion in Rack::Static\nSolution: upgrade to ~> 3.1.12\n\nVulnerabilities found!"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `9a570f` · Only release approvers can approve."
+        }
+      ]
+    }
+  ]
+}

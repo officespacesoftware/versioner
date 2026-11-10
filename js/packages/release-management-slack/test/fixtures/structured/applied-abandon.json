@@ -1,0 +1,51 @@
+{
+  "kind": "applied",
+  "tool": "revert_version",
+  "result": {
+    "dryRun": false,
+    "branch": {
+      "name": "release/1.5.0",
+      "change": "deleted"
+    },
+    "from": "1.5.0-RC.0",
+    "shape": "abandon",
+    "tag": {
+      "name": "1.5.0-RC.0",
+      "change": "deleted",
+      "deletedLocally": true,
+      "deletedOnOrigin": true
+    },
+    "pullRequests": [
+      {
+        "number": 71,
+        "url": "https://github.com/officespacesoftware/release-management-test/pull/71",
+        "head": "release/1.5.0",
+        "base": "develop",
+        "change": "closed"
+      }
+    ],
+    "warnings": [],
+    "notices": [],
+    "problems": [],
+    "steps": [
+      {
+        "step": 1,
+        "name": "Delete Tag",
+        "status": "completed"
+      },
+      {
+        "step": 2,
+        "name": "Close Pull Request",
+        "status": "completed"
+      },
+      {
+        "step": 3,
+        "name": "Delete Branch",
+        "status": "completed"
+      }
+    ],
+    "nextSteps": [
+      "Cut a new release candidate with create_release_candidate when one is needed"
+    ]
+  }
+}

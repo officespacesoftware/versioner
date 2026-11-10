@@ -1,0 +1,58 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🔀 Downmerge main → develop: PR opened",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Into develop*\n<https://github.com/officespacesoftware/release-management-test/pull/102|PR #102> Release 1.0.0 to develop (opened)"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Merge branch*\n<https://github.com/officespacesoftware/release-management-test/tree/main-into-develop-1762351600|main-into-develop-1762351600>"
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "link.pr",
+          "text": {
+            "type": "plain_text",
+            "text": "Review PR #102",
+            "emoji": true
+          },
+          "style": "primary",
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/102"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "➡️ *Next:* review PR #102 and its checks; merge once green, or close it to reject the downmerge."
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · no approval needed (the PR is the review) · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

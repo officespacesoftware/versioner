@@ -1,0 +1,61 @@
+{
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "❓ *Which branch should I promote?*"
+      }
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_quote",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Ambiguous: Both release/1.5.0 and hotfix/1.5.0 branches exist. Pass the full branch name, release/1.5.0 or hotfix/1.5.0, as the version."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "start_request",
+          "text": {
+            "type": "plain_text",
+            "text": "release/1.5.0",
+            "emoji": true
+          },
+          "value": "{\"q\":\"promote release/1.5.0\"}"
+        },
+        {
+          "type": "button",
+          "action_id": "start_request",
+          "text": {
+            "type": "plain_text",
+            "text": "hotfix/1.5.0",
+            "emoji": true
+          },
+          "value": "{\"q\":\"promote hotfix/1.5.0\"}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Or mention me with `@release-manager promote release/1.5.0` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

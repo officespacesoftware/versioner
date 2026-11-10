@@ -1,0 +1,92 @@
+{
+  "kind": "plan",
+  "tool": "revert_version",
+  "plan": {
+    "action": "revert_version",
+    "targetBranch": "release/1.4.0",
+    "targetBranchHead": "3ab4d590ad4a80f125820d070147adb9a946b3e5",
+    "currentVersion": "1.4.0-RC.2",
+    "resultingVersion": "1.4.0-RC.1",
+    "shape": "revert",
+    "mutations": [
+      {
+        "kind": "commit",
+        "operation": "create",
+        "summary": "revert of 3ab4d590ad4 \"To version 1.4.0-RC.2\" on release/1.4.0",
+        "detail": {
+          "files": "VERSION",
+          "resulting": "1.4.0-RC.1"
+        },
+        "ref": {
+          "name": "release/1.4.0",
+          "sha": "3ab4d590ad4a80f125820d070147adb9a946b3e5"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "delete",
+        "summary": "1.4.0-RC.2 locally",
+        "ref": {
+          "name": "1.4.0-RC.2"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "delete",
+        "summary": "1.4.0-RC.2 on origin",
+        "ref": {
+          "name": "1.4.0-RC.2"
+        }
+      },
+      {
+        "kind": "push",
+        "operation": "create",
+        "summary": "release/1.4.0 to origin",
+        "ref": {
+          "name": "release/1.4.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "update",
+        "summary": "update PR #70 to 1.4.0-RC.1",
+        "detail": {
+          "title": "RC 1.4.0-RC.1 to develop"
+        },
+        "ref": {
+          "number": 70,
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+          "head": "release/1.4.0",
+          "base": "develop",
+          "title": "RC 1.4.0-RC.1 to develop"
+        }
+      }
+    ],
+    "warnings": [],
+    "notices": [
+      {
+        "code": "N4",
+        "text": "Deleting a tag does not undo a build or deployment it already triggered. Pushing to release/1.4.0 may itself trigger a new one."
+      }
+    ],
+    "checks": [],
+    "checkOutput": [],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "versionFile": {
+        "path": "VERSION",
+        "from": "1.4.0-RC.2",
+        "to": "1.4.0-RC.1"
+      },
+      "reverts": {
+        "sha": "3ab4d590ad4a80f125820d070147adb9a946b3e5",
+        "subject": "To version 1.4.0-RC.2",
+        "files": [
+          "VERSION"
+        ],
+        "url": "https://github.com/officespacesoftware/release-management-test/commit/3ab4d590ad4a80f125820d070147adb9a946b3e5"
+      }
+    },
+    "digest": "79139c"
+  }
+}
