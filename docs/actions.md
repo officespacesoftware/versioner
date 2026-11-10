@@ -264,7 +264,7 @@ A notice and a warning with the same text digest differently.
 | --- | --- |
 | mutation `detail` lines (pull request titles, tag messages, file lists, recovery commands, release URLs) | Derived from covered facts, or presentation |
 | `checkOutput` | Output carries timings and download progress that differ between two runs of the same check; the warning naming the failure is covered |
-| `checks` | As `checkOutput`, and timings differ on every run. A failing or timed-out check is a warning (W8, W9), which is covered; a passing one changes nothing the apply does |
+| `checks` | As `checkOutput`, and timings differ on every run. A failing, timed-out or unrunnable check is a warning (W8, W9, W16), which is covered; a passing one changes nothing the apply does |
 | mutation `ref` | Every fact in it that identifies the change is already in the summary (a pull request's number, update versus open) or derived from the head; URLs and titles are presentation |
 | `shape` | Implied by the mutations: only an abandon deletes the branch |
 | `review` | See [Review data](#review-data) |
@@ -334,7 +334,7 @@ older than the plan and less reliable; **use the plan instead**. Specifically:
 ### Pre-version checks and the pipeline trigger
 
 A repository can configure commands in `.release-management.json`: checks that run while a
-plan is built for the four versioning actions, turning failures into warnings W7–W10, and
+plan is built for the four versioning actions, turning failures into warnings W7–W10 and W16, and
 a trigger that starts CI after a push when the branch has no open pull request (T1–T10).
 A configured trigger also lets `increment_release_candidate` hand a release branch's
 conflicting pull request into `develop` to a manual downmerge instead of opening it
@@ -574,7 +574,7 @@ carries R1; the MCP tool and the CLI print it with how to recover.
 | Tag `X.Y.Z-RC.0` exists on origin | P2 refusal |
 | Tag `X.Y.Z-RC.0` exists only locally | No message; the apply deletes it before tagging |
 | A shipped `hotfix/*` is not in `develop` | W1 warning |
-| A configured check fails, times out or cannot run; its configuration is invalid | W7–W10 warning |
+| A configured check fails, times out or cannot run; its configuration is invalid | W7–W10, W16 warning |
 | `pipeline` section invalid | W11 warning |
 | `release/X.Y.Z` → `develop` already open | N1 note; the pull request is updated |
 | Pull request into `develop` would conflict | Not checked: the branch is cut from `origin/develop`'s head and differs from it only in `VERSION`, so there is nothing to conflict on when it opens. Later conflicts surface at [increment](#conflicts-into-develop) |

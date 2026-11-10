@@ -69,7 +69,11 @@ checkout is removed afterwards. The working directory and its branch are never t
 
 **Results.** A check that exits `0` adds nothing. A check that exits non-zero (W8) or runs
 past its timeout (W9) adds a warning, and the last 40 lines (at most 4,000 characters) of
-its output follow the plan as `Output of <name>:`. A checkout or start failure is W10.
+its output follow the plan as `Output of <name>:`. Exit 127 or 126, which bash uses when
+the command is not found or cannot be executed, is W16 instead: the check never ran, so it
+found nothing either way. A check whose command runs but fails for its own reasons, such
+as missing dependencies, still exits with its own code and is W8; read its output. A
+checkout or start failure is W10.
 Every warning is covered by the digest, so a check that starts or stops failing between the
 plan and the confirmation makes the plan stale. The output itself is not covered.
 
