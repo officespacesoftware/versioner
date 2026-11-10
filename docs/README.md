@@ -19,7 +19,9 @@ Package READMEs cover installation and API surfaces:
 [CLI](../js/packages/release-management-cli/README.md),
 [MCP server](../js/packages/release-management-mcp/README.md),
 [core library](../js/packages/release-management-core/README.md),
-[versioner](../js/packages/versioner/README.md).
+[versioner](../js/packages/versioner/README.md),
+[Slack app](../js/packages/release-management-slack/README.md) (its
+[setup guide](../js/packages/release-management-slack/SETUP.md)).
 
 ## Maintaining these documents
 
