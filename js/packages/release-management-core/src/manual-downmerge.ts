@@ -87,7 +87,14 @@ export interface ManualDownmerge {
   resolutionBase: string;
   pullRequestTitle: string;
   steps: string[];
+  options?: DecisionOption[];
   increment?: IncrementConflict;
+}
+
+export interface DecisionOption {
+  label: string;
+  text: string;
+  recommended: boolean;
 }
 
 export interface IncrementConflict {
@@ -151,6 +158,22 @@ export function describeManualDownmerge(opts: {
           `main's changes, bring the fix from ${sourceBranch} over, promote it with ` +
           `release_version, have Ops deploy it to every production host, then ` +
           `downmerge that hotfix into main, which is clean by then.`;
+    const options: DecisionOption[] = [
+      {
+        label: "take main's changes into a new candidate",
+        text: takeMain,
+        recommended: true,
+      },
+      {
+        label: `leave them out of ${sourceBranch}`,
+        text:
+          `cut ${resolutionBranch} off origin/main, merge origin/${sourceBranch} ` +
+          `into it, resolve ${files}, and open a pull request into main titled ` +
+          `"${opts.pullRequestTitle}". Say in it that main will then differ from ` +
+          `what production runs.`,
+        recommended: false,
+      },
+    ];
     return {
       route,
       requiresDecision: true,
@@ -160,13 +183,13 @@ export function describeManualDownmerge(opts: {
       resolutionBranch,
       resolutionBase: "main",
       pullRequestTitle: opts.pullRequestTitle,
-      steps: [
-        `Option 1, take main's changes into a new candidate (usually right): ${takeMain}`,
-        `Option 2, leave them out of ${sourceBranch}: cut ${resolutionBranch} off ` +
-          `origin/main, merge origin/${sourceBranch} into it, resolve ${files}, and ` +
-          `open a pull request into main titled "${opts.pullRequestTitle}". Say in ` +
-          `it that main will then differ from what production runs.`,
-      ],
+      steps: options.map(
+        (option, i) =>
+          `Option ${i + 1}, ${option.label}${
+            option.recommended ? " (usually right)" : ""
+          }: ${option.text}`
+      ),
+      options,
     };
   }
 

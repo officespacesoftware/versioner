@@ -91,7 +91,9 @@ nowhere else.
   branches, conflict probes, pull requests, GitHub releases, read-only listings.
 - `src/release-agent.ts` — `ReleaseAgent`: the multi-step workflows, target-branch
   selection, and plan construction.
-- `src/change-plan.ts` — change plans and their digests.
+- `src/change-plan.ts` — change plans, their digests and review data.
+- `src/message-codes.ts` — the [message catalog](messages.md) ID of a text the tools
+  produce, for structured output.
 - `src/versioner-adapter.ts` and `src/versioner-direct.ts` — the bridge to the versioner
   package. `VersionerDirectClient` calls the exported task functions in-process,
   `process.chdir`-ing into the target working directory for the duration of each call,
@@ -117,7 +119,8 @@ inputs, call core methods, and format results.
   `0` success, `1` user error and `2` environment error, plus `3`, reserved for partial
   success and not currently returned by any path.
 - `js/packages/release-management-mcp/src/index.ts` declares the tool list and dispatches
-  each tool name to a handler that returns a formatted text block. It rebinds its
+  each tool name to a handler that returns a formatted text block and the same outcome as
+  `structuredContent`, built and schema-described in `src/structured.ts`. It rebinds its
   `GitFlowManager` and `ReleaseAgent` whenever the requested `workingDirectory` changes.
 
 ## The VERSION file contract
@@ -245,7 +248,7 @@ sequenceDiagram
 | `versioner` | echo placeholder (pure JS) | `node --test test/*.test.js` | `dev:test` (watch mode) | — |
 | `release-management-core` | `tsc` | `node --test test/*.test.mjs` (after `pretest: tsc`) | `tsc --watch` | `rm -rf lib/` |
 | `release-management-cli` | `tsc` | — | `tsc --watch` | `rm -rf lib/` |
-| `release-management-mcp` | `tsc` | — | `tsc --watch` | `rm -rf lib/` |
+| `release-management-mcp` | `tsc` | `node --test test/*.test.mjs` (against a built `lib/`) | `tsc --watch` | `rm -rf lib/` |
 
 TypeScript packages compile `src/` to `lib/` with declarations, extending
 `js/tsconfig.base.json` (ES2022, `strict`, `noUncheckedIndexedAccess`,

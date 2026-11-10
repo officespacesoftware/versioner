@@ -416,7 +416,7 @@ test("reverting a promoted release undoes the promotion's pull requests", async 
   assert.ok(
     plan.mutations.some(
       (m) =>
-        m.operation === "delete" &&
+        m.operation === "close" &&
         m.summary ===
           "close PR #71 (release/1.4.0 → main), opened by the promotion being reverted"
     ),

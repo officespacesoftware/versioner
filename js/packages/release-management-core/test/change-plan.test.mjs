@@ -208,3 +208,69 @@ test("notices are rendered apart from warnings", () => {
   assert.match(text, /Notes:\n  - PR #7 will be updated/);
   assert.doesNotMatch(text, /Warnings:/);
 });
+
+test("the digest is six lowercase hex characters", () => {
+  assert.match(buildChangePlan(base()).digest, /^[0-9a-f]{6}$/);
+});
+
+test("a digest typed back with surrounding space or in upper case still matches", () => {
+  const plan = buildChangePlan(base());
+
+  assert.doesNotThrow(() =>
+    assertPlanIsCurrent(plan, `  ${plan.digest.toUpperCase()}\n`)
+  );
+  assert.throws(
+    () => assertPlanIsCurrent(plan, plan.digest.slice(0, 5)),
+    StalePlanError
+  );
+});
+
+test("updating a pull request digests differently from opening one", () => {
+  const pr = (operation) => ({
+    ...base(),
+    mutations: [
+      { kind: "pull-request", operation, summary: "update PR #41 (a → b)" },
+    ],
+  });
+
+  assert.notEqual(
+    buildChangePlan(pr(undefined)).digest,
+    buildChangePlan(pr("update")).digest
+  );
+  assert.notEqual(
+    buildChangePlan(pr("close")).digest,
+    buildChangePlan(pr("delete")).digest
+  );
+});
+
+test("refs, checks and the review are left out of the digest", () => {
+  const plain = buildChangePlan(base());
+  const enriched = buildChangePlan({
+    ...base(),
+    mutations: base().mutations.map((m) => ({ ...m, ref: { name: "x" } })),
+    checks: [
+      { name: "c", status: "passed", exitCode: 0, seconds: 1, ref: "r", sha: "s" },
+    ],
+    review: { repoUrl: "https://github.com/acme/widgets" },
+    shape: "revert",
+  });
+
+  assert.equal(plain.digest, enriched.digest);
+});
+
+test("updates are listed with creations and closures with deletions", () => {
+  const text = renderChangePlan(
+    buildChangePlan({
+      ...base(),
+      mutations: [
+        { kind: "pull-request", operation: "update", summary: "update PR #41" },
+        { kind: "pull-request", operation: "close", summary: "close PR #42" },
+      ],
+    })
+  );
+
+  assert.match(
+    text,
+    /Would create:\n  Pull request: update PR #41\n\nWould delete:\n  Pull request: close PR #42\n/
+  );
+});

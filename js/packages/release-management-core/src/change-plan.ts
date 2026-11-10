@@ -17,14 +17,18 @@ export type MutationKind =
   | "pull-request"
   | "github-release";
 
-/**
- * Whether a mutation brings something into existence or removes it. Absent means
- * `create`, so every builder that predates reverting is unaffected.
- *
- * A plan that cannot distinguish the two would describe deleting a tag as creating
- * one, which is precisely the misstatement plans exist to prevent.
- */
-export type MutationOperation = "create" | "delete";
+export type MutationOperation = "create" | "update" | "close" | "delete";
+
+export interface MutationRef {
+  name?: string;
+  sha?: string;
+  url?: string;
+  number?: number;
+  head?: string;
+  base?: string;
+  title?: string;
+  draft?: boolean;
+}
 
 export interface PlannedMutation {
   kind: MutationKind;
@@ -32,6 +36,7 @@ export interface PlannedMutation {
   /** One line, in the imperative: "Create annotated tag 4.124.1-RC.2". */
   summary: string;
   detail?: Record<string, string>;
+  ref?: MutationRef;
 }
 
 export function mutationOperation(
@@ -75,6 +80,9 @@ export interface ChangePlan {
    */
   pipelineTrigger?: string;
   mergePreview?: string;
+  shape?: "revert" | "abandon";
+  checks?: CheckRun[];
+  review?: PlanReview;
   digest: string;
 }
 
@@ -82,6 +90,48 @@ export interface CheckOutput {
   name: string;
   output: string;
 }
+
+export interface CheckRun {
+  name: string;
+  status: "passed" | "failed" | "timeout";
+  exitCode: number;
+  seconds: number;
+  ref: string;
+  sha: string;
+  output?: string;
+}
+
+export interface ReviewCommit {
+  sha: string;
+  subject: string;
+  author: string;
+}
+
+export interface CommitRange {
+  base: string;
+  head: string;
+  baseSha: string;
+  headSha: string;
+  count: number;
+  filesChanged: number;
+  commits: ReviewCommit[];
+  compareUrl?: string;
+}
+
+export interface PlanReview {
+  repoUrl?: string;
+  versionFile?: { path: "VERSION"; from: string; to: string };
+  ships?: CommitRange;
+  sinceVersion?: CommitRange;
+  reverts?: {
+    sha: string;
+    subject: string;
+    files: string[];
+    url?: string;
+  };
+}
+
+export const REVIEW_COMMIT_LIMIT = 50;
 
 export type ChangePlanInput = Omit<
   ChangePlan,
@@ -91,7 +141,7 @@ export type ChangePlanInput = Omit<
   notices?: string[];
 };
 
-const DIGEST_LENGTH = 12;
+export const DIGEST_LENGTH = 6;
 
 /**
  * Canonical serialisation the digest is taken over.
@@ -157,7 +207,7 @@ export class StalePlanError extends Error {
 
 /** Throw unless `provided` matches the freshly computed plan's digest. */
 export function assertPlanIsCurrent(plan: ChangePlan, provided: string): void {
-  if (provided !== plan.digest) {
+  if (provided.trim().toLowerCase() !== plan.digest) {
     throw new StalePlanError(plan, provided);
   }
 }
@@ -186,16 +236,14 @@ export function renderChangePlan(plan: ChangePlan): string {
   if (plan.mutations.length === 0) {
     lines.push("Would change nothing.");
   } else {
-    // Grouped by operation so a plan that both creates and destroys says so in two
-    // headings rather than filing a deletion under "Would create".
-    const headings: Array<[MutationOperation, string]> = [
-      ["create", "Would create:"],
-      ["delete", "Would delete:"],
+    const headings: Array<[MutationOperation[], string]> = [
+      [["create", "update"], "Would create:"],
+      [["delete", "close"], "Would delete:"],
     ];
     let first = true;
-    for (const [operation, heading] of headings) {
-      const group = plan.mutations.filter(
-        (m) => mutationOperation(m) === operation
+    for (const [operations, heading] of headings) {
+      const group = plan.mutations.filter((m) =>
+        operations.includes(mutationOperation(m))
       );
       if (group.length === 0) {
         continue;

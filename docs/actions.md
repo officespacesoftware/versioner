@@ -182,13 +182,30 @@ A plan (`ChangePlan` in `js/packages/release-management-core/src/change-plan.ts`
 | `action` | The action, or `downmerge <source> → <target>` |
 | `targetBranch`, `targetBranchHead` | The branch the plan is anchored to and its head commit: the branch modified, the base a new branch is cut from, or the downmerge target |
 | `currentVersion` → `resultingVersion` | The version transition. Absent for downmerges; `resultingVersion` is absent for an abandon |
-| `mutations` | Ordered. Each has a kind (`branch`, `commit`, `tag`, `push`, `pull-request`, `github-release`), an operation (`create`, or `delete`), a one-line summary, and optional detail lines |
+| `mutations` | Ordered. Each has a kind (`branch`, `commit`, `tag`, `push`, `pull-request`, `github-release`), an operation, a one-line summary, optional detail lines, and an optional `ref` naming the object (see below) |
 | `warnings` | Conditions to weigh before approving (W1–W13). A confirmed plan with warnings is applied |
 | `notices` | Facts that shape the plan without risk (N1–N4), rendered as "Notes:" |
 | `checkOutput` | The tail of each failing pre-version check's output |
 | `pipelineTrigger` | T1, when the apply is expected to start the pipeline |
 | `mergePreview` | N8–N10: what an increment's merge preview into `develop` found. Rendered as the last line under "Notes:" |
-| `digest` | The confirmation token |
+| `shape` | `revert_version` only: `revert` or `abandon` |
+| `checks` | Every pre-version check that ran, passed or not: `name`, `status` (`passed`, `failed`, `timeout`), `exitCode`, `seconds`, the `ref` and `sha` it ran on, and for one that did not pass the tail of its `output` |
+| `review` | The code the action moves, for the approver: see [Review data](#review-data) |
+| `digest` | The confirmation token: six lowercase hex characters |
+
+A mutation's operation is one of:
+
+| Operation | Meaning | Used for |
+| --- | --- | --- |
+| `create` (or absent) | Brings the object into existence | Every branch, commit, tag, push and GitHub release an action makes; a pull request it opens |
+| `update` | Changes an object that already exists | A pull request that is already open for that head/base pair, which the apply retitles and whose generated body it rewrites (N1) |
+| `close` | Ends an object without destroying it | A pull request `revert_version` or a merge-branch downmerge closes |
+| `delete` | Removes the object | A tag, a branch or a GitHub release `revert_version` deletes |
+
+A mutation's `ref`, when present, names the object for a caller that links to it: `name`
+(a branch, tag or GitHub release), `sha`, `url`, and for a pull request `number` and `url`
+when it is already open, `head`, `base`, `title`, and `draft` when it opens as a draft. The
+text rendering is unchanged by it.
 
 Rendered, a plan reads:
 
@@ -209,10 +226,11 @@ Would create:
 Notes:
   - PR #41 is already open for release/1.4.0 → develop; it will be updated, not created.
 
-Nothing has been changed. To apply, confirm with digest: 9c1e0d2b7a44
+Nothing has been changed. To apply, confirm with digest: 9c1e0d
 ```
 
-Deletions are grouped under `Would delete:`. `Warnings:`, `Notes:`, `Pipeline:` and
+Deletions and closures are grouped under `Would delete:`; updates are listed with
+creations under `Would create:`, as the summary already says `update` or `close`. `Warnings:`, `Notes:`, `Pipeline:` and
 `Output of <check>:` blocks follow when present. The MCP server wraps the plan in
 `📋 Plan — nothing has been changed yet` and `To apply, call <tool> again with:
 confirm: "<digest>"`.
@@ -225,14 +243,18 @@ is touched (U1–U3). A stale digest exits `1` with the new plan.
 
 ### What the digest covers
 
-The digest is the first 12 hex characters of a SHA-256 over these lines, in order:
+The digest is the first 6 hex characters of a SHA-256 over these lines, in order. It
+exists to detect that the plan changed, not as a secret, so 24 bits are enough: a
+collision only matters between two plans for the same action and branch, and it is short
+enough to type back. `confirm` (and `--confirm`) ignores surrounding whitespace and letter
+case.
 
 | Covered | Why |
 | --- | --- |
 | `action` | A digest for one action cannot apply another |
 | `targetBranch` and `targetBranchHead` | Any push to the anchor branch invalidates the plan |
 | `currentVersion`, `resultingVersion` (when set) | The transition approved is the one made |
-| each mutation's operation, kind and **summary** | The objects approved. Summaries carry the facts that must invalidate a plan when they move: a downmerge source's head, a reverted commit's sha, a pull request's number, update versus open |
+| each mutation's operation, kind and **summary** | The objects approved. Summaries carry the facts that must invalidate a plan when they move: a downmerge source's head, a reverted commit's sha, a pull request's number, update versus open, close versus delete |
 | each warning | A new risk (a check now failing, a hotfix now shipped) needs a new approval |
 | each notice | Remote facts the head does not capture, such as a pull request opened meanwhile |
 
@@ -242,10 +264,57 @@ A notice and a warning with the same text digest differently.
 | --- | --- |
 | mutation `detail` lines (pull request titles, tag messages, file lists, recovery commands, release URLs) | Derived from covered facts, or presentation |
 | `checkOutput` | Output carries timings and download progress that differ between two runs of the same check; the warning naming the failure is covered |
+| `checks` | As `checkOutput`, and timings differ on every run. A failing or timed-out check is a warning (W8, W9), which is covered; a passing one changes nothing the apply does |
+| mutation `ref` | Every fact in it that identifies the change is already in the summary (a pull request's number, update versus open) or derived from the head; URLs and titles are presentation |
+| `shape` | Implied by the mutations: only an abandon deletes the branch |
+| `review` | See [Review data](#review-data) |
 | `pipelineTrigger` | It depends on pull requests to any base, which open and close without the repository moving; the apply checks again after the push regardless. The configuration it reads is covered through the branch head |
 | `mergePreview` | It depends on `develop`'s head, which moves without the branch moving, and the plan previews the head before the version commit. The apply previews the pushed commit again and acts on that, so a plan approved before `develop` moved still does the right thing, and a `develop` push does not send an auto-applied increment back for approval. Whether a pull request is open, which it also names, is covered by N1 |
 | local branches other than the one acted on | Applies cut and reset from origin's refs, which the plan fetched. See [Remote state](#remote-state) |
 | local commits not on origin | Version reads prefer origin, and the apply resets the branch to origin. The commits it drops are named in W14, which is covered |
+
+### Review data
+
+A plan's `review` shows an approver the code the action moves. It is read-only, built
+from the refs the plan already fetched, and tolerant: a fact that cannot be gathered is
+left out rather than failing the plan.
+
+| Field | Meaning |
+| --- | --- |
+| `repoUrl` | `https://github.com/<owner>/<repo>`, from the `origin` remote's configured URL with any credential dropped. Absent when `origin` is not on GitHub, and then no URL below is set |
+| `versionFile` | `{ path: "VERSION", from, to }`. Absent for an abandon |
+| `ships` | The commits the action sends somewhere, as a commit range (below) |
+| `sinceVersion` | `release_version` only: the commits since the candidate being promoted was versioned. Zero means the tested build is the one that ships |
+| `reverts` | `revert_version`'s revert shape: the commit it undoes, `{ sha, subject, files, url }` |
+
+A commit range is `{ base, head, baseSha, headSha, count, filesChanged, commits, compareUrl }`.
+`base` and `head` are the names to show, a branch or a tag; the SHAs are what was
+compared. `count` is `git rev-list --count <baseSha>..<headSha>`. `commits` lists at most
+50 of them, newest first, each `{ sha, subject, author }` (the git author name).
+`filesChanged` counts `git diff --name-only <baseSha>...<headSha>`, the files the head
+changed since the two forked. `compareUrl` is
+`<repoUrl>/compare/<baseSha>...<headSha>`.
+
+| Action | `ships` | Also |
+| --- | --- | --- |
+| `create_release_candidate` | `main`..`develop`: the content of the release. On a resume, `main`..the branch on origin | `versionFile` |
+| `create_hotfix` | none: the branch is cut from `main` and carries only the version bump | `versionFile` |
+| `increment_release_candidate` | the current candidate's version commit (`To version <current>`, shown as `<current>`)..the branch: the code the new tag adds | `versionFile` |
+| `release_version` | `main`..the branch: what reaches `main` when the pull request merges | `sinceVersion`, `versionFile` |
+| `revert_version`, revert shape | none | `reverts`, `versionFile` |
+| `revert_version`, abandon shape | the base (`develop` or `main`)..the branch: what the deletion drops, which P12 guarantees is only the version bump | — |
+| `downmerge` | not built: a downmerge applies straight away, and its pull request shows the diff | — |
+
+**Not in the digest.** Every range ends at the plan's anchor or at a head a mutation
+summary names, so a push that changes what the action moves already changes the digest.
+What the review adds is the base of each range and the commit listing. A moving base does
+not change what the action does: `create_release_candidate` cuts from `develop`, whose
+head is covered, and a `main` that drifted from `develop` is refused (P7); for
+`release_version`, the movements of `main` that matter, commits the branch lacks and
+conflicts, are warnings W3 and W4, which are covered. Covering the base would send every
+plan back for a new approval after any merge into `main` or `develop`, which changes
+nothing the apply does, the same reasoning that keeps `mergePreview` out. Commit subjects
+and authors are presentation.
 
 ### `dryRun`
 
@@ -271,6 +340,70 @@ A configured trigger also lets `increment_release_candidate` hand a release bran
 conflicting pull request into `develop` to a manual downmerge instead of opening it
 ([Conflicts into develop](#conflicts-into-develop)). Both are described in
 [configuration.md](configuration.md).
+
+## Structured tool output
+
+Every MCP tool returns, alongside its text, the same outcome as data in the result's
+`structuredContent`, and declares its shape as the tool's `outputSchema`. The text is
+unchanged: a client that reads only the text works as before. The TypeScript types and
+the JSON schemas are in `js/packages/release-management-mcp/src/structured.ts`; this
+section names their parts.
+
+Every object has a `kind` and the `tool` that produced it:
+
+| `kind` | Returned by | Holds |
+| --- | --- | --- |
+| `plan` | the five planning tools, without `confirm` | `plan`: the [plan](#the-planconfirm-protocol) as data |
+| `stale` | the five planning tools, on D1 | `code: "D1"`, the D1 `text`, the `provided` digest, and the fresh `plan` |
+| `applied` | the five planning tools after an apply, and `downmerge` | `result`, below |
+| `handoff` | `downmerge`, when the merge conflicts | `handoff`, below |
+| `refused` | any tool, when it stops before changing anything | `code` and `text` |
+| `failed` | a planning tool whose apply started, `downmerge` past its plan, `initialize_versioner` on A40 | `code`, `text`, and `steps`, the workflow's steps with their status, which say what was done |
+| `versions` | `list_versions` | `workingDirectory`, `currentBranch`, `productionBranch`, `candidates`, and one entry per row the text prints: `branch`, `type`, `version` (null when unreadable), `kind` (`rc`, `final`, `unknown`), `current`, `tag` (`remote`, `local-only`, `none`), `mergedIntoProduction`, `staleLocal` |
+| `health` | `health_check` | the fields its text prints as JSON |
+| `initialized` | `initialize_versioner` | `workingDirectory`, `version`, `isReleaseCandidate` |
+
+**Codes.** A `code` is the message's ID in [messages.md](messages.md). Plans carry their
+warnings, notes, `mergePreview` and `pipelineTrigger` as `{ code, text }`, with the text
+exactly as the plan prints it. The code is found by matching the text against the
+catalog's wording (`release-management-core/src/message-codes.ts`), so it is absent for a
+text the catalog does not list, such as a wrapped error from git or GitHub that no
+catalog entry describes. A refusal from the MCP server's own input checks, such as U5, is
+returned with `isError: true` and still carries `structuredContent`.
+
+**Plans.** `plan` is the `ChangePlan` with every mutation's `operation` filled in, its
+messages coded, `checks` and `checkOutput` always present (possibly empty), and `review`.
+
+**Applied results.** `result` holds what a result card needs. Fields that do not apply to
+an action are absent.
+
+| Field | Meaning |
+| --- | --- |
+| `dryRun` | The apply was a dry run |
+| `branch` | `{ name, change, base }`: `created`, or `existing` when a create resumed an earlier run; `updated` for a version bump or revert; `deleted` for an abandon. `base` for a created branch |
+| `from`, `to` | The version transition; `to` is absent for an abandon |
+| `shape` | `revert_version`: `revert` or `abandon` |
+| `resumed` | A create finished an earlier run (N5) |
+| `tag` | `{ name, change }`: `created`, `existing` (a resume whose tag was already on origin), `deleted`, or `absent` (a revert whose tag was already gone); a revert adds `deletedLocally` and `deletedOnOrigin` |
+| `githubRelease` | `{ tag, change, url }`: `created` by `release_version`, `deleted` by reverting a final |
+| `route`, `mergeBranch` | `downmerge`: the route, and the merge branch for the three routes that use one |
+| `pullRequests` | Each `{ number, url, head, base, title, change, draft }`. `change` is `opened`, `updated`, `closed`, `superseded` (closed by a downmerge's merge-branch pull request) or `alreadyOpen` (a downmerge that found its earlier pull request, N7). `title` comes from the plan; `draft` is set when a pull request opened as a draft |
+| `pipeline` | `{ status, code, message, output }`: the pipeline trigger's outcome (T2–T10) |
+| `manualDownmerge` | `increment_release_candidate`: the H1 handoff it returned with its result, below |
+| `warnings`, `notices` | `downmerge`: the plan's coded warnings and notes. Empty for the others, whose plan was approved before the apply |
+| `problems` | Coded secondary failures the apply reported without failing (R1–R10) |
+| `steps` | The workflow's steps with their status |
+| `nextSteps` | What to do next. For `create_release_candidate`, `create_hotfix` and `downmerge` these are the text's "Next steps" lines |
+
+**Handoffs.** A `handoff`, from a conflicting `downmerge` or with an increment's result,
+is `{ code, text, source, target, requiresDecision, sourceBranch, version,
+conflictedFiles, resolutionBranch, resolutionBase, title, steps, options, increment }`.
+`code` is `H1` (into `develop`, carried out) or `H2` (into `main`, a decision). `text` is
+the handoff exactly as the text content prints it, without the `⚠️  ` prefix.
+`resolutionBranch` is a pattern ending in `<unix-timestamp>`. `title` is the pull request
+title the clean downmerge would have used. For H2, `options` holds the two choices as
+`{ label, text, recommended }`; `steps` are the same choices as the text numbers them.
+`increment` is `{ version, openPullRequest }` when an increment returned the handoff.
 
 ---
 
@@ -865,9 +998,10 @@ candidate's pull request into `develop` is merged. The diagram is in
   pull request `update PR #n to <resulting>` if one is open on the base, detail
   `title: RC <resulting> to <base>`; and, reverting a release branch's final version, pull
   request `close PR #n (<branch> → main), opened by the promotion being reverted` when the
-  promotion's pull request into `main` is open.
+  promotion's pull request into `main` is open. The update has operation `update`, the
+  closure `close`.
 - Abandon shape: tag deletions; GitHub release deletion; pull request `close PR #n, with a
-  comment explaining why`; branch `<branch> on origin and locally, at <sha11>` with the
+  comment explaining why` (operation `close`); branch `<branch> on origin and locally, at <sha11>` with the
   detail `recovery: git branch <branch> <sha11> — if you act before gc`.
 
 **Apply, revert shape.**

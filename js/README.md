@@ -118,7 +118,9 @@ Both front-ends share one protocol for describing a change before making it: cal
 an apply flag or confirmation digest, a mutating action reports the git objects it would
 create and changes nothing. See
 [../docs/actions.md](../docs/actions.md#the-planconfirm-protocol) for the protocol and
-[../docs/actions.md](../docs/actions.md) for every action's ordered steps.
+[../docs/actions.md](../docs/actions.md) for every action's ordered steps. The MCP tools
+also return their outcome as structured data; see
+[Structured tool output](../docs/actions.md#structured-tool-output).
 
 ## Publishing
 
