@@ -416,6 +416,7 @@ printf 'header = "Authorization: token %s"\n' "$GH_TOKEN" |
 | `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` | set for git | core | With an app, the bot user, for the git and versioner processes that commit or tag, and for `with-github-auth`'s command; see [Commit identity](#commit-identity) |
 | `GITHUB_OUTPUT` | read | CLI | When set, results are appended to that file as `key=value` lines (heredoc form for multi-line values). Keys per command are listed in [actions.md](actions.md) and the CLI README |
 | `RELEASE_BRANCH`, `RELEASE_VERSION`, `RELEASE_ACTION` | set | core | For the pipeline trigger only |
+| `RELEASE_MANAGEMENT_OUTPUT_DIR` | read | MCP server | When set, every tool call also writes its `structuredContent` to a new JSON file in that directory, created if missing; see [Structured tool output](actions.md#structured-tool-output) |
 | everything else | inherited | checks and trigger | Both run with the full environment of the process |
 | `VERSION` | read | `versioner init` (the standalone CLI) | Version to initialize with, when no argument is given |
 

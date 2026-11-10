@@ -347,6 +347,13 @@ The TypeScript types and JSON schemas are in `src/structured.ts` and ship as
 `lib/structured.d.ts`. Every field is described in
 [docs/actions.md](../../../docs/actions.md#structured-tool-output).
 
+Set `RELEASE_MANAGEMENT_OUTPUT_DIR` in the server's `env` to also have every call write its
+`structuredContent` to a new file in that directory (created if missing), named
+`<YYYYMMDDTHHMMSSmmmZ>-<seq>-<tool>.json` so the names sort in call order. A client can
+then pass the file along instead of copying the data. A failed write does not fail the
+call: the text ends with a line saying why the file could not be written. Details are in
+[docs/actions.md](../../../docs/actions.md#structured-tool-output).
+
 ### `workingDirectory`
 
 Every tool takes an optional `workingDirectory`, defaulting to the server process's current
@@ -419,6 +426,7 @@ src/
 ├── index.ts        # tool declarations and dispatch
 ├── render.ts       # text rendering shared by tools
 ├── structured.ts   # structured output: types, builders, JSON schemas
+├── output-file.ts  # writes structured output to RELEASE_MANAGEMENT_OUTPUT_DIR
 └── build-info.ts   # generated at build time, git-ignored
 ```
 
