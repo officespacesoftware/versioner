@@ -85,6 +85,33 @@ test("a failing check is a warning, with its output after the plan", async () =>
   ]);
 });
 
+test("a check whose command is missing could not run, not failed", async () => {
+  releaseBranchWithChecks([
+    { name: "audit", run: "no-such-audit-command check" },
+  ]);
+
+  const plan = await makeAgent().planIncrementRC("1.4.0");
+
+  assert.equal(plan.warnings.length, 1);
+  assert.match(
+    plan.warnings[0],
+    /Pre-version check "audit" could not run on release\/1\.4\.0/
+  );
+  assert.match(plan.warnings[0], /exit 127/);
+  assert.match(plan.warnings[0], /so it checked nothing/);
+  assert.match(plan.checkOutput[0].output, /no-such-audit-command/);
+});
+
+test("a check whose command is not executable could not run", async () => {
+  releaseBranchWithChecks([{ name: "audit", run: "./VERSION" }]);
+
+  const plan = await makeAgent().planIncrementRC("1.4.0");
+
+  assert.equal(plan.warnings.length, 1);
+  assert.match(plan.warnings[0], /"audit" could not run/);
+  assert.match(plan.warnings[0], /exit 126/);
+});
+
 test("output that changes between runs does not change the digest", async () => {
   releaseBranchWithChecks([
     { name: "audit", run: "date +%s%N; echo $RANDOM; exit 1" },

@@ -188,6 +188,41 @@ export function runShellCommand(
   });
 }
 
+const COMMAND_NOT_FOUND = 127;
+const COMMAND_NOT_EXECUTABLE = 126;
+
+/**
+ * Bash exits 127 when the command is not found and 126 when it cannot be
+ * executed. Neither means the check found a problem: it never ran.
+ */
+function describeFailedCheck(
+  check: PreVersionCheck,
+  at: string,
+  run: { exitCode: number; timedOut: boolean }
+): string {
+  if (run.timedOut) {
+    return (
+      `Pre-version check "${check.name}" did not finish within ` +
+      `${check.timeoutSeconds}s on ${at}.`
+    );
+  }
+  if (
+    run.exitCode === COMMAND_NOT_FOUND ||
+    run.exitCode === COMMAND_NOT_EXECUTABLE
+  ) {
+    return (
+      `Pre-version check "${check.name}" could not run on ${at} ` +
+      `(exit ${run.exitCode}: its command was not found or is not ` +
+      `executable), so it checked nothing. Its output is at the end of ` +
+      `the plan.`
+    );
+  }
+  return (
+    `Pre-version check "${check.name}" failed on ${at} ` +
+    `(exit ${run.exitCode}). Its output is at the end of the plan.`
+  );
+}
+
 /**
  * Run the checks configured for `action` against `commit`, describing failures as
  * warnings. Never throws: a check that could not run is itself reported, since a
@@ -252,13 +287,7 @@ export async function runPreVersionChecks(opts: {
         if (run.exitCode === 0) {
           continue;
         }
-        result.warnings.push(
-          run.timedOut
-            ? `Pre-version check "${check.name}" did not finish within ` +
-                `${check.timeoutSeconds}s on ${at}.`
-            : `Pre-version check "${check.name}" failed on ${at} ` +
-                `(exit ${run.exitCode}). Its output is at the end of the plan.`
-        );
+        result.warnings.push(describeFailedCheck(check, at, run));
         if (tail !== undefined) {
           result.checkOutput.push({ name: check.name, output: tail });
         }
