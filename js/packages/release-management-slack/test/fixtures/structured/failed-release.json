@@ -1,0 +1,34 @@
+{
+  "kind": "failed",
+  "tool": "release_version",
+  "code": "G13",
+  "text": "Git command failed: ! [remote rejected] release/1.0.0 -> release/1.0.0 (protected branch hook declined)",
+  "steps": [
+    {
+      "step": 1,
+      "name": "Select release branch",
+      "status": "completed"
+    },
+    {
+      "step": 2,
+      "name": "Check out release/1.0.0",
+      "status": "completed"
+    },
+    {
+      "step": 3,
+      "name": "Update VERSION to 1.0.0",
+      "status": "completed"
+    },
+    {
+      "step": 4,
+      "name": "Tag 1.0.0",
+      "status": "completed"
+    },
+    {
+      "step": 5,
+      "name": "Push release/1.0.0",
+      "status": "failed",
+      "error": "Git command failed: ! [remote rejected]"
+    }
+  ]
+}

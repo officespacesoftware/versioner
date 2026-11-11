@@ -1,0 +1,50 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ Reverted 1.4.0-RC.2 → 1.4.0-RC.1",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.4.0|release/1.4.0> (revert commit pushed)"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.4.0-RC.2` → `1.4.0-RC.1`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Tag*\n~1.4.0-RC.2~ deleted"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Into develop*\n<https://github.com/officespacesoftware/release-management-test/pull/70|PR #70> RC 1.4.0-RC.1 to develop (updated)"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "➡️ *Next:* push the fix to `release/1.4.0`, then `@release-manager increment the RC release/1.4.0`."
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · approved by <@U0APR> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

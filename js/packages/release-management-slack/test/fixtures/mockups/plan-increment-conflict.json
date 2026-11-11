@@ -1,0 +1,262 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Increment 1.4.0-RC.1 → 1.4.0-RC.2",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.4.0|release/1.4.0> at `bc3fa092353`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.4.0-RC.1` → `1.4.0-RC.2`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*New since 1.4.0-RC.1*\n1 commit · 1 file · <https://github.com/officespacesoftware/release-management-test/compare/9495c5dff23a0f78fd75a76519cbdcf80372639a...bc3fa092353586e1b10ce4de73287f130dd92431|compare>"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "changes",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Creates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "memo"
+                },
+                {
+                  "type": "text",
+                  "text": " Commit: "
+                },
+                {
+                  "type": "text",
+                  "text": "\"To version 1.4.0-RC.2\" on release/1.4.0"
+                },
+                {
+                  "type": "text",
+                  "text": " · files: VERSION"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "label"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "annotated tag 1.4.0-RC.2"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "arrow_up"
+                },
+                {
+                  "type": "text",
+                  "text": " Push: "
+                },
+                {
+                  "type": "text",
+                  "text": "release/1.4.0 and tag 1.4.0-RC.2 to origin"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "twisted_rightwards_arrows"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "open release/1.4.0 → develop"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “RC 1.4.0-RC.2 to develop”"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "commits-0",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "New in this release candidate (1)",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/bc3fa092353586e1b10ce4de73287f130dd92431",
+                  "text": "bc3fa09",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Upgrade rack on the release · Esteban Trejos"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Checks on `bc3fa092353`: ✅ bundle-audit · ✅ rubocop"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "ℹ️ release/1.4.0 conflicts with develop in 1 file(s): Gemfile.lock. No release/1.4.0 → develop pull request is open, so the apply will not open the one listed above: it returns a \"Manual downmerge needed\" handoff to resolve the conflicts on a merge branch instead, and the pipeline trigger starts the build. Checked again after the push."
+        },
+        {
+          "type": "mrkdwn",
+          "text": "🔧 Would start the pipeline for release/1.4.0: it has no open pull request. Checked again after the push."
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "approve",
+          "text": {
+            "type": "plain_text",
+            "text": "Approve",
+            "emoji": true
+          },
+          "style": "primary",
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"b5f4ee\",\"t\":\"increment_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}",
+          "confirm": {
+            "title": {
+              "type": "plain_text",
+              "text": "Increment 1.4.0-RC.1 → 1.4.0-RC.2?"
+            },
+            "text": {
+              "type": "plain_text",
+              "text": "Pushes release/1.4.0 and tag 1.4.0-RC.2 to origin and opens a PR into develop."
+            },
+            "confirm": {
+              "type": "plain_text",
+              "text": "Increment"
+            },
+            "deny": {
+              "type": "plain_text",
+              "text": "Back"
+            }
+          }
+        },
+        {
+          "type": "button",
+          "action_id": "details",
+          "text": {
+            "type": "plain_text",
+            "text": "View details",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"b5f4ee\",\"t\":\"increment_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}"
+        },
+        {
+          "type": "button",
+          "action_id": "cancel",
+          "text": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"b5f4ee\",\"t\":\"increment_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `b5f4ee` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

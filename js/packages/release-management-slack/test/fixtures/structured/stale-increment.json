@@ -1,0 +1,106 @@
+{
+  "kind": "stale",
+  "tool": "increment_release_candidate",
+  "code": "D1",
+  "text": "The repository changed since this plan was created. Expected digest 6c5b7e, got 4f0b2d. Review the new plan and confirm again.",
+  "provided": "4f0b2d",
+  "plan": {
+    "action": "increment_release_candidate",
+    "targetBranch": "release/1.4.0",
+    "targetBranchHead": "f313798bac137da458b641395ebad0479244e2de",
+    "currentVersion": "1.4.0-RC.0",
+    "resultingVersion": "1.4.0-RC.1",
+    "mutations": [
+      {
+        "kind": "commit",
+        "operation": "create",
+        "summary": "\"To version 1.4.0-RC.1\" on release/1.4.0",
+        "detail": {
+          "files": "VERSION"
+        },
+        "ref": {
+          "name": "release/1.4.0"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "create",
+        "summary": "annotated tag 1.4.0-RC.1",
+        "detail": {
+          "message": "Release version 1.4.0-RC.1"
+        },
+        "ref": {
+          "name": "1.4.0-RC.1"
+        }
+      },
+      {
+        "kind": "push",
+        "operation": "create",
+        "summary": "release/1.4.0 and tag 1.4.0-RC.1 to origin",
+        "ref": {
+          "name": "release/1.4.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "update",
+        "summary": "update PR #70 (release/1.4.0 → develop)",
+        "detail": {
+          "title": "RC 1.4.0-RC.1 to develop"
+        },
+        "ref": {
+          "number": 70,
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+          "head": "release/1.4.0",
+          "base": "develop",
+          "title": "RC 1.4.0-RC.1 to develop"
+        }
+      }
+    ],
+    "warnings": [],
+    "notices": [
+      {
+        "code": "N1",
+        "text": "PR #70 is already open for release/1.4.0 → develop; it will be updated, not created."
+      }
+    ],
+    "checks": [
+      {
+        "name": "bundle-audit",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "release/1.4.0",
+        "sha": "f313798bac137da458b641395ebad0479244e2de"
+      },
+      {
+        "name": "rubocop",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "release/1.4.0",
+        "sha": "f313798bac137da458b641395ebad0479244e2de"
+      }
+    ],
+    "checkOutput": [],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "versionFile": {
+        "path": "VERSION",
+        "from": "1.4.0-RC.0",
+        "to": "1.4.0-RC.1"
+      },
+      "ships": {
+        "base": "1.4.0-RC.0",
+        "baseSha": "f313798bac137da458b641395ebad0479244e2de",
+        "head": "release/1.4.0",
+        "headSha": "f313798bac137da458b641395ebad0479244e2de",
+        "count": 0,
+        "filesChanged": 0,
+        "commits": [],
+        "compareUrl": "https://github.com/officespacesoftware/release-management-test/compare/f313798bac137da458b641395ebad0479244e2de...f313798bac137da458b641395ebad0479244e2de"
+      }
+    },
+    "digest": "6c5b7e"
+  }
+}

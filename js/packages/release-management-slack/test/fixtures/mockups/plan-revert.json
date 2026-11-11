@@ -1,0 +1,238 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Revert 1.4.0-RC.2 → 1.4.0-RC.1",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.4.0|release/1.4.0> at `3ab4d590ad4`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.4.0-RC.2` → `1.4.0-RC.1`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Undoes*\n<https://github.com/officespacesoftware/release-management-test/commit/3ab4d590ad4a80f125820d070147adb9a946b3e5|3ab4d59 To version 1.4.0-RC.2> (VERSION)"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "changes",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Deletes",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "wastebasket"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "1.4.0-RC.2 locally"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "wastebasket"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "1.4.0-RC.2 on origin"
+                },
+                {
+                  "type": "text",
+                  "text": ". A build or deploy it already triggered is not undone."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Creates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "memo"
+                },
+                {
+                  "type": "text",
+                  "text": " Commit: "
+                },
+                {
+                  "type": "text",
+                  "text": "revert of 3ab4d590ad4 \"To version 1.4.0-RC.2\" on release/1.4.0"
+                },
+                {
+                  "type": "text",
+                  "text": " · files: VERSION"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "arrow_up"
+                },
+                {
+                  "type": "text",
+                  "text": " Push: "
+                },
+                {
+                  "type": "text",
+                  "text": "release/1.4.0 to origin"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Updates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "twisted_rightwards_arrows"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "update "
+                },
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+                  "text": "PR #70"
+                },
+                {
+                  "type": "text",
+                  "text": " to 1.4.0-RC.1"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “RC 1.4.0-RC.1 to develop”"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "review",
+          "text": {
+            "type": "plain_text",
+            "text": "Review & approve…",
+            "emoji": true
+          },
+          "style": "danger",
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"79139c\",\"t\":\"revert_version\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"r\"}"
+        },
+        {
+          "type": "button",
+          "action_id": "cancel",
+          "text": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"79139c\",\"t\":\"revert_version\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"r\"}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `79139c` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

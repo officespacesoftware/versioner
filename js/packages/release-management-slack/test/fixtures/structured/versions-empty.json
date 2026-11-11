@@ -1,0 +1,9 @@
+{
+  "kind": "versions",
+  "tool": "list_versions",
+  "workingDirectory": "/tmp/rm-test",
+  "currentBranch": "develop",
+  "productionBranch": "main",
+  "entries": [],
+  "candidates": 0
+}

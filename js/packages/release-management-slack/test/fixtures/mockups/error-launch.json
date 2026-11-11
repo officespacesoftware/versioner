@@ -1,0 +1,25 @@
+{
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "❌ *Could not start the agent.* Nothing ran, so nothing was changed. Try the request again."
+      }
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_preformatted",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Cursor POST /v1/agents failed (503): upstream unavailable"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

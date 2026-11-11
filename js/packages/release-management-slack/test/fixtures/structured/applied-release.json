@@ -1,0 +1,102 @@
+{
+  "kind": "applied",
+  "tool": "release_version",
+  "result": {
+    "dryRun": false,
+    "branch": {
+      "name": "release/1.0.0",
+      "change": "updated"
+    },
+    "from": "1.0.0-RC.0",
+    "to": "1.0.0",
+    "tag": {
+      "name": "1.0.0",
+      "change": "created"
+    },
+    "githubRelease": {
+      "tag": "1.0.0",
+      "change": "created",
+      "url": "https://github.com/officespacesoftware/release-management-test/releases/tag/1.0.0"
+    },
+    "pullRequests": [
+      {
+        "number": 70,
+        "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+        "head": "release/1.0.0",
+        "base": "main",
+        "title": "Release 1.0.0 to main",
+        "change": "opened"
+      },
+      {
+        "number": 68,
+        "url": "https://github.com/officespacesoftware/release-management-test/pull/68",
+        "head": "release/1.0.0",
+        "base": "develop",
+        "title": "Release 1.0.0 to develop",
+        "change": "updated"
+      }
+    ],
+    "warnings": [],
+    "notices": [],
+    "problems": [],
+    "steps": [
+      {
+        "step": 1,
+        "name": "Select Target Branch",
+        "status": "completed",
+        "message": "Selected release/1.0.0 (1.0.0-RC.0)"
+      },
+      {
+        "step": 2,
+        "name": "Checkout Release/Hotfix Branch",
+        "status": "completed"
+      },
+      {
+        "step": 3,
+        "name": "Reset To Origin",
+        "status": "completed",
+        "message": "release/1.0.0 is at origin/release/1.0.0"
+      },
+      {
+        "step": 4,
+        "name": "Release Version (RC → Final)",
+        "status": "completed"
+      },
+      {
+        "step": 5,
+        "name": "Push Changes",
+        "status": "completed"
+      },
+      {
+        "step": 6,
+        "name": "Push Version Tag",
+        "status": "completed"
+      },
+      {
+        "step": 7,
+        "name": "Create Pull Request",
+        "status": "completed"
+      },
+      {
+        "step": 8,
+        "name": "Add Hotfix Warning (if applicable)",
+        "status": "completed"
+      },
+      {
+        "step": 9,
+        "name": "Create GitHub Release",
+        "status": "completed"
+      },
+      {
+        "step": 10,
+        "name": "Refresh Own-Base Pull Request",
+        "status": "completed"
+      }
+    ],
+    "nextSteps": [
+      "Deploy 1.0.0 to production",
+      "After the deploy, run downmerge (source: release, target: main) and merge its pull request",
+      "Then run downmerge (source: release, target: develop) and merge that pull request"
+    ]
+  }
+}

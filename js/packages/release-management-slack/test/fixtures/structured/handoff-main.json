@@ -1,0 +1,36 @@
+{
+  "kind": "handoff",
+  "tool": "downmerge",
+  "handoff": {
+    "code": "H2",
+    "text": "Decision needed: release/1.0.0 → main conflicts\n\nThe merge conflicts, so nothing was created. Conflicted files:\n  - app/models/seat.rb\n  - config/settings.yml\n\nmain mirrors production and holds changes release/1.0.0 never received. Do not resolve this or merge main into release/1.0.0: that would deploy it to the release servers without a new release candidate. A human chooses one option:\n  1. Option 1, take main's changes into a new candidate (usually right): Run create_release_candidate with releaseType patch, merge origin/main into the new release branch, promote it with release_version, have Ops deploy it to every production host, then downmerge that release into main, which is clean by then.\n  2. Option 2, leave them out of release/1.0.0: cut release-1.0.0-into-main-<unix-timestamp> off origin/main, merge origin/release/1.0.0 into it, resolve app/models/seat.rb, config/settings.yml, and open a pull request into main titled \"Release 1.0.0 to main\". Say in it that main will then differ from what production runs.\n\nThe full procedure is docs/manual-downmerge.md in the versioner repository (https://github.com/officespacesoftware/versioner/blob/master/docs/manual-downmerge.md).",
+    "source": "release",
+    "target": "main",
+    "requiresDecision": true,
+    "sourceBranch": "release/1.0.0",
+    "version": "1.0.0",
+    "conflictedFiles": [
+      "app/models/seat.rb",
+      "config/settings.yml"
+    ],
+    "resolutionBranch": "release-1.0.0-into-main-<unix-timestamp>",
+    "resolutionBase": "main",
+    "title": "Release 1.0.0 to main",
+    "steps": [
+      "Option 1, take main's changes into a new candidate (usually right): Run create_release_candidate with releaseType patch, merge origin/main into the new release branch, promote it with release_version, have Ops deploy it to every production host, then downmerge that release into main, which is clean by then.",
+      "Option 2, leave them out of release/1.0.0: cut release-1.0.0-into-main-<unix-timestamp> off origin/main, merge origin/release/1.0.0 into it, resolve app/models/seat.rb, config/settings.yml, and open a pull request into main titled \"Release 1.0.0 to main\". Say in it that main will then differ from what production runs."
+    ],
+    "options": [
+      {
+        "label": "take main's changes into a new candidate",
+        "text": "Run create_release_candidate with releaseType patch, merge origin/main into the new release branch, promote it with release_version, have Ops deploy it to every production host, then downmerge that release into main, which is clean by then.",
+        "recommended": true
+      },
+      {
+        "label": "leave them out of release/1.0.0",
+        "text": "cut release-1.0.0-into-main-<unix-timestamp> off origin/main, merge origin/release/1.0.0 into it, resolve app/models/seat.rb, config/settings.yml, and open a pull request into main titled \"Release 1.0.0 to main\". Say in it that main will then differ from what production runs.",
+        "recommended": false
+      }
+    ]
+  }
+}

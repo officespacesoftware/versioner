@@ -1,0 +1,183 @@
+{
+  "kind": "plan",
+  "tool": "release_version",
+  "plan": {
+    "action": "release_version",
+    "targetBranch": "release/1.0.0",
+    "targetBranchHead": "3368d0b10cd7d23f44745d8d84df63abe4c4fc18",
+    "currentVersion": "1.0.0-RC.0",
+    "resultingVersion": "1.0.0",
+    "mutations": [
+      {
+        "kind": "commit",
+        "operation": "create",
+        "summary": "\"To version 1.0.0\" on release/1.0.0",
+        "detail": {
+          "files": "VERSION"
+        },
+        "ref": {
+          "name": "release/1.0.0"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "create",
+        "summary": "annotated tag 1.0.0",
+        "detail": {
+          "message": "Release version 1.0.0"
+        },
+        "ref": {
+          "name": "1.0.0"
+        }
+      },
+      {
+        "kind": "push",
+        "operation": "create",
+        "summary": "release/1.0.0 and tag 1.0.0 to origin",
+        "ref": {
+          "name": "release/1.0.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "create",
+        "summary": "open release/1.0.0 → main",
+        "detail": {
+          "title": "Release 1.0.0 to main"
+        },
+        "ref": {
+          "head": "release/1.0.0",
+          "base": "main",
+          "title": "Release 1.0.0 to main"
+        }
+      },
+      {
+        "kind": "github-release",
+        "operation": "create",
+        "summary": "1.0.0 with auto-generated notes",
+        "detail": {
+          "targetCommitish": "release/1.0.0"
+        },
+        "ref": {
+          "name": "1.0.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "update",
+        "summary": "update PR #68 (release/1.0.0 → develop)",
+        "detail": {
+          "title": "Release 1.0.0 to develop"
+        },
+        "ref": {
+          "number": 68,
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/68",
+          "head": "release/1.0.0",
+          "base": "develop",
+          "title": "Release 1.0.0 to develop"
+        }
+      }
+    ],
+    "warnings": [],
+    "notices": [
+      {
+        "code": "N1",
+        "text": "PR #68 is already open for release/1.0.0 → develop; it will be updated, not created."
+      }
+    ],
+    "checks": [
+      {
+        "name": "bundle-audit",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "release/1.0.0",
+        "sha": "3368d0b10cd7d23f44745d8d84df63abe4c4fc18"
+      },
+      {
+        "name": "rubocop",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "release/1.0.0",
+        "sha": "3368d0b10cd7d23f44745d8d84df63abe4c4fc18"
+      }
+    ],
+    "checkOutput": [],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "versionFile": {
+        "path": "VERSION",
+        "from": "1.0.0-RC.0",
+        "to": "1.0.0"
+      },
+      "ships": {
+        "base": "main",
+        "baseSha": "64b60b0a766e65d1895df7f0e3ec4477617c9862",
+        "head": "release/1.0.0",
+        "headSha": "3368d0b10cd7d23f44745d8d84df63abe4c4fc18",
+        "count": 9,
+        "filesChanged": 9,
+        "commits": [
+          {
+            "sha": "3368d0b10cd7d23f44745d8d84df63abe4c4fc18",
+            "subject": "To version 1.0.0-RC.0",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "56aec5b9b1e8ab4a9db1a21295ca1de4102eecc7",
+            "subject": "Bump tzinfo-data to 2026e",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "9474f235589849965fb2e25601be2861ba880f58",
+            "subject": "Guard nil employee on pending move",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "b209a24e02f0654057d0ee896be1f73bde2767af",
+            "subject": "Run bundle-audit before the release bot cuts a version",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "35250be248bcc158c188ec3a657fe8e5958c9476",
+            "subject": "AI-1322 VD seat icons per seat",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "0c1c69aee3ea04795f78e26fd0f125b6a413e99d",
+            "subject": "Upgrade Apollo Client to 3.8",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "70ce4d46676751c23f48fa6503f1f97e65bc68c6",
+            "subject": "CORE-33679 Faster scenario copy",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "09794421aa5e10836f582b31de0abfa3771975e5",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "94dfbc16dea3134ebb8e503a886db2e9805ba9d8",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Ana Ruiz"
+          }
+        ],
+        "compareUrl": "https://github.com/officespacesoftware/release-management-test/compare/64b60b0a766e65d1895df7f0e3ec4477617c9862...3368d0b10cd7d23f44745d8d84df63abe4c4fc18"
+      },
+      "sinceVersion": {
+        "base": "1.0.0-RC.0",
+        "baseSha": "3368d0b10cd7d23f44745d8d84df63abe4c4fc18",
+        "head": "release/1.0.0",
+        "headSha": "3368d0b10cd7d23f44745d8d84df63abe4c4fc18",
+        "count": 0,
+        "filesChanged": 0,
+        "commits": [],
+        "compareUrl": "https://github.com/officespacesoftware/release-management-test/compare/3368d0b10cd7d23f44745d8d84df63abe4c4fc18...3368d0b10cd7d23f44745d8d84df63abe4c4fc18"
+      }
+    },
+    "digest": "a761f9"
+  }
+}

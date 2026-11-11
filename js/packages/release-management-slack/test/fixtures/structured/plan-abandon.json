@@ -1,0 +1,86 @@
+{
+  "kind": "plan",
+  "tool": "revert_version",
+  "plan": {
+    "action": "revert_version",
+    "targetBranch": "release/1.5.0",
+    "targetBranchHead": "60715fdbd10f32534a2ae60e2a8ab8bbb66dd700",
+    "currentVersion": "1.5.0-RC.0",
+    "shape": "abandon",
+    "mutations": [
+      {
+        "kind": "tag",
+        "operation": "delete",
+        "summary": "1.5.0-RC.0 locally",
+        "ref": {
+          "name": "1.5.0-RC.0"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "delete",
+        "summary": "1.5.0-RC.0 on origin",
+        "ref": {
+          "name": "1.5.0-RC.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "close",
+        "summary": "close PR #71, with a comment explaining why",
+        "ref": {
+          "number": 71,
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/71",
+          "head": "release/1.5.0",
+          "base": "develop"
+        }
+      },
+      {
+        "kind": "branch",
+        "operation": "delete",
+        "summary": "release/1.5.0 on origin and locally, at 60715fdbd10",
+        "detail": {
+          "recovery": "git branch release/1.5.0 60715fdbd10 — if you act before gc"
+        },
+        "ref": {
+          "name": "release/1.5.0",
+          "sha": "60715fdbd10f32534a2ae60e2a8ab8bbb66dd700"
+        }
+      }
+    ],
+    "warnings": [
+      {
+        "code": "W13",
+        "text": "1.5.0-RC.0 is the first version on release/1.5.0, so there is no earlier version to return to. The branch is abandoned rather than rewound."
+      }
+    ],
+    "notices": [
+      {
+        "code": "N4",
+        "text": "Deleting a tag does not undo a build or deployment it already triggered. Pushing to release/1.5.0 may itself trigger a new one."
+      }
+    ],
+    "checks": [],
+    "checkOutput": [],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "ships": {
+        "base": "develop",
+        "baseSha": "aae3d44401c08451c117c514f61c7dc67b8fead8",
+        "head": "release/1.5.0",
+        "headSha": "60715fdbd10f32534a2ae60e2a8ab8bbb66dd700",
+        "count": 1,
+        "filesChanged": 1,
+        "commits": [
+          {
+            "sha": "60715fdbd10f32534a2ae60e2a8ab8bbb66dd700",
+            "subject": "To version 1.5.0-RC.0",
+            "author": "Esteban Trejos"
+          }
+        ],
+        "compareUrl": "https://github.com/officespacesoftware/release-management-test/compare/aae3d44401c08451c117c514f61c7dc67b8fead8...60715fdbd10f32534a2ae60e2a8ab8bbb66dd700"
+      }
+    },
+    "digest": "bef344"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "❌ Could not plan the request",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Stage*\nPlanning"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Changed on origin*\nProbably nothing: check `@release-manager list` if this was a create or increment RC"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_preformatted",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Error: Git command failed: fatal: could not read Username for 'https://github.com'"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

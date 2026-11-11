@@ -1,0 +1,44 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "⌛ The agent did not finish within 15 minutes",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Stage*\nApplying (approved by <@U0APR>)"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Changed on origin*\nUnknown: it may have partly applied"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "It may still be running and may yet push. Watch the <https://cursor.com/agents/bc-7f3a|agent>; do not approve again until it finishes."
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · approved by <@U0APR> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

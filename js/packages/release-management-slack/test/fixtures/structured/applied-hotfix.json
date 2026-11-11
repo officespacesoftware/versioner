@@ -1,0 +1,87 @@
+{
+  "kind": "applied",
+  "tool": "create_hotfix",
+  "result": {
+    "dryRun": false,
+    "branch": {
+      "name": "hotfix/1.3.1",
+      "change": "created",
+      "base": "main"
+    },
+    "from": "1.3.0",
+    "to": "1.3.1-RC.0",
+    "resumed": false,
+    "tag": {
+      "name": "1.3.1-RC.0",
+      "change": "created"
+    },
+    "pullRequests": [
+      {
+        "number": 70,
+        "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+        "head": "hotfix/1.3.1",
+        "base": "main",
+        "title": "RC 1.3.1-RC.0 to main",
+        "change": "opened"
+      },
+      {
+        "number": 71,
+        "url": "https://github.com/officespacesoftware/release-management-test/pull/71",
+        "head": "hotfix/1.3.1",
+        "base": "develop",
+        "title": "Hotfix 1.3.1 to develop",
+        "change": "opened",
+        "draft": true
+      }
+    ],
+    "warnings": [],
+    "notices": [],
+    "problems": [],
+    "steps": [
+      {
+        "step": 1,
+        "name": "Read main's version",
+        "status": "completed",
+        "message": "main is at 1.3.0, so the hotfix branch is hotfix/1.3.1"
+      },
+      {
+        "step": 2,
+        "name": "Create hotfix branch",
+        "status": "completed",
+        "message": "Created hotfix/1.3.1 from origin/main"
+      },
+      {
+        "step": 3,
+        "name": "Update version to patch RC",
+        "status": "completed",
+        "message": "Updated version to: 1.3.1-RC.0"
+      },
+      {
+        "step": 4,
+        "name": "Push hotfix branch and tag",
+        "status": "completed",
+        "message": "Pushed hotfix/1.3.1 and tag 1.3.1-RC.0"
+      },
+      {
+        "step": 5,
+        "name": "Create pull request to main",
+        "status": "completed",
+        "message": "Created pull request: https://github.com/officespacesoftware/release-management-test/pull/70"
+      },
+      {
+        "step": 6,
+        "name": "Open draft pull request to develop",
+        "status": "completed",
+        "message": "Opened draft pull request: https://github.com/officespacesoftware/release-management-test/pull/71"
+      }
+    ],
+    "nextSteps": [
+      "Commit the actual fix on the hotfix branch and push it",
+      "Track it on the → main PR: https://github.com/officespacesoftware/release-management-test/pull/70",
+      "Promote the RC to a final version with release_version",
+      "Deploy to production",
+      "Merge the → main PR only AFTER the deployment succeeds",
+      "Bring the hotfix into develop with downmerge (source: hotfix, target: develop)"
+    ]
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "kind": "applied",
+  "tool": "create_release_candidate",
+  "result": {
+    "dryRun": false,
+    "branch": {
+      "name": "release/1.4.0",
+      "change": "created",
+      "base": "develop"
+    },
+    "from": "1.3.0",
+    "to": "1.4.0-RC.0",
+    "resumed": false,
+    "tag": {
+      "name": "1.4.0-RC.0",
+      "change": "created"
+    },
+    "pullRequests": [
+      {
+        "number": 70,
+        "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+        "head": "release/1.4.0",
+        "base": "develop",
+        "title": "RC 1.4.0-RC.0 to develop",
+        "change": "opened"
+      }
+    ],
+    "warnings": [],
+    "notices": [],
+    "problems": [],
+    "steps": [
+      {
+        "step": 1,
+        "name": "Read develop's version",
+        "status": "completed",
+        "message": "develop is at 1.3.0, so the release branch is release/1.4.0"
+      },
+      {
+        "step": 2,
+        "name": "Verify main/develop synchronization",
+        "status": "completed",
+        "message": "Main has been cleanly merged into develop. Ready for release."
+      },
+      {
+        "step": 3,
+        "name": "Create release branch",
+        "status": "completed",
+        "message": "Created release/1.4.0 from origin/develop"
+      },
+      {
+        "step": 4,
+        "name": "Update version to minor RC",
+        "status": "completed",
+        "message": "Updated version to: 1.4.0-RC.0"
+      },
+      {
+        "step": 5,
+        "name": "Push release branch and tag",
+        "status": "completed",
+        "message": "Pushed release/1.4.0 and tag 1.4.0-RC.0"
+      },
+      {
+        "step": 6,
+        "name": "Create pull request to develop",
+        "status": "completed",
+        "message": "Created pull request: https://github.com/officespacesoftware/release-management-test/pull/70"
+      }
+    ],
+    "nextSteps": [
+      "Review the pull request: https://github.com/officespacesoftware/release-management-test/pull/70",
+      "Run integration tests on the release branch",
+      "Merge the PR when ready to integrate to develop",
+      "Deploy to staging environment for testing"
+    ]
+  }
+}

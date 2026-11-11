@@ -1,0 +1,32 @@
+{
+  "blocks": [
+    {
+      "type": "section",
+      "block_id": "record",
+      "text": {
+        "type": "mrkdwn",
+        "text": "📋 ~Promote 1.0.0-RC.0 → 1.0.0~"
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "🚫 *Cancelled* by <@U0APR> at <!date^1762351500^{date_short_pretty} {time}|2025-11-05 14:05 UTC> · nothing was changed"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `9a570f` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

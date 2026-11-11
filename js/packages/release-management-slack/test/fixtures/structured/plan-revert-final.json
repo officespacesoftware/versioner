@@ -1,0 +1,125 @@
+{
+  "kind": "plan",
+  "tool": "revert_version",
+  "plan": {
+    "action": "revert_version",
+    "targetBranch": "release/1.0.0",
+    "targetBranchHead": "3057d68c6493438e089616fffb45c764a33ce8e4",
+    "currentVersion": "1.0.0",
+    "resultingVersion": "1.0.0-RC.0",
+    "shape": "revert",
+    "mutations": [
+      {
+        "kind": "commit",
+        "operation": "create",
+        "summary": "revert of 3057d68c649 \"To version 1.0.0\" on release/1.0.0",
+        "detail": {
+          "files": "VERSION",
+          "resulting": "1.0.0-RC.0"
+        },
+        "ref": {
+          "name": "release/1.0.0",
+          "sha": "3057d68c6493438e089616fffb45c764a33ce8e4"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "delete",
+        "summary": "1.0.0 locally",
+        "ref": {
+          "name": "1.0.0"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "delete",
+        "summary": "1.0.0 on origin",
+        "ref": {
+          "name": "1.0.0"
+        }
+      },
+      {
+        "kind": "github-release",
+        "operation": "delete",
+        "summary": "\"1.0.0\" for tag 1.0.0",
+        "detail": {
+          "url": "https://github.com/officespacesoftware/release-management-test/releases/tag/1.0.0",
+          "effect": "the Latest marker moves to the previous release",
+          "irreversible": "release notes are destroyed, including any hand edits"
+        },
+        "ref": {
+          "name": "1.0.0",
+          "url": "https://github.com/officespacesoftware/release-management-test/releases/tag/1.0.0"
+        }
+      },
+      {
+        "kind": "push",
+        "operation": "create",
+        "summary": "release/1.0.0 to origin",
+        "ref": {
+          "name": "release/1.0.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "update",
+        "summary": "update PR #68 to 1.0.0-RC.0",
+        "detail": {
+          "title": "RC 1.0.0-RC.0 to develop"
+        },
+        "ref": {
+          "number": 68,
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/68",
+          "head": "release/1.0.0",
+          "base": "develop",
+          "title": "RC 1.0.0-RC.0 to develop"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "close",
+        "summary": "close PR #70 (release/1.0.0 → main), opened by the promotion being reverted",
+        "detail": {
+          "comment": "names the revert and 1.0.0-RC.0"
+        },
+        "ref": {
+          "number": 70,
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+          "head": "release/1.0.0",
+          "base": "main"
+        }
+      }
+    ],
+    "warnings": [
+      {
+        "code": "W12",
+        "text": "1.0.0 is a FINAL version, not a release candidate."
+      }
+    ],
+    "notices": [
+      {
+        "code": "N4",
+        "text": "Deleting a tag does not undo a build or deployment it already triggered. Pushing to release/1.0.0 may itself trigger a new one."
+      }
+    ],
+    "checks": [],
+    "checkOutput": [],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "versionFile": {
+        "path": "VERSION",
+        "from": "1.0.0",
+        "to": "1.0.0-RC.0"
+      },
+      "reverts": {
+        "sha": "3057d68c6493438e089616fffb45c764a33ce8e4",
+        "subject": "To version 1.0.0",
+        "files": [
+          "VERSION"
+        ],
+        "url": "https://github.com/officespacesoftware/release-management-test/commit/3057d68c6493438e089616fffb45c764a33ce8e4"
+      }
+    },
+    "digest": "e827b6"
+  }
+}

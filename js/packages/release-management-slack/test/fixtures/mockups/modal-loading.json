@@ -1,0 +1,26 @@
+{
+  "type": "modal",
+  "callback_id": "review_plan",
+  "title": {
+    "type": "plain_text",
+    "text": "Review plan",
+    "emoji": true
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Back",
+    "emoji": true
+  },
+  "private_metadata": "{\"c\":\"C0RELEASE\",\"m\":\"1762351320.000100\",\"t\":\"1762351300.000100\",\"b\":{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"6a6227\",\"t\":\"release_version\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\"}}",
+  "blocks": [
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "⏳ Loading plan `6a6227`…"
+        }
+      ]
+    }
+  ]
+}

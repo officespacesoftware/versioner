@@ -1,0 +1,80 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ Created hotfix 1.3.1-RC.0",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/hotfix/1.3.1|hotfix/1.3.1> (new, off main)"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.3.0` → `1.3.1-RC.0`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Tag*\n<https://github.com/officespacesoftware/release-management-test/releases/tag/1.3.1-RC.0|1.3.1-RC.0>"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Into main*\n<https://github.com/officespacesoftware/release-management-test/pull/70|PR #70> RC 1.3.1-RC.0 to main (opened, merge after the hotfix is deployed)"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Into develop*\n<https://github.com/officespacesoftware/release-management-test/pull/71|PR #71> Hotfix 1.3.1 to develop (opened, draft)"
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "link.pr",
+          "text": {
+            "type": "plain_text",
+            "text": "Open PR #70",
+            "emoji": true
+          },
+          "style": "primary",
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/70"
+        },
+        {
+          "type": "button",
+          "action_id": "link.pr",
+          "text": {
+            "type": "plain_text",
+            "text": "Open PR #71",
+            "emoji": true
+          },
+          "url": "https://github.com/officespacesoftware/release-management-test/pull/71"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "➡️ *Next:* push the fix to `hotfix/1.3.1`, then `@release-manager promote hotfix/1.3.1`. After the deploy, `@release-manager downmerge hotfix 1.3.1 to develop`."
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · approved by <@U0APR> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

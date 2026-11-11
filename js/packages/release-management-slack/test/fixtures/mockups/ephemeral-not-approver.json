@@ -1,0 +1,11 @@
+{
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "🔒 Only release approvers can approve or cancel this plan: <@U0APR>, <@U0AP2>. Ask one of them in this thread."
+      }
+    }
+  ]
+}

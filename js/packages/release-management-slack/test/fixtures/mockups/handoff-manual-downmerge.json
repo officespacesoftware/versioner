@@ -1,0 +1,126 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🧩 Manual downmerge needed: hotfix/1.4.1 → develop",
+        "emoji": true
+      }
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "The merge conflicts, so nothing was created. Conflicted files:"
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "VERSION",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " (expected after every hotfix: keep develop's)"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "app/models/seat.rb",
+                  "style": {
+                    "code": true
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Steps",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "ordered",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Cut hotfix-1.4.1-into-develop-<unix-timestamp> off origin/develop and merge origin/hotfix/1.4.1 into it."
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Resolve the conflicts in VERSION, app/models/seat.rb. Keep develop's VERSION."
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Push hotfix-1.4.1-into-develop-<unix-timestamp> and open a pull request into develop titled \"Hotfix 1.4.1 to develop\", listing each resolved file with a one-line reason."
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Close the draft hotfix/1.4.1 → develop pull request, if one is open, with a comment linking the new one."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "<https://github.com/officespacesoftware/versioner/blob/master/docs/manual-downmerge.md|Manual downmerge procedure> · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

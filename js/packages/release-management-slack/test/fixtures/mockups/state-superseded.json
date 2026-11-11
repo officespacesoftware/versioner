@@ -1,0 +1,32 @@
+{
+  "blocks": [
+    {
+      "type": "section",
+      "block_id": "record",
+      "text": {
+        "type": "mrkdwn",
+        "text": "📋 ~Promote 1.0.0-RC.0 → 1.0.0~"
+      }
+    },
+    {
+      "type": "context",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "↪️ *Not applied* · origin changed after <@U0APR> approved · a new plan is below"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `9a570f` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

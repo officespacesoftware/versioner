@@ -1,0 +1,178 @@
+{
+  "kind": "plan",
+  "tool": "create_release_candidate",
+  "plan": {
+    "action": "create_release_candidate",
+    "targetBranch": "develop",
+    "targetBranchHead": "777310315211d5ec3658a625069dd45f77a8c1b1",
+    "currentVersion": "1.3.0",
+    "resultingVersion": "1.4.0-RC.0",
+    "mutations": [
+      {
+        "kind": "branch",
+        "operation": "create",
+        "summary": "release/1.4.0 off develop",
+        "ref": {
+          "name": "release/1.4.0",
+          "base": "develop",
+          "sha": "777310315211d5ec3658a625069dd45f77a8c1b1"
+        }
+      },
+      {
+        "kind": "commit",
+        "operation": "create",
+        "summary": "\"To version 1.4.0-RC.0\" on release/1.4.0",
+        "detail": {
+          "files": "VERSION"
+        },
+        "ref": {
+          "name": "release/1.4.0"
+        }
+      },
+      {
+        "kind": "tag",
+        "operation": "create",
+        "summary": "annotated tag 1.4.0-RC.0",
+        "detail": {
+          "message": "Release version 1.4.0-RC.0"
+        },
+        "ref": {
+          "name": "1.4.0-RC.0"
+        }
+      },
+      {
+        "kind": "push",
+        "operation": "create",
+        "summary": "release/1.4.0 and tag 1.4.0-RC.0 to origin",
+        "ref": {
+          "name": "release/1.4.0"
+        }
+      },
+      {
+        "kind": "pull-request",
+        "operation": "create",
+        "summary": "open release/1.4.0 → develop",
+        "detail": {
+          "title": "RC 1.4.0-RC.0 to develop"
+        },
+        "ref": {
+          "head": "release/1.4.0",
+          "base": "develop",
+          "title": "RC 1.4.0-RC.0 to develop"
+        }
+      }
+    ],
+    "warnings": [
+      {
+        "code": "W8",
+        "text": "Pre-version check \"bundle-audit\" failed on develop at 77731031521 (exit 1). Its output is at the end of the plan."
+      }
+    ],
+    "notices": [],
+    "checks": [
+      {
+        "name": "bundle-audit",
+        "status": "failed",
+        "exitCode": 1,
+        "seconds": 0,
+        "ref": "develop",
+        "sha": "777310315211d5ec3658a625069dd45f77a8c1b1",
+        "output": "Name: rack\nVersion: 3.1.8\nAdvisory: CVE-2025-27610\nCriticality: High\nURL: https://github.com/rack/rack/security/advisories/GHSA-7wqh-767x-r66v\nTitle: Local file inclusion in Rack::Static\nSolution: upgrade to ~> 3.1.12\n\nVulnerabilities found!"
+      },
+      {
+        "name": "rubocop",
+        "status": "passed",
+        "exitCode": 0,
+        "seconds": 0,
+        "ref": "develop",
+        "sha": "777310315211d5ec3658a625069dd45f77a8c1b1"
+      }
+    ],
+    "checkOutput": [
+      {
+        "name": "bundle-audit",
+        "output": "Name: rack\nVersion: 3.1.8\nAdvisory: CVE-2025-27610\nCriticality: High\nURL: https://github.com/rack/rack/security/advisories/GHSA-7wqh-767x-r66v\nTitle: Local file inclusion in Rack::Static\nSolution: upgrade to ~> 3.1.12\n\nVulnerabilities found!"
+      }
+    ],
+    "review": {
+      "repoUrl": "https://github.com/officespacesoftware/release-management-test",
+      "versionFile": {
+        "path": "VERSION",
+        "from": "1.3.0",
+        "to": "1.4.0-RC.0"
+      },
+      "ships": {
+        "base": "main",
+        "baseSha": "c722ff5d65a5293861103452bb710e9e270d2b2e",
+        "head": "develop",
+        "headSha": "777310315211d5ec3658a625069dd45f77a8c1b1",
+        "count": 12,
+        "filesChanged": 12,
+        "commits": [
+          {
+            "sha": "777310315211d5ec3658a625069dd45f77a8c1b1",
+            "subject": "Upgrade Apollo Client to 3.8",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "9ffb7339b5ddebdae82203a6b3868064ebc65f49",
+            "subject": "CORE-33679 Faster scenario copy",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "22b30cc1ad7ddf370ecdf7bd2d53009b958a3e50",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "8b7fab8dc826425e0b22a3d218e03c7cdc339a3f",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "d44702d0b25a83d8503fa64eb8990792fb62b8ae",
+            "subject": "Bump tzinfo-data to 2026e",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "34015afc33878607f3dd07c9b611b6d2f9e8c640",
+            "subject": "Guard nil employee on pending move",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "790a0e7bde3f2e6bdaf9f8275f0835846d96263a",
+            "subject": "Run bundle-audit before the release bot cuts a version",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "24759d852e6611ac5144de2235a27045e555ee98",
+            "subject": "AI-1322 VD seat icons per seat",
+            "author": "Esteban Trejos"
+          },
+          {
+            "sha": "a3d35be209b48de4340d03c61653b18992d9a568",
+            "subject": "Upgrade Apollo Client to 3.8",
+            "author": "Ana Ruiz"
+          },
+          {
+            "sha": "82c1cf8c0c198929fe976fda6bd58cead99284ff",
+            "subject": "CORE-33679 Faster scenario copy",
+            "author": "Li Wei"
+          },
+          {
+            "sha": "c6b04f894aba7cd48f5b54e42753a9117a3d9898",
+            "subject": "CORE-33680 Floor plan legend shows seat icons",
+            "author": "Sam Okafor"
+          },
+          {
+            "sha": "0d1b58042aba80622684269b9631d8286255ada8",
+            "subject": "CORE-33422 Let MCP clients check in to desk and room bookings",
+            "author": "Esteban Trejos"
+          }
+        ],
+        "compareUrl": "https://github.com/officespacesoftware/release-management-test/compare/c722ff5d65a5293861103452bb710e9e270d2b2e...777310315211d5ec3658a625069dd45f77a8c1b1"
+      }
+    },
+    "digest": "85f3f2"
+  }
+}

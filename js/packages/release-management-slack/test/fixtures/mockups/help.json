@@ -1,0 +1,345 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🧭 Release manager: what I can do",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*In flight*"
+      }
+    },
+    {
+      "type": "section",
+      "block_id": "row:release/1.5.0",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*<https://github.com/officespacesoftware/release-management-test/releases/tag/1.5.0-RC.1|1.5.0-RC.1>* · RC · <https://github.com/officespacesoftware/release-management-test/tree/release/1.5.0|release/1.5.0>\nNext: promote it, or `increment the RC release/1.5.0` for another candidate"
+      },
+      "accessory": {
+        "type": "button",
+        "action_id": "start_request",
+        "text": {
+          "type": "plain_text",
+          "text": "Promote 1.5.0-RC.1",
+          "emoji": true
+        },
+        "value": "{\"q\":\"promote release/1.5.0\"}"
+      }
+    },
+    {
+      "type": "section",
+      "block_id": "row:hotfix/1.4.1",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*<https://github.com/officespacesoftware/release-management-test/releases/tag/1.4.1|1.4.1>* · final · <https://github.com/officespacesoftware/release-management-test/tree/hotfix/1.4.1|hotfix/1.4.1>\nNext: once Ops has deployed it, downmerge it into main"
+      },
+      "accessory": {
+        "type": "button",
+        "action_id": "start_request",
+        "text": {
+          "type": "plain_text",
+          "text": "Downmerge 1.4.1 to main",
+          "emoji": true
+        },
+        "value": "{\"q\":\"downmerge hotfix 1.4.1 to main\"}",
+        "confirm": {
+          "title": {
+            "type": "plain_text",
+            "text": "Downmerge hotfix 1.4.1 into main?"
+          },
+          "text": {
+            "type": "plain_text",
+            "text": "Only after Ops has deployed 1.4.1 to every production host. This opens the pull request into main at once; that pull request is the review, there is no Approve step."
+          },
+          "confirm": {
+            "type": "plain_text",
+            "text": "Open the PR"
+          },
+          "deny": {
+            "type": "plain_text",
+            "text": "Back"
+          },
+          "style": "danger"
+        }
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Merged into main: 3 · latest <https://github.com/officespacesoftware/release-management-test/releases/tag/1.4.0|1.4.0>, <https://github.com/officespacesoftware/release-management-test/releases/tag/1.3.2|1.3.2>, <https://github.com/officespacesoftware/release-management-test/releases/tag/1.3.1|1.3.1>"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "What to say",
+              "style": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": " (mention me, then one of these)"
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "create an RC",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Cut an RC from develop"
+                },
+                {
+                  "type": "text",
+                  "text": " · Applies at once; waits for approval if the plan has warnings. Add major or patch for another bump",
+                  "style": {
+                    "italic": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "increment the RC release/1.5.0",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Next RC on a branch"
+                },
+                {
+                  "type": "text",
+                  "text": " · Applies at once; waits for approval if the plan has warnings",
+                  "style": {
+                    "italic": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "promote release/1.5.0",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Promote an RC to final"
+                },
+                {
+                  "type": "text",
+                  "text": " · Approve button",
+                  "style": {
+                    "italic": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "hotfix",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Hotfix from main"
+                },
+                {
+                  "type": "text",
+                  "text": " · Approve button",
+                  "style": {
+                    "italic": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "revert release/1.5.0",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Undo the last version bump"
+                },
+                {
+                  "type": "text",
+                  "text": " · Review & approve: RC.n → RC.n-1, final → its RC; RC.0 abandons the branch",
+                  "style": {
+                    "italic": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "downmerge hotfix 1.4.1 to main",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Downmerge"
+                },
+                {
+                  "type": "text",
+                  "text": " · None: it opens a pull request, which is the review. Conflicts into develop are resolved by the agent in a pull request",
+                  "style": {
+                    "italic": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "list",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " What's in flight"
+                },
+                {
+                  "type": "text",
+                  "text": " · Read-only",
+                  "style": {
+                    "italic": true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "How approval works",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Anything that changes origin posts a plan first, listing every change. A release approver applies it, or cancels it."
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "A plan with no warnings and no deletions has Approve, with a one-line confirmation. A plan with a ⚠️ warning or a deletion has Review & approve instead: the full plan opens, and approving happens there."
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Approve applies exactly the plan shown. If the repository moved in between, nothing is applied and the new plan is posted for review."
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "A downmerge into develop that conflicts is resolved by the agent in a pull request; into main it stops for a human decision."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Listed <!date^1762351500^{date_short_pretty} {time}|2025-11-05 14:05 UTC> · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

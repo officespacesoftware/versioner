@@ -1,0 +1,38 @@
+{
+  "blocks": [
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "⏳ Planning "
+            },
+            {
+              "type": "text",
+              "text": "promote release_1.0.0 *now*",
+              "style": {
+                "italic": true
+              }
+            },
+            {
+              "type": "text",
+              "text": "…"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · started <!date^1762351500^{date_short_pretty} {time}|2025-11-05 14:05 UTC> · still working (5 min) · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

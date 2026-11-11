@@ -1,0 +1,346 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Increment 1.4.0-RC.2 → 1.4.0-RC.3",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.4.0|release/1.4.0> at `c84dbb3bebf`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.4.0-RC.2` → `1.4.0-RC.3`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*New since 1.4.0-RC.2*\n4 commits · 4 files · <https://github.com/officespacesoftware/release-management-test/compare/9536cbf44d10434668b4c48a6dfe0d6aaf3c20c3...c84dbb3bebf6ad26b357cf4f75cd1719c6394540|compare>"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "changes",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Creates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "memo"
+                },
+                {
+                  "type": "text",
+                  "text": " Commit: "
+                },
+                {
+                  "type": "text",
+                  "text": "\"To version 1.4.0-RC.3\" on release/1.4.0"
+                },
+                {
+                  "type": "text",
+                  "text": " · files: VERSION"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "label"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "annotated tag 1.4.0-RC.3"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "arrow_up"
+                },
+                {
+                  "type": "text",
+                  "text": " Push: "
+                },
+                {
+                  "type": "text",
+                  "text": "release/1.4.0 and tag 1.4.0-RC.3 to origin"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Updates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "twisted_rightwards_arrows"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "update "
+                },
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/pull/70",
+                  "text": "PR #70"
+                },
+                {
+                  "type": "text",
+                  "text": " (release/1.4.0 → develop)"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “RC 1.4.0-RC.3 to develop”"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "commits-0",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "New in this release candidate (4)",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/c84dbb3bebf6ad26b357cf4f75cd1719c6394540",
+                  "text": "c84dbb3",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Upgrade Apollo Client to 3.8 · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/2b73e7c0974ee45543409f707976b8cd6c67feda",
+                  "text": "2b73e7c",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33679 Faster scenario copy · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/56f54d60d8aaa1420f37b90a439fc55c7aea8e70",
+                  "text": "56f54d6",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33680 Floor plan legend shows seat icons · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/fa3fda535b3c72d6fa0e67684d3ec6a75aaae0f6",
+                  "text": "fa3fda5",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " CORE-33422 Let MCP clients check in to desk and room bookings · Ana Ruiz"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Checks on `c84dbb3bebf`: ⏱️ bundle-audit (timed out, 1 s) · ✅ rubocop"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "emoji",
+              "name": "warning"
+            },
+            {
+              "type": "text",
+              "text": " 2 warnings to decide on",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "ordered",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Local release/1.4.0 has 1 commit(s) that origin/release/1.4.0 does not: 228fe92cc84 To version 1.4.0-RC.3. Origin is the source of truth, so the apply resets release/1.4.0 to origin/release/1.4.0 and drops them from it. To keep them, run git branch unpushed/release/1.4.0 228fe92cc84 before confirming."
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "Pre-version check \"bundle-audit\" did not finish within 1s on release/1.4.0 at c84dbb3bebf."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "review",
+          "text": {
+            "type": "plain_text",
+            "text": "Review & approve…",
+            "emoji": true
+          },
+          "style": "primary",
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"24c57b\",\"t\":\"increment_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"r\"}"
+        },
+        {
+          "type": "button",
+          "action_id": "cancel",
+          "text": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"24c57b\",\"t\":\"increment_release_candidate\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"r\"}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `24c57b` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

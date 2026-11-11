@@ -1,0 +1,412 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📋 Promote 1.0.0-RC.0 → 1.0.0",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Branch*\n<https://github.com/officespacesoftware/release-management-test/tree/release/1.0.0|release/1.0.0> at `3368d0b10cd`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version*\n`1.0.0-RC.0` → `1.0.0`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Since 1.0.0-RC.0*\n✅ Only `VERSION` changes. The tested build is the one that ships."
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Reaches main*\n9 commits · 9 files · <https://github.com/officespacesoftware/release-management-test/compare/64b60b0a766e65d1895df7f0e3ec4477617c9862...3368d0b10cd7d23f44745d8d84df63abe4c4fc18|compare>"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "changes",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Creates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "memo"
+                },
+                {
+                  "type": "text",
+                  "text": " Commit: "
+                },
+                {
+                  "type": "text",
+                  "text": "\"To version 1.0.0\" on release/1.0.0"
+                },
+                {
+                  "type": "text",
+                  "text": " · files: VERSION"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "label"
+                },
+                {
+                  "type": "text",
+                  "text": " Tag: "
+                },
+                {
+                  "type": "text",
+                  "text": "annotated tag 1.0.0"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "arrow_up"
+                },
+                {
+                  "type": "text",
+                  "text": " Push: "
+                },
+                {
+                  "type": "text",
+                  "text": "release/1.0.0 and tag 1.0.0 to origin"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "red_circle"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "open release/1.0.0 → main"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “Release 1.0.0 to main”"
+                },
+                {
+                  "type": "text",
+                  "text": " (production)",
+                  "style": {
+                    "bold": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "package"
+                },
+                {
+                  "type": "text",
+                  "text": " GitHub release: "
+                },
+                {
+                  "type": "text",
+                  "text": "1.0.0 with auto-generated notes"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Updates",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "emoji",
+                  "name": "twisted_rightwards_arrows"
+                },
+                {
+                  "type": "text",
+                  "text": " Pull request: "
+                },
+                {
+                  "type": "text",
+                  "text": "update "
+                },
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/pull/68",
+                  "text": "PR #68"
+                },
+                {
+                  "type": "text",
+                  "text": " (release/1.0.0 → develop)"
+                },
+                {
+                  "type": "text",
+                  "text": ", titled “Release 1.0.0 to develop”"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "block_id": "commits-0",
+      "elements": [
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "What reaches main when the pull request into main merges (9)",
+              "style": {
+                "bold": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "indent": 0,
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/3368d0b10cd7d23f44745d8d84df63abe4c4fc18",
+                  "text": "3368d0b",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " To version 1.0.0-RC.0 · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/56aec5b9b1e8ab4a9db1a21295ca1de4102eecc7",
+                  "text": "56aec5b",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Bump tzinfo-data to 2026e · Li Wei"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/9474f235589849965fb2e25601be2861ba880f58",
+                  "text": "9474f23",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Guard nil employee on pending move · Sam Okafor"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/b209a24e02f0654057d0ee896be1f73bde2767af",
+                  "text": "b209a24",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " Run bundle-audit before the release bot cuts a version · Esteban Trejos"
+                }
+              ]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "link",
+                  "url": "https://github.com/officespacesoftware/release-management-test/commit/35250be248bcc158c188ec3a657fe8e5958c9476",
+                  "text": "35250be",
+                  "style": {
+                    "code": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " AI-1322 VD seat icons per seat · Ana Ruiz"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rich_text_section",
+          "elements": [
+            {
+              "type": "text",
+              "text": "…and 4 more. ",
+              "style": {
+                "italic": true
+              }
+            },
+            {
+              "type": "link",
+              "url": "https://github.com/officespacesoftware/release-management-test/compare/64b60b0a766e65d1895df7f0e3ec4477617c9862...3368d0b10cd7d23f44745d8d84df63abe4c4fc18",
+              "text": "All 9 on GitHub"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Checks on `3368d0b10cd`: ✅ bundle-audit · ✅ rubocop"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "block_id": "state",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "approve",
+          "text": {
+            "type": "plain_text",
+            "text": "Approve",
+            "emoji": true
+          },
+          "style": "primary",
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"a761f9\",\"t\":\"release_version\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}",
+          "confirm": {
+            "title": {
+              "type": "plain_text",
+              "text": "Promote 1.0.0-RC.0 → 1.0.0?"
+            },
+            "text": {
+              "type": "plain_text",
+              "text": "Pushes release/1.0.0 and tag 1.0.0 to origin, opens a PR into main (production), creates GitHub release 1.0.0, which becomes Latest and updates PR #68 into develop. 9 commits reach main when that PR merges."
+            },
+            "confirm": {
+              "type": "plain_text",
+              "text": "Promote"
+            },
+            "deny": {
+              "type": "plain_text",
+              "text": "Back"
+            },
+            "style": "danger"
+          }
+        },
+        {
+          "type": "button",
+          "action_id": "details",
+          "text": {
+            "type": "plain_text",
+            "text": "View details",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"a761f9\",\"t\":\"release_version\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}"
+        },
+        {
+          "type": "button",
+          "action_id": "cancel",
+          "text": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": true
+          },
+          "value": "{\"a\":\"bc-7f3a\",\"u\":\"run-1\",\"d\":\"a761f9\",\"t\":\"release_version\",\"r\":\"U0REQ\",\"q\":\"promote release/1.0.0\",\"k\":\"s\"}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Digest `a761f9` · requested by <@U0REQ> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}

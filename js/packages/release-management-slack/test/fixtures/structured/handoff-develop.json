@@ -1,0 +1,27 @@
+{
+  "kind": "handoff",
+  "tool": "downmerge",
+  "handoff": {
+    "code": "H1",
+    "text": "Manual downmerge needed: hotfix/1.4.1 → develop\n\nThe merge conflicts, so nothing was created. Conflicted files:\n  - VERSION\n  - app/models/seat.rb\n\nSteps:\n  1. Cut hotfix-1.4.1-into-develop-<unix-timestamp> off origin/develop and merge origin/hotfix/1.4.1 into it.\n  2. Resolve the conflicts in VERSION, app/models/seat.rb. Keep develop's VERSION.\n  3. Push hotfix-1.4.1-into-develop-<unix-timestamp> and open a pull request into develop titled \"Hotfix 1.4.1 to develop\", listing each resolved file with a one-line reason.\n  4. Close the draft hotfix/1.4.1 → develop pull request, if one is open, with a comment linking the new one.\n\nThe full procedure is docs/manual-downmerge.md in the versioner repository (https://github.com/officespacesoftware/versioner/blob/master/docs/manual-downmerge.md).",
+    "source": "hotfix",
+    "target": "develop",
+    "requiresDecision": false,
+    "sourceBranch": "hotfix/1.4.1",
+    "version": "1.4.1",
+    "conflictedFiles": [
+      "VERSION",
+      "app/models/seat.rb"
+    ],
+    "resolutionBranch": "hotfix-1.4.1-into-develop-<unix-timestamp>",
+    "resolutionBase": "develop",
+    "title": "Hotfix 1.4.1 to develop",
+    "steps": [
+      "Cut hotfix-1.4.1-into-develop-<unix-timestamp> off origin/develop and merge origin/hotfix/1.4.1 into it.",
+      "Resolve the conflicts in VERSION, app/models/seat.rb. Keep develop's VERSION.",
+      "Push hotfix-1.4.1-into-develop-<unix-timestamp> and open a pull request into develop titled \"Hotfix 1.4.1 to develop\", listing each resolved file with a one-line reason.",
+      "Close the draft hotfix/1.4.1 → develop pull request, if one is open, with a comment linking the new one."
+    ],
+    "options": []
+  }
+}

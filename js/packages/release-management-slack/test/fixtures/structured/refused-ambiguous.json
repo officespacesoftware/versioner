@@ -1,0 +1,6 @@
+{
+  "kind": "refused",
+  "tool": "release_version",
+  "code": "S1",
+  "text": "Ambiguous: Both release/1.5.0 and hotfix/1.5.0 branches exist. Pass the full branch name, release/1.5.0 or hotfix/1.5.0, as the version."
+}

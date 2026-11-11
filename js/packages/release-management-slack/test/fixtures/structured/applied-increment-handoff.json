@@ -1,0 +1,94 @@
+{
+  "kind": "applied",
+  "tool": "increment_release_candidate",
+  "result": {
+    "dryRun": false,
+    "branch": {
+      "name": "release/1.4.0",
+      "change": "updated"
+    },
+    "from": "1.4.0-RC.1",
+    "to": "1.4.0-RC.2",
+    "tag": {
+      "name": "1.4.0-RC.2",
+      "change": "created"
+    },
+    "pullRequests": [],
+    "pipeline": {
+      "status": "started",
+      "code": "T2",
+      "message": "Started the pipeline for release/1.4.0: it has no open pull request.",
+      "output": "pipeline queued"
+    },
+    "manualDownmerge": {
+      "code": "H1",
+      "text": "Manual downmerge needed: release/1.4.0 → develop\n\n1.4.0-RC.2 is pushed and tagged, but release/1.4.0 conflicts with develop, so no pull request into develop was opened. Conflicted files:\n  - Gemfile.lock\n\nSteps:\n  1. Cut release-1.4.0-into-develop-<unix-timestamp> off origin/develop and merge origin/release/1.4.0 into it.\n  2. Resolve the conflicts in Gemfile.lock. Keep develop's VERSION.\n  3. Push release-1.4.0-into-develop-<unix-timestamp> and open a pull request into develop titled \"Release 1.4.0 to develop\", listing each resolved file with a one-line reason.\n\nThe full procedure is docs/manual-downmerge.md in the versioner repository (https://github.com/officespacesoftware/versioner/blob/master/docs/manual-downmerge.md).",
+      "source": "release",
+      "target": "develop",
+      "requiresDecision": false,
+      "sourceBranch": "release/1.4.0",
+      "version": "1.4.0",
+      "conflictedFiles": [
+        "Gemfile.lock"
+      ],
+      "resolutionBranch": "release-1.4.0-into-develop-<unix-timestamp>",
+      "resolutionBase": "develop",
+      "title": "Release 1.4.0 to develop",
+      "steps": [
+        "Cut release-1.4.0-into-develop-<unix-timestamp> off origin/develop and merge origin/release/1.4.0 into it.",
+        "Resolve the conflicts in Gemfile.lock. Keep develop's VERSION.",
+        "Push release-1.4.0-into-develop-<unix-timestamp> and open a pull request into develop titled \"Release 1.4.0 to develop\", listing each resolved file with a one-line reason."
+      ],
+      "options": [],
+      "increment": {
+        "version": "1.4.0-RC.2"
+      }
+    },
+    "warnings": [],
+    "notices": [],
+    "problems": [],
+    "steps": [
+      {
+        "step": 1,
+        "name": "Select Target Branch",
+        "status": "completed",
+        "message": "Selected release/1.4.0 (1.4.0-RC.1)"
+      },
+      {
+        "step": 2,
+        "name": "Checkout Release/Hotfix Branch",
+        "status": "completed"
+      },
+      {
+        "step": 3,
+        "name": "Reset To Origin",
+        "status": "completed",
+        "message": "release/1.4.0 is at origin/release/1.4.0"
+      },
+      {
+        "step": 4,
+        "name": "Validate Branch Version",
+        "status": "completed"
+      },
+      {
+        "step": 5,
+        "name": "Increment Release Candidate",
+        "status": "completed"
+      },
+      {
+        "step": 6,
+        "name": "Push Changes and Tag",
+        "status": "completed"
+      },
+      {
+        "step": 7,
+        "name": "Create Pull Request",
+        "status": "completed"
+      }
+    ],
+    "nextSteps": [
+      "Carry out the manual downmerge of release/1.4.0 into develop: resolve the conflicts on release-1.4.0-into-develop-<unix-timestamp> and open a pull request titled \"Release 1.4.0 to develop\"",
+      "Promote the release candidate with release_version when it is ready for production"
+    ]
+  }
+}

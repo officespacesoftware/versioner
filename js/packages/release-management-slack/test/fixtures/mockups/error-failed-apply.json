@@ -1,0 +1,62 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "❌ Promote: failed part-way",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Stage*\nApplying (approved by <@U0APR>)"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Changed on origin*\nPossibly: it stopped after it started"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Done before it failed*\nSelect release branch; Check out release/1.0.0; Update VERSION to 1.0.0; Tag 1.0.0"
+        }
+      ]
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_preformatted",
+          "elements": [
+            {
+              "type": "text",
+              "text": "Git command failed: ! [remote rejected] release/1.0.0 -> release/1.0.0 (protected branch hook declined)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "➡️ Open the <https://cursor.com/agents/bc-7f3a|agent> to see how far it got, or `@release-manager list`. A new request plans from origin as it is now."
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "block_id": "footer",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Requested by <@U0REQ> · approved by <@U0APR> · <https://cursor.com/agents/bc-7f3a|agent>"
+        }
+      ]
+    }
+  ]
+}
