@@ -48,6 +48,11 @@ there rather than from the text when you can; see
 - In the pull request body, list the hunks you were least sure of first, under
   "Check these", with what you chose and what the alternative was, so the reviewer starts
   there.
+- Report what is true when you report it. Before you mention any other pull request (an
+  earlier attempt, a superseded draft, the source's own pull request), read its current
+  state with `gh pr view <number> --json state,isDraft` and describe it from that: open,
+  closed or merged. Never ask someone to close a pull request you have not just seen open;
+  people act on the thread while you work.
 
 ## Into `develop`
 
