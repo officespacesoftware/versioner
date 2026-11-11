@@ -39,9 +39,15 @@ there rather than from the text when you can; see
   are dropped. Do not squash or rebase.
 - In the pull request body, list every resolved file with a one-line reason for the
   resolution, so the reviewer can check each decision.
-- When a conflict needs a product decision rather than a mechanical one, such as two
-  incompatible changes to the same behaviour, resolve nothing. Open the pull request as a
-  draft with the markers committed, and say which hunks need a human.
+- Resolve every conflict, including ones that look like a product decision, such as one
+  side refactoring code the other side changed. Re-express the source's change on the
+  target's version of the code: keep the target's structure and carry the source's
+  behaviour over to it. The pull request is the review, and an engineer reads it before it
+  merges, so an attempt is always more useful than a hand-back.
+- Never commit conflict markers, and never open the pull request as a draft.
+- In the pull request body, list the hunks you were least sure of first, under
+  "Check these", with what you chose and what the alternative was, so the reviewer starts
+  there.
 
 ## Into `develop`
 
