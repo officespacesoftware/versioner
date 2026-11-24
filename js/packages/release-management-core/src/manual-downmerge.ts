@@ -199,7 +199,7 @@ export function describeManualDownmerge(opts: {
       : `${slug(sourceBranch)}-into-develop-<unix-timestamp>`;
   const steps = [
     `Cut ${resolutionBranch} off origin/develop and merge origin/${sourceBranch} into it.`,
-    `Resolve the conflicts in ${files}. Keep develop's VERSION.`,
+    `Resolve the conflicts in ${files}. Keep the higher of the two VERSIONs.`,
     `Push ${resolutionBranch} and open a pull request into develop titled ` +
       `"${opts.pullRequestTitle}", listing each resolved file with a one-line reason.`,
   ];
