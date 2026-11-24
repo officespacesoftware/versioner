@@ -72,9 +72,15 @@ Then open a pull request from `<resolution-branch>` into `develop` with the hand
 title. `<resolution-branch>` comes from the handoff with `<unix-timestamp>` replaced by
 `date +%s`.
 
-**`VERSION`.** Keep develop's side: `git checkout --ours VERSION`. `develop` and the
-source are on different version lines, so this conflict is expected after every hotfix
-and never means the merge is wrong.
+**`VERSION`.** Keep the higher of the two versions, comparing them as semver, where a
+release candidate (`X.Y.Z-RC.n`) is lower than its final (`X.Y.Z`). Usually that is
+develop's side (`git checkout --ours VERSION`): once a newer release candidate has been
+cut, `develop` is on a later version line than the source. Between a release and the
+next candidate it is not: `develop` holds `4.133.0` while the hotfix holds `4.133.1`, so
+take the source's (`git checkout --theirs VERSION`). `create_release_candidate` computes
+the next version from `develop`'s `VERSION`, so leaving `develop` on the lower one makes
+a patch candidate reuse a version that has already shipped. Either way this conflict is
+expected after every hotfix and never means the merge is wrong.
 
 **Hotfix source.** `create_hotfix` opened a draft `hotfix/X.Y.Z` → `develop` pull
 request as a reminder, and `release_version` kept it a draft (or opened a new draft if

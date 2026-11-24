@@ -228,7 +228,7 @@ test("a conflict into develop hands off a merge branch off develop", async () =>
   );
   assert.equal(handoff.resolutionBase, "develop");
   assert.equal(handoff.pullRequestTitle, "Release 4.125.0 to develop");
-  assert.match(handoff.steps.join("\n"), /Keep develop's VERSION/);
+  assert.match(handoff.steps.join("\n"), /Keep the higher of the two VERSIONs/);
 });
 
 test("a conflicting hotfix into develop also closes the draft tracking PR", async () => {

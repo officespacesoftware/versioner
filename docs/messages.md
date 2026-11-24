@@ -255,7 +255,7 @@ The merge conflicts, so nothing was created. Conflicted files:
 
 Steps:                                   # H1
   1. Cut <resolution-branch> off origin/develop and merge origin/<source> into it.
-  2. Resolve the conflicts in <files>. Keep develop's VERSION.
+  2. Resolve the conflicts in <files>. Keep the higher of the two VERSIONs.
   3. Push <resolution-branch> and open a pull request into develop titled "<title>", listing each resolved file with a one-line reason.
   4. Close the draft <source> → develop pull request, if one is open, with a comment linking the new one.   # hotfix source only
 
